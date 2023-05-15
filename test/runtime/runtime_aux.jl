@@ -20,7 +20,7 @@ function test_runtime(problem, solver)
 	println(" - Time: " * string(timed_result[2]) * " s")
 	println(" - Output: ")
 	println(timed_result[1])
-end
+end    
 
 
 # Problem: Small NN, input: HPolytope, output: HPolytope
