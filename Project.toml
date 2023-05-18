@@ -1,5 +1,5 @@
-name = "NeuralVerification"
-uuid = "146f25fa-00e7-11e9-3ae5-fdbac6e12fa7"
+name = "ModelVerification"
+uuid = "6d061d49-e389-4b69-b84f-d5b218a5bedb"
 version = "0.1.0"
 
 [deps]
@@ -17,6 +17,7 @@ Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SCS = "c946c3f1-0d1f-5ce8-9dea-7daa1f7e2d13"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 
 [compat]
 JuMP = "=1.5.0"
@@ -25,7 +26,6 @@ julia = ">= 1.5"
 
 [extras]
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 

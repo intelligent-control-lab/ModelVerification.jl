@@ -1,11 +1,11 @@
-module NeuralVerification
+module ModelVerification
 
-using JuMP
+# using JuMP
 
-using GLPK, SCS # SCS only needed for Certify
-using PicoSAT # needed for Planet
+# using GLPK, SCS # SCS only needed for Certify
+# using PicoSAT # needed for Planet
+# using Polyhedra, CDDLib
 using LazySets, LazySets.Approximations
-using Polyhedra, CDDLib
 
 using LinearAlgebra
 using Parameters
@@ -15,17 +15,28 @@ import LazySets: dim, HalfSpace # necessary to avoid conflict with Polyhedra
 
 using Requires
 
+using Flux
+
 abstract type Solver end
+abstract type PropMethod end
 
-# For optimization methods:
-import JuMP.MOI.OPTIMAL, JuMP.MOI.INFEASIBLE
-JuMP.Model(solver::Solver) = Model(solver.optimizer)
-# define a `value` function that recurses so that value(vector) and
-# value(VecOfVec) works cleanly. This is only so the code looks nice.
-value(var::JuMP.AbstractJuMPScalar) = JuMP.value(var)
-value(vars::Vector) = value.(vars)
-value(val) = val
+abstract type SplitMethod end
+abstract type SearchMethod end
+# @with_kw struct BranchMethod
+#     search_method::SearchMethod
+#     split_method::SplitMethod
+# end
+# abstract type BranchMethod end
 
+
+# # For optimization methods:
+# import JuMP.MOI.OPTIMAL, JuMP.MOI.INFEASIBLE
+# JuMP.Model(solver::Solver) = Model(solver.optimizer)
+# # define a `value` function that recurses so that value(vector) and
+# # value(VecOfVec) works cleanly. This is only so the code looks nice.
+# value(var::JuMP.AbstractJuMPScalar) = JuMP.value(var)
+# value(vars::Vector) = value.(vars)
+# value(val) = val
 
 include("utils/activation.jl")
 include("utils/network.jl")
@@ -37,18 +48,11 @@ function __init__()
 end
 
 export
-    Solver,
-    Network,
-    AbstractActivation,
-    # NOTE: not sure if exporting these is a good idea as far as namespace conflicts go:
-    # ReLU,
-    # Max,
-    # Id,
-    # Sigmoid,
-    # Tanh,
-    GeneralAct,
-    PiecewiseLinear,
+    SearchMethod,
+    SplitMethod,
+    PropMethod,
     Problem,
+    BranchingMethod,
     Result,
     BasicResult,
     CounterExampleResult,
@@ -56,44 +60,34 @@ export
     ReachabilityResult,
     read_nnet,
     write_nnet,
-    solve,
-    forward_network,
     check_inclusion
 
-solve(m::Model; kwargs...) = JuMP.solve(m; kwargs...)
-export solve
+# solve(m::Model; kwargs...) = JuMP.solve(m; kwargs...)
+# export solve
 
 # TODO: consider creating sub-modules for each of these.
-include("optimization/utils/constraints.jl")
-include("optimization/utils/objectives.jl")
-include("optimization/utils/variables.jl")
-include("optimization/nsVerify.jl")
-include("optimization/convDual.jl")
-include("optimization/duality.jl")
-include("optimization/certify.jl")
-include("optimization/iLP.jl")
-include("optimization/mipVerify.jl")
-include("optimization/bab.jl")
-include("optimization/sherlock.jl")
-include("optimization/reluplex.jl")
-include("optimization/planet.jl")
-export NSVerify, ConvDual, Duality, Certify, ILP, MIPVerify,
-       BaB, Sherlock, Reluplex, Planet
+include("propagate/propagate.jl")
+include("propagate/check.jl")
+include("propagate/solver.jl")
+include("propagate/operator/dense.jl")
+include("propagate/operator/relu.jl")
+include("propagate/operator/util.jl")
 
-include("reachability/utils/reachability.jl")
-include("reachability/exactReach.jl")
-include("reachability/maxSens.jl")
-include("reachability/ai2.jl")
-include("reachability/reluVal.jl")
-include("reachability/neurify.jl")
-include("reachability/fastLin.jl")
-include("reachability/fastLip.jl")
-include("reachability/dlv.jl")
-export ExactReach, MaxSens, Ai2, Ai2h, Ai2z, Box,
-       ReluVal, Neurify, FastLin, FastLip, DLV
+# verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
+verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem) = 
+    search_branches(search_method, split_method, prop_method, problem)
+export verify
+
+export Ai2, Ai2h, Ai2z, Box
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
 export set_tolerance
+
+include("branching/search.jl")
+include("branching/split.jl")
+include("branching/util.jl")
+
+export BFS, Bisect, BFSBisect
 
 end
