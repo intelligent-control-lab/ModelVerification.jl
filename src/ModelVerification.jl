@@ -18,16 +18,16 @@ using Requires
 using Flux
 
 abstract type Solver end
+
+abstract type SearchMethod end
+abstract type SplitMethod end
 abstract type PropMethod end
 
-abstract type SplitMethod end
-abstract type SearchMethod end
 # @with_kw struct BranchMethod
 #     search_method::SearchMethod
 #     split_method::SplitMethod
 # end
 # abstract type BranchMethod end
-
 
 # # For optimization methods:
 # import JuMP.MOI.OPTIMAL, JuMP.MOI.INFEASIBLE
@@ -69,9 +69,10 @@ export
 include("propagate/propagate.jl")
 include("propagate/check.jl")
 include("propagate/solver.jl")
-include("propagate/operator/dense.jl")
-include("propagate/operator/relu.jl")
-include("propagate/operator/util.jl")
+include("propagate/operators/dense.jl")
+include("propagate/operators/relu.jl")
+include("propagate/operators/identity.jl")
+include("propagate/operators/util.jl")
 
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
 verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem) = 

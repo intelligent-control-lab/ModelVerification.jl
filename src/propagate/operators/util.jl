@@ -1,3 +1,12 @@
+
+
+function forward_layer(prop_method, layer, batch_reach, batch_info)
+    println("layer.σ ", layer.σ)
+    batch_reach, batch_info = forward_linear(prop_method, layer, batch_reach, batch_info)
+    batch_reach, batch_info = forward_act(prop_method, layer.σ, batch_reach, batch_info)
+    return batch_reach, batch_info
+end
+
 """
     affine_map(layer, x)
 

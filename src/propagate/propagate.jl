@@ -12,10 +12,8 @@ function propagate(prop_method::ForwardProp, model, batch_input, batch_output, b
     batch_reach = batch_input
     for layer in model.layers
         if isa(layer, Dense)
-            println("batch_reach")
-            println(batch_reach)
-            println(typeof(batch_reach))
             batch_reach, batch_info = forward_layer(prop_method, layer, batch_reach, batch_info)
+            println(layer, " reach ", low(batch_reach[1]), high(batch_reach[1]))
         elseif isa(layer, SkipConnection)
             batch_reach, batch_info = propagate(prop_method, layer.layers, batch_reach, batch_output, batch_info)
         end

@@ -29,4 +29,5 @@ function search_branches(search_method::BFS, split_method, prop_method, problem)
         end
     end
     length(branches) == 0 && return BasicResult(:holds)
+    return BasicResult(:unknown)
 end
