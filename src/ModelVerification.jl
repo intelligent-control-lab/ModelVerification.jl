@@ -17,6 +17,8 @@ using Requires
 
 using Flux
 
+using PaddedViews 
+
 abstract type Solver end
 
 abstract type SearchMethod end
@@ -72,6 +74,7 @@ include("propagate/solver.jl")
 include("propagate/operators/dense.jl")
 include("propagate/operators/relu.jl")
 include("propagate/operators/identity.jl")
+include("propagate/operators/convolution.jl")
 include("propagate/operators/util.jl")
 
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
@@ -79,7 +82,7 @@ verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::Prop
     search_branches(search_method, split_method, prop_method, problem)
 export verify
 
-export Ai2, Ai2h, Ai2z, Box
+export Ai2, Ai2h, Ai2z, Box, Abcrown
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)

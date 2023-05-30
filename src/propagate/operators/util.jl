@@ -1,7 +1,7 @@
 
 
 function forward_layer(prop_method, layer, batch_reach, batch_info)
-    println("layer.σ ", layer.σ)
+    #println("layer.σ ", layer.σ)
     batch_reach, batch_info = forward_linear(prop_method, layer, batch_reach, batch_info)
     batch_reach, batch_info = forward_act(prop_method, layer.σ, batch_reach, batch_info)
     return batch_reach, batch_info
@@ -42,4 +42,17 @@ end
 
 function convex_hull(U::UnionSetArray{<:Any, <:HPolytope})
     tohrep(VPolytope(LazySets.convex_hull(U)))
+end
+
+
+"""
+    backward_layer(prop_method, layer, batch_reach, batch_info)
+
+Compute layer from the layer's output to the layer's input
+"""
+function backward_layer(prop_method, layer, batch_reach, batch_info)
+    println("layer.σ ", layer.σ)
+    batch_reach, batch_info = backward_linear(prop_method, layer, batch_reach, batch_info)
+    batch_reach, batch_info = backward_act(prop_method, layer.σ, batch_reach, batch_info)
+    return batch_reach, batch_info
 end
