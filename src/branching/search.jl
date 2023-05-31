@@ -15,7 +15,7 @@ function search_branches(search_method::BFS, split_method, prop_method, problem)
         push!(batch_output, output)
         push!(batch_info, info)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
-            println(length(batch_input))
+            #println(length(batch_input))
             batch_result, batch_info = propagate(prop_method, problem.model, batch_input, batch_output, batch_info)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue
