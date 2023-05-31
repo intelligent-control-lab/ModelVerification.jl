@@ -1,3 +1,5 @@
+using Interpolations
+
 abstract type ActivationFunction end
 
 """

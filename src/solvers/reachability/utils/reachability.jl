@@ -94,7 +94,7 @@ function forward_partition(act::ReLU, input)
     return output
 end
 
-###################### For ReluVal and Neurify ######################
+###################### For ReluVal and Neurify ######################  
 struct SymbolicInterval{F<:AbstractPolytope}
     Low::Matrix{Float64}
     Up::Matrix{Float64}

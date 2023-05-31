@@ -384,30 +384,6 @@ end
 approximate_act_map(layer::Layer, input::Hyperrectangle) = approximate_act_map(layer.activation, input)
 
 
-"""
-    split_interval(dom, i)
-
-Split a set into two at the given index.
-
-Inputs:
-- `dom::Hyperrectangle`: the set to be split
-- `i`: the index to split at
-Return:
-- `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: two sets after split
-"""
-function split_interval(dom::Hyperrectangle, i::Int64)
-    input_lower, input_upper = low(dom), high(dom)
-
-    input_upper[i] = dom.center[i]
-    input_split_left = Hyperrectangle(low = input_lower, high = input_upper)
-
-    input_lower[i] = dom.center[i]
-    input_upper[i] = dom.center[i] + dom.radius[i]
-    input_split_right = Hyperrectangle(low = input_lower, high = input_upper)
-    return (input_split_left, input_split_right)
-end
-
-
 struct UnboundedInputError <: Exception
     msg::String
 end

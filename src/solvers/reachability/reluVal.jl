@@ -35,7 +35,7 @@ end
 function solve(solver::ReluVal, problem::Problem)
     isbounded(problem.input) || throw(UnboundedInputError("ReluVal can only handle bounded input sets."))
 
-    reach_list = []
+    reach_list = []  
     interval = problem.input
     for i in 1:solver.max_iter
         if i > 1

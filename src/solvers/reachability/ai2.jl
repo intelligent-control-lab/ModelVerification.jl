@@ -54,7 +54,7 @@ function solve(solver::Ai2, problem::Problem)
     reach = forward_network(solver, problem.network, problem.input)
     return check_inclusion(reach, problem.output)
 end
-
+  
 # Ai2h and Ai2z use affine_map
 # Box uses approximate_affine_map for the linear region if it is propagating a zonotope
 forward_linear(solver::Ai2h, L::Layer{ReLU}, input::AbstractPolytope) = affine_map(L, input)

@@ -1,3 +1,4 @@
+
 """
     Problem{P, Q}(network::Network, input::P, output::Q)
 
@@ -7,10 +8,12 @@ The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
 """
 struct Problem{P, Q}
-    network::Network
+    model::Chain
     input::P
     output::Q
 end
+
+
 
 """
     Result

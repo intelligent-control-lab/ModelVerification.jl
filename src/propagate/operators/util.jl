@@ -1,0 +1,58 @@
+
+
+function forward_layer(prop_method, layer, batch_reach, batch_info)
+    #println("layer.σ ", layer.σ)
+    batch_reach, batch_info = forward_linear(prop_method, layer, batch_reach, batch_info)
+    batch_reach, batch_info = forward_act(prop_method, layer.σ, batch_reach, batch_info)
+    return batch_reach, batch_info
+end
+
+"""
+    affine_map(layer, x)
+
+Compute W*x ⊕ b for a vector or LazySet `x`
+"""
+affine_map(layer::Dense, x) = layer.weight*x + layer.bias
+
+function affine_map(layer::Dense, batch_x::Vector{<:AbstractPolytope})
+    return [LazySets.affine_map(layer.weight, x, layer.bias) for x in batch_x]
+end
+
+function affine_map(layer::Dense, x::LazySet)
+    LazySets.affine_map(layer.weight, x, layer.bias)
+end
+
+"""
+   approximate_affine_map(layer, input::Hyperrectangle)
+
+Returns a Hyperrectangle overapproximation of the affine map of the input.
+"""
+function approximate_affine_map(layer::Dense, batch_input::Vector{Hyperrectangle})
+    return [Hyperrectangle(
+                affine_map(layer, input.center), 
+                abs.(layer.weight) * input.radius
+            ) for input in batch_input]
+end
+
+function approximate_affine_map(layer::Dense, input::Hyperrectangle)
+    c = affine_map(layer, input.center)
+    r = abs.(layer.weight) * input.radius
+    return Hyperrectangle(c, r)
+end
+
+function convex_hull(U::UnionSetArray{<:Any, <:HPolytope})
+    tohrep(VPolytope(LazySets.convex_hull(U)))
+end
+
+
+"""
+    backward_layer(prop_method, layer, batch_reach, batch_info)
+
+Compute layer from the layer's output to the layer's input
+"""
+function backward_layer(prop_method, layer, batch_reach, batch_info)
+    println("layer.σ ", layer.σ)
+    batch_reach, batch_info = backward_linear(prop_method, layer, batch_reach, batch_info)
+    batch_reach, batch_info = backward_act(prop_method, layer.σ, batch_reach, batch_info)
+    return batch_reach, batch_info
+end

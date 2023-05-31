@@ -1,8 +1,7 @@
 | Testing | Coverage | Documentation |
 | :-----: | :------: | :-----------: |
-| [![Build Status](https://github.com/sisl/NeuralVerification.jl/workflows/CI/badge.svg)](https://github.com/sisl/NeuralVerification.jl/actions) | [![codecov](https://codecov.io/gh/sisl/NeuralVerification.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/sisl/NeuralVerification.jl) | [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://sisl.github.io/NeuralVerification.jl/latest) |
 
-# NeuralVerification.jl
+# ModelVerification.jl
 
 This library contains implementations of various methods to soundly verify deep neural networks.
 In general, we verify whether a neural network satisfies certain input-output constraints.

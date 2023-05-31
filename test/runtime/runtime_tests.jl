@@ -61,4 +61,4 @@ include("runtime_aux.jl")
 # ACAS Problem: problem_acas_HrH
 # Solvers: Planet(), Reluplex(), ReluVal()
 
-test_runtime(problem_small_HH, ExactReach())
+test_runtime(problem_small_HH, Ai2())
