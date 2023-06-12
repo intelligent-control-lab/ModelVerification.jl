@@ -19,7 +19,7 @@ function propagate(prop_method::ForwardProp, model, batch_input, batch_output, b
         end
     end
 
-    return check_inclusion(prop_method, model, batch_input, batch_reach, batch_output), batch_info
+    return batch_reach, batch_info
 end
 
 function propagate(prop_method::BackwardProp, model, batch_input, batch_output, batch_info)
@@ -37,7 +37,7 @@ function propagate(prop_method::BackwardProp, model, batch_input, batch_output, 
         end
         layer_index += 1
     end
-    return check_inclusion(prop_method, model, batch_input, batch_reach, batch_output), batch_info
+    return batch_reach, batch_info
 end
 
 function propagate(prop_method::AdversarialAttack, model, batch_input, batch_output, batch_info)

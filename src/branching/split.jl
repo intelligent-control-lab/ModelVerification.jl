@@ -12,6 +12,10 @@ function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle,
     return [subtree1; subtree2]
 end
 
+function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, info)
+    return split_branch(split_method, model, box_approximation(input), output, info)
+end
+
 """
     split_interval(dom, i)
 

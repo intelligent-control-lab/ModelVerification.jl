@@ -8,15 +8,19 @@ function search_branches(search_method::BFS, split_method, prop_method, problem)
     batch_input = []
     batch_output = []
     batch_info = []
+    # println("BFSing")
     for iter in 1:search_method.max_iter # BFS with max iteration
+        # println(iter)
         length(branches) == 0 && break
         input, output, info = popfirst!(branches)
         push!(batch_input, input)
         push!(batch_output, output)
         push!(batch_info, info)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
-            #println(length(batch_input))
-            batch_result, batch_info = propagate(prop_method, problem.model, batch_input, batch_output, batch_info)
+            # println("propagating")
+            # println(length(batch_input))
+            batch_reach, batch_info = propagate(prop_method, problem.model, batch_input, batch_output, batch_info)
+            batch_result = check_inclusion(prop_method, problem.model, batch_input, batch_reach, batch_output)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i]

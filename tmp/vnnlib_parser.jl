@@ -139,8 +139,8 @@ function read_vnnlib_simple(vnnlib_filename, num_inputs, num_outputs)
 
         ################
 
-        groups = match(regex_simple_assert, line)
-        @assert isnothing(groups)
+        groups = match(regex_dnf, line)
+        @assert !isnothing(groups)
 
         line = replace(line, "(" => " ")
         line = replace(line, ")" => " ")
@@ -212,4 +212,3 @@ function read_vnnlib_simple(vnnlib_filename, num_inputs, num_outputs)
     return final_rv
 
 end
-
