@@ -1,52 +1,53 @@
+function forward_layer(prop_method, layer, batch_bound, batch_info)
+    #println("layer.σ ", layer.σ)
+    batch_bound, batch_info = forward_linear(prop_method, layer, batch_bound, batch_info)
+    batch_bound, batch_info = forward_act(prop_method, layer.σ, batch_bound, batch_info)
+    return batch_bound, batch_info
+end
 
 
-abstract type ForwardProp <: PropMethod end
-abstract type BackwardProp <: PropMethod end
-abstract type AdversarialAttack <: PropMethod end
-
-
-function propagate(prop_method::ForwardProp, model, batch_input, batch_output, batch_info)
+function propagate(prop_method::ForwardProp, model, batch_bound, batch_out_spec, batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
-    batch_reach = batch_input
+    
     for layer in model.layers
         if isa(layer, Dense)
-            batch_reach, batch_info = forward_layer(prop_method, layer, batch_reach, batch_info)
-            #println(layer, " reach ", low(batch_reach[1]), high(batch_reach[1]))
+            batch_bound, batch_info = forward_layer(prop_method, layer, batch_bound, batch_info)
+            #println(layer, " reach ", low(batch_bound[1]), high(batch_bound[1]))
         elseif isa(layer, SkipConnection)
-            batch_reach, batch_info = propagate(prop_method, layer.layers, batch_reach, batch_output, batch_info)
+            batch_bound, batch_info = propagate(prop_method, layer.layers, batch_bound, batch_out_spec, batch_info)
         end
     end
 
-    return batch_reach, batch_info
+    return batch_bound, batch_info
 end
 
-function propagate(prop_method::BackwardProp, model, batch_input, batch_output, batch_info)
+
+function propagate(prop_method::BackwardProp, model, batch_bound, batch_out_spec, batch_info)
     # output: batch x ... x ...
     # dfs start from model.output_nodes
-    batch_reach = batch_output
+    
     input_size = forward(model, batch_input) #using forward to get the input size of the layers in the model
     layer_index = 0
     for layer in reverse(model.layers)
         if isa(layer, Conv)
             conv_input_size = input_size[end-layer_index] #get the original forward input size 
-            batch_reach, batch_bias, batch_info = backward_linear(layer, conv_input_size, batch_reach, batch_info)
+            batch_bound, batch_bias, batch_info = backward_linear(layer, conv_input_size, batch_bound, batch_info)
         elseif isa(layer, SkipConnection)
-            batch_reach, batch_bias, batch_info = propagate(prop_method, layer.layers, batch_input, batch_reach, batch_info)
+            batch_bound, batch_bias, batch_info = propagate(prop_method, layer.layers, batch_input, batch_bound, batch_info)
         end
         layer_index += 1
     end
-    return batch_reach, batch_info
+    return batch_bound, batch_info
 end
 
-function propagate(prop_method::AdversarialAttack, model, batch_input, batch_output, batch_info)
+function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out_spec, batch_info)
     # output: batch x ... x ...
     throw("unimplemented")
-    # couterexample_result, batch_info = attack(prop_method, model, batch_input, batch_output, batch_info)
+    # couterexample_result, batch_info = attack(prop_method, model, batch_input, batch_out_spec, batch_info)
     # return couterexample_result, batch_info
 end
-
 
 function forward(model, batch_input::AbstractArray)
     input_size = [] #input_size is a list

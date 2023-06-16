@@ -3,6 +3,7 @@
     batch_size::Int64 = 1
 end
 
+
 function search_branches(search_method::BFS, split_method, prop_method, problem)
     branches = [(problem.input, problem.output, nothing)]
     batch_input = []
@@ -19,8 +20,9 @@ function search_branches(search_method::BFS, split_method, prop_method, problem)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
             # println("propagating")
             # println(length(batch_input))
-            batch_reach, batch_info = propagate(prop_method, problem.model, batch_input, batch_output, batch_info)
-            batch_result = check_inclusion(prop_method, problem.model, batch_input, batch_reach, batch_output)
+            batch_bound, batch_out_spec, batch_info = prepare_method(prop_method, problem.model, batch_input, batch_output, batch_info)
+            batch_bound, batch_info = propagate(prop_method, problem.model, batch_bound, batch_out_spec, batch_info)
+            batch_result = check_inclusion(prop_method, problem.model, batch_input, batch_bound, batch_out_spec)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i]
@@ -29,6 +31,7 @@ function search_branches(search_method::BFS, split_method, prop_method, problem)
                 branches = [branches; sub_branches]
             end
             batch_input = []
+            batch_output = []
             batch_info = []
         end
     end

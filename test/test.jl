@@ -6,7 +6,7 @@ using LazySets
 using ONNX
 import Umlaut: Tape, play!
 
-#@testset "ai2" begin
+@testset "ai2" begin
     onnx_file = "/home/verification/vnncomp2021/benchmarks/acasxu/ACASXU_run2a_1_1_batch_2000.onnx"
     vnnlib_file = "/home/verification/vnncomp2021/benchmarks/acasxu/prop_1.vnnlib"
     n_in = 5
@@ -19,7 +19,7 @@ import Umlaut: Tape, play!
     initial = rand(Float32, 5)
     flux_model = ONNX.load(onnx_file, initial)
     info = nothing
-    branch = branching_method(:nothing, 100)    
+    branch = branching_method(:nothing, 100)
     solver = method(Ai2(), :forward, branch)
     holds, holds_info = propagate(solver, flux_model, in_hpoly, convert(HPolytope, out_superset), info)
     violated, holds_info = propagate(solver, flux_model, in_hpoly, convert(HPolytope, out_overlapping), info)

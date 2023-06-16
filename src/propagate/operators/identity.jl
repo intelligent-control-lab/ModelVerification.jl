@@ -1,3 +1,3 @@
-function forward_act(prop_method::ForwardProp, σ::typeof(identity), batch_reach::Vector{<:AbstractPolytope}, batch_info)
-    return batch_reach, batch_info
+function forward_act(prop_method, σ::typeof(identity), bound, batch_info)
+    return bound, batch_info
 end

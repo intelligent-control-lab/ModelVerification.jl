@@ -16,6 +16,7 @@ import LazySets: dim, HalfSpace # necessary to avoid conflict with Polyhedra
 using Requires
 
 using Flux
+using NNlib
 
 using PaddedViews 
 
@@ -67,22 +68,20 @@ export
 # solve(m::Model; kwargs...) = JuMP.solve(m; kwargs...)
 # export solve
 
+include("spec/spec.jl")
+
 # TODO: consider creating sub-modules for each of these.
+include("propagate/solver.jl")
+include("propagate/bound.jl")
 include("propagate/propagate.jl")
 include("propagate/check.jl")
-include("propagate/solver.jl")
 include("propagate/operators/dense.jl")
 include("propagate/operators/relu.jl")
 include("propagate/operators/identity.jl")
 include("propagate/operators/convolution.jl")
 include("propagate/operators/util.jl")
 
-# verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
-verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem) = 
-    search_branches(search_method, split_method, prop_method, problem)
-export verify
-
-export Ai2, Ai2h, Ai2z, Box, Abcrown
+export Ai2, Ai2h, Ai2z, Box, Crown
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
@@ -92,6 +91,16 @@ include("branching/search.jl")
 include("branching/split.jl")
 include("branching/util.jl")
 
+include("utils/preprocessing.jl")
+
 export BFS, Bisect, BFSBisect
+
+# verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
+function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
+    problem = prepare_problem(search_method, split_method, prop_method, problem)
+    search_branches(search_method, split_method, prop_method, problem)
+end
+
+export verify
 
 end
