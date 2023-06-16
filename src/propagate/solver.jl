@@ -10,10 +10,10 @@ const Box = Ai2{Hyperrectangle}
 
 struct Crown <: ForwardProp end
 
-function prepare_method(prop_method::PropMethod, model, batch_input::AbstractVector, batch_out_spec::AbstractVector, batch_info)
-    return init_bound(prop_method, batch_input), batch_out_spec, batch_info
+function prepare_method(prop_method::PropMethod, model, batch_input::AbstractVector, batch_output::AbstractVector, batch_info)
+    return init_bound(prop_method, batch_input), batch_output, batch_info
 end
 
-function prepare_method(prop_method::Crown, model, batch_input::AbstractVector, batch_out_spec::AbstractVector, batch_info)
-    return init_bound(prop_method, batch_input), get_linear_spec(batch_out_spec), batch_info
+function prepare_method(prop_method::Crown, model, batch_input::AbstractVector, batch_output::AbstractVector, batch_info)
+    return init_bound(prop_method, batch_input), get_linear_spec(batch_output), batch_info
 end

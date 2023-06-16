@@ -38,6 +38,47 @@ function init_bound(prop_method::Crown, batch_input::AbstractArray)
     return bound
 end
 
+
+"""
+concretize(low::AbstractVecOrMat, up::AbstractVecOrMat, data_min_batch, data_max_batch) where N
+
+Compute lower and upper bounds of a relu node in Crown.
+`l, u := ([low]₊*data_min + [low]₋*data_max), ([up]₊*data_max + [up]₋*data_min)`
+
+Outputs:
+- `(lbound, ubound)`
+"""
+function concretize(bound::CrownBound)
+    # low::AbstractVecOrMat{N}, up::AbstractVecOrMat{N}, data_min_batch, data_max_batch
+    # low : reach_dim x input_dim x batch
+    # data_min_batch: input_dim x batch
+    # l: reach_dim x batch
+    # batched_vec is a mutant of batched_mul that accepts batched vector as input.
+    z = zeros(size(bound.batch_Low))
+    # println(size(bound.batch_Low))
+    # println(size(bound.batch_data_min))
+    # println("concretize")
+    # println("bound.batch_Low")
+    # println(bound.batch_Low)
+    # println("bound.batch_Up")
+    # println(bound.batch_Up)
+    # println("bound.batch_data_min")
+    # println(bound.batch_data_min)
+    # println("bound.batch_data_max")
+    # println(bound.batch_data_max)
+    
+    l =   batched_vec(max.(bound.batch_Low, z), bound.batch_data_min) + batched_vec(min.(bound.batch_Low, z), bound.batch_data_max)
+    u =   batched_vec(max.(bound.batch_Up, z), bound.batch_data_max) + batched_vec(min.(bound.batch_Up, z), bound.batch_data_min)
+    # println("concretize")
+    # println("l")
+    # println(l)
+    # println("u")
+    # println(u)
+    # println(l.<=u)
+    # @assert all(l.<=u) "lower bound larger than upper bound"
+    return l, u
+end
+
 struct GradientBound{F<:AbstractPolytope, N<:Real}
     sym::LinearBound{F} # reach_dim x input_dim x batch_size
     LΛ::Vector{Vector{N}}    # reach_dim x input_dim x batch_size

@@ -37,18 +37,45 @@ end
 function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
     l, u = concretize(bound)
+    # println("l u")
+    # println(l)
+    # println(u)
+    # println("A")
+    # println(batch_out_spec.A)
+    # println("b")
+    # println(batch_out_spec.b)
+    # @assert all(l.<=u) "check lower bound larger than upper bound"
     batch_size = size(l,2)
-    pos_A = max.(batch_out_spec.A, zeros(size(batch_out_spec.A)))
+    pos_A = max.(batch_out_spec.A, zeros(size(batch_out_spec.A))) # spec_dim x out_dim x batch_size
     neg_A = min.(batch_out_spec.A, zeros(size(batch_out_spec.A)))
     spec_u = batched_vec(pos_A, u) + batched_vec(neg_A, l) .- batch_out_spec.b # spec_dim x batch_size
-    spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size
     spec_l = batched_vec(pos_A, l) + batched_vec(neg_A, u) .- batch_out_spec.b # spec_dim x batch_size
-    spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size
+    center = (bound.batch_data_min[1:end-1,:] + bound.batch_data_max[1:end-1,:])./2 # out_dim x batch_size
+    out_center = model(center)
+    center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
-    for i in 1:batch_size
-        spec_u[i] < 0 && (results[i] = BasicResult(:holds))
-        spec_l[i] > 0 && (results[i] = BasicResult(:violated))
+    # println("spec_l")
+    # println(spec_l)
+    # println("spec_u")
+    # println(spec_u)
+    
+    spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
+    spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
+    center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
+    
+    if batch_out_spec.is_complement 
+        # A x < b descript the unsafe set, violated if exist x such that max spec ai x - bi <= 0    
+        for i in 1:batch_size
+            center_res[i] <= 0 && (results[i] = BasicResult(:violated))
+            spec_l[i] > 0 && (results[i] = BasicResult(:holds))
+        end
+    else # holds if forall x such that max spec ai x - bi <= 0
+        for i in 1:batch_size
+            spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
+            center_res[i] > 0 && (results[i] = BasicResult(:violated))
+        end
     end
+    
     return results
 end
 

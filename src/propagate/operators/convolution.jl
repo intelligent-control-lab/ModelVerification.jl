@@ -1,3 +1,13 @@
+
+# Ai2z, Ai2h
+function forward_linear(prop_method::ForwardProp, layer::Conv, batch_reach::AbstractArray, batch_info)
+    all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
+    batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
+    batch_reach, batch_info = affine_map(layer, batch_reach), batch_info
+    return batch_reach, batch_info
+end
+
+
 function backward_linear(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray, batch_info)  #prop_method::BackwardProp, 
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
