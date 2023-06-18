@@ -16,7 +16,7 @@ function forward_linear(prop_method::Crown, layer::Dense, bound::CrownBound, bat
     output_Low[:, end, :] .+= layer.bias
     output_Up[:, end, :] .+= layer.bias
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    l, u = concretize(new_bound)
+    # l, u = compute_bound(new_bound)
     return new_bound, batch_info
 end
 

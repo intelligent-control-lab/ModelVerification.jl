@@ -38,13 +38,20 @@ end
 
 
 """
-    backward_layer(prop_method, layer, batch_reach, batch_info)
+    broadcast_mid_dim(m::AbstractArray{2}, target::AbstractArray{T,3})
 
-Compute layer from the layer's output to the layer's input
+Given a target tensor of the shape AxBxC, 
+broadcast the 2D mask of the shape AxC to AxBxC.
+
+Outputs:
+- `m` broadcasted.
 """
-function backward_layer(prop_method, layer, batch_reach, batch_info)
-    println("layer.σ ", layer.σ)
-    batch_reach, batch_info = backward_linear(prop_method, layer, batch_reach, batch_info)
-    batch_reach, batch_info = backward_act(prop_method, layer.σ, batch_reach, batch_info)
-    return batch_reach, batch_info
+function broadcast_mid_dim(m::AbstractArray{T1,2}, target::AbstractArray{T2,3}) where T1 where T2
+    @assert size(m,1) == size(target,1) "Size mismatch in broadcast_mid_dim"
+    @assert size(m,2) == size(target,3) "Size mismatch in broadcast_mid_dim"
+    # reshape the mask to match the shape of target
+    m = reshape(m, size(m, 1), 1, size(m, 2)) # reach_dim x 1 x batch
+    # replicate the mask along the second dimension
+    m = repeat(m, 1, size(target, 2), 1)
+    return m
 end

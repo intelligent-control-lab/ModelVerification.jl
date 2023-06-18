@@ -11,14 +11,15 @@ using LinearAlgebra
 using Parameters
 using Interpolations # only for PiecewiseLinear
 
-import LazySets: dim, HalfSpace # necessary to avoid conflict with Polyhedra
-
+import LazySets: dim, HalfSpace, concretize # necessary to avoid conflict with Polyhedra
+import Flux: flatten
 using Requires
 
 using Flux
 using NNlib
 
 using PaddedViews 
+using Accessors
 
 abstract type Solver end
 
@@ -77,11 +78,13 @@ include("propagate/propagate.jl")
 include("propagate/check.jl")
 include("propagate/operators/dense.jl")
 include("propagate/operators/relu.jl")
+include("propagate/operators/normalise.jl")
+include("propagate/operators/stateless.jl")
 include("propagate/operators/identity.jl")
 include("propagate/operators/convolution.jl")
 include("propagate/operators/util.jl")
 
-export Ai2, Ai2h, Ai2z, Box, Crown
+export Ai2, Ai2h, Ai2z, Box, Crown, ImageStar, ImageStarZono
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)

@@ -1,12 +1,30 @@
 
-# Ai2z, Ai2h
-function forward_linear(prop_method::ForwardProp, layer::Conv, batch_reach::AbstractArray, batch_info)
-    all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
-    batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
-    batch_reach, batch_info = affine_map(layer, batch_reach), batch_info
-    return batch_reach, batch_info
+
+function forward_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound, batch_info)
+    # copy a Conv and set activation to identity
+    cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
+    # copy a Conv and set activation to identity
+    gen_Conv = Conv(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    # cen_Conv = @set layer.activation = identity # copy a Conv and set activation to identity
+    # gen_Conv = @set cen_Conv.bias = zeros(size(layer.bias)) # copy a Conv set bias to zeros
+    new_center = cen_Conv(bound.center)
+    new_generators = gen_Conv(bound.generators)
+    return ImageZonoBound(new_center, new_generators), batch_info
 end
 
+function forward_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
+    println("fuck")
+    println(layer.σ)
+    # copy a Conv and set activation to identity
+    cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
+    # copy a Conv and set activation to identity
+    gen_Conv = Conv(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    # cen_Conv = @set layer.activation = identity # copy a Conv and set activation to identity
+    # gen_Conv = @set cen_Conv.bias = zeros(size(layer.bias)) # copy a Conv set bias to zeros
+    new_center = cen_Conv(bound.center)
+    new_generators = gen_Conv(bound.generators)
+    return ImageStarBound(new_center, new_generators, bound.P), batch_info
+end
 
 function backward_linear(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray, batch_info)  #prop_method::BackwardProp, 
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")

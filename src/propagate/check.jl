@@ -1,29 +1,27 @@
 
+
+function check_inclusion(prop_method::ForwardProp, model, batch_input, bound::ImageZonoBound, batch_output)
+    @assert length(batch_input) == 1 "ImageZonoBound only support batch_size = 1"
+    z = Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
+    box_reach = box_approximation(z)
+    println(volume(box_reach))
+    return [BasicResult(:holds)]
+end
+
+
 function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::LazySet)
-    # println("--")
-    #println("input ", low(input), high(input))
-    #println("reach ", low(reach), high(reach))
     x = LazySets.center(input)
-    #println("center ", x, " ", model(x))
-    #println("result ", ⊆(reach, output) ? :holds : ∈(model(x), output) ? :unknown : :violated)
+    println(reach)
+    println(⊆(reach, output))
     ⊆(reach, output) && return ReachabilityResult(:holds, [reach])
     ∈(model(x), output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
 end
 
 function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::Complement)
-    # println("checking inclusion")
     x = LazySets.center(input)
     unsafe_output = Complement(output)
-    # println("checking empty")
-    # println(unsafe_output)
     box_reach = box_approximation(reach)
-    # println(box_reach)
-    # println(isdisjoint(box_reach, unsafe_output))
-    # println("===")
-    # println("done isempty")
-    # ∈(model(x), unsafe_output)
-    # println("done issubset")
     isdisjoint(box_reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
     ∈(model(x), unsafe_output) && return CounterExampleResult(:violated, x)
     return CounterExampleResult(:unknown)
@@ -36,15 +34,7 @@ end
 
 function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
-    l, u = concretize(bound)
-    # println("l u")
-    # println(l)
-    # println(u)
-    # println("A")
-    # println(batch_out_spec.A)
-    # println("b")
-    # println(batch_out_spec.b)
-    # @assert all(l.<=u) "check lower bound larger than upper bound"
+    l, u = compute_bound(bound)
     batch_size = size(l,2)
     pos_A = max.(batch_out_spec.A, zeros(size(batch_out_spec.A))) # spec_dim x out_dim x batch_size
     neg_A = min.(batch_out_spec.A, zeros(size(batch_out_spec.A)))
@@ -54,10 +44,6 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     out_center = model(center)
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
-    # println("spec_l")
-    # println(spec_l)
-    # println("spec_u")
-    # println(spec_u)
     
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
     spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi

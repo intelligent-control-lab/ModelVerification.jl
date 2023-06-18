@@ -10,6 +10,10 @@ const Box = Ai2{Hyperrectangle}
 
 struct Crown <: ForwardProp end
 
+struct ImageStar{T<:Union{Star, Zonotope}} <: ForwardProp end
+ImageStar() = ImageStar{Star}()
+const ImageStarZono = ImageStar{Zonotope}
+
 function prepare_method(prop_method::PropMethod, model, batch_input::AbstractVector, batch_output::AbstractVector, batch_info)
     return init_bound(prop_method, batch_input), batch_output, batch_info
 end

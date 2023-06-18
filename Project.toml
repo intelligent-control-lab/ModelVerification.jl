@@ -3,6 +3,7 @@ uuid = "6d061d49-e389-4b69-b84f-d5b218a5bedb"
 version = "0.1.0"
 
 [deps]
+Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 CDDLib = "3391f64e-dcde-5f30-b752-e11513730f60"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 GLPK = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
