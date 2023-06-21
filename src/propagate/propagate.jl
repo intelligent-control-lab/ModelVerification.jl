@@ -1,14 +1,3 @@
-function forward_layer(prop_method, layer, batch_bound, batch_info)
-    batch_bound, batch_info = forward_linear(prop_method, layer, batch_bound, batch_info)
-    hasfield(typeof(layer), :σ) && (batch_bound, batch_info = forward_act(prop_method, layer.σ, batch_bound, batch_info))
-    return batch_bound, batch_info
-end
-
-function backward_layer(prop_method, layer, batch_reach, batch_info)
-    batch_reach, batch_info = backward_linear(prop_method, layer, batch_reach, batch_info)
-    hasfield(typeof(layer), :σ) && (batch_reach, batch_info = backward_act(prop_method, layer.σ, batch_reach, batch_info))
-    return batch_reach, batch_info
-end
 
 function propagate(prop_method::ForwardProp, model, batch_bound, batch_out_spec, batch_info)
     # input: batch x ... x ...
@@ -17,7 +6,8 @@ function propagate(prop_method::ForwardProp, model, batch_bound, batch_out_spec,
     
     for layer in model.layers
         if isa(layer, SkipConnection)
-            batch_bound, batch_info = propagate(prop_method, layer.layers, batch_bound, batch_out_spec, batch_info)
+            skip_batch_bound, skip_batch_info = propagate(prop_method, layer.layers, batch_bound, batch_out_spec, batch_info)
+            forward_skip_batch(prop_method, layer.connection, batch_bound, skip_batch_bound, batch_info, skip_batch_info)
         else
             batch_bound, batch_info = forward_layer(prop_method, layer, batch_bound, batch_info)
             #println(layer, " reach ", low(batch_bound[1]), high(batch_bound[1]))
@@ -60,4 +50,35 @@ function forward(model, batch_input::AbstractArray)
         batch_input = layer(batch_input)
     end
     return input_size
+end
+
+function forward_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info::AbstractArray)
+    batch_reach_info = [forward_linear(prop_method, layer, reach, info) for (reach, info) in zip(batch_reach, batch_info)]
+    return map(first, batch_reach_info), map(last, batch_reach_info)
+end
+
+function forward_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info::AbstractArray)
+    batch_reach_info = [forward_act(prop_method, σ, reach, info) for (reach, info) in zip(batch_reach, batch_info)]
+    return map(first, batch_reach_info), map(last, batch_reach_info)
+end
+
+function forward_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info1::AbstractArray, batch_info2::AbstractArray)
+    batch_reach_info = [forward_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info1[i], batch_info2[i]) for i in eachindex(batch_reach1)]
+    return map(first, batch_reach_info), map(last, batch_reach_info)
+end
+
+function forward_layer(prop_method, layer, batch_bound, batch_info)
+    batch_bound, batch_info = forward_linear_batch(prop_method, layer, batch_bound, batch_info)
+    if hasfield(typeof(layer), :σ)
+        batch_bound, batch_info = forward_act_batch(prop_method, layer.σ, batch_bound, batch_info)
+    end
+    return batch_bound, batch_info
+end
+
+function backward_layer(prop_method, layer, batch_bound, batch_info)
+    batch_bound, batch_info = backward_linear(prop_method, layer, batch_bound, batch_info)
+    if hasfield(typeof(layer), :σ)
+        batch_bound, batch_info = backward_act(prop_method, layer.σ, batch_bound, batch_info)
+    end
+    return batch_bound, batch_info
 end
