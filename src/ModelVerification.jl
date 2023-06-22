@@ -12,10 +12,10 @@ using Parameters
 using Interpolations # only for PiecewiseLinear
 
 import LazySets: dim, HalfSpace, concretize # necessary to avoid conflict with Polyhedra
+import Flux: flatten
 using Requires
 
 using Flux
-import Flux: flatten
 using NNlib
 
 using PaddedViews 

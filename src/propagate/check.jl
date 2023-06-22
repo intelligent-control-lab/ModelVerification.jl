@@ -1,19 +1,23 @@
 
-
 function check_inclusion(prop_method::ForwardProp, model, input, bound::ImageZonoBound, output)
     z = Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
     box_reach = box_approximation(z)
+    println("Image Zono reach")
+    # println(z)
+    # println("bound")
+    # println(bound)
     println(volume(box_reach))
-    return BasicResult(:holds)
+    return ReachabilityResult(:holds, box_reach)
 end
 
 function check_inclusion(prop_method::ForwardProp, model, input, bound::ImageStarBound, output)
-    return BasicResult(:holds)
+    return ReachabilityResult(:holds, bound)
 end
 
-
 function check_inclusion(prop_method::ImageStar, model, input::Union{ImageZonoBound, ImageStarBound}, reach::LazySet, output::LazySet)
-    ⊆(reach, output) && return BasicResult(:holds)
+    box_reach = box_approximation(reach)
+    println(volume(box_reach))
+    ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
     x = input.center
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
     ∈(y, output) && return CounterExampleResult(:unknown)

@@ -2,9 +2,11 @@
 
 function forward_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound, info)
     # copy a Conv and set activation to identity
+    # println("layer.bias")
+    
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     # copy a Conv set bias to zeros
-    gen_Conv = Conv(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
     return ImageZonoBound(new_center, new_generators), info
@@ -14,7 +16,7 @@ function forward_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBou
     # copy a Conv and set activation to identity
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     # copy a Conv and set activation to identity
-    gen_Conv = Conv(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
     return ImageStarBound(new_center, new_generators, bound.A, bound.b), info
@@ -24,7 +26,7 @@ end
 
 function forward_linear(prop_method::ImageStarZono, layer::ConvTranspose, bound::ImageZonoBound, info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
-    gen_Conv = ConvTranspose(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
     return ImageZonoBound(new_center, new_generators), info
@@ -33,7 +35,7 @@ end
 
 function forward_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
-    gen_Conv = ConvTranspose(layer.weight,  zeros(size(layer.bias)), identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
     return ImageStarBound(new_center, new_generators, bound.A, bound.b), info

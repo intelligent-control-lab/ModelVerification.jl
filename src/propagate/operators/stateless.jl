@@ -1,7 +1,7 @@
-forward_linear(prop_method, layer::typeof(Flux.flatten), bound::ImageStarBound, info) = 
+forward_linear(prop_method, layer::typeof(flatten), bound::ImageStarBound, info) = 
     Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b)), info
 
-forward_linear(prop_method, layer::typeof(Flux.flatten), bound::ImageZonoBound, info) =
+forward_linear(prop_method, layer::typeof(flatten), bound::ImageZonoBound, info) =
     Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4))), info
 
 function forward_linear(prop_method, layer::MeanPool, bound::ImageStarBound, info)

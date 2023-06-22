@@ -5,9 +5,13 @@ function propagate(prop_method::ForwardProp, model, batch_bound, batch_out_spec,
     # dfs start from model.input_nodes
     
     for layer in model.layers
-        if isa(layer, SkipConnection)
+        if isa(layer, Parallel)
+            par1_batch_bound, par1_batch_info = propagate(prop_method, layer.layers[:α], batch_bound, batch_out_spec, batch_info)
+            par2_batch_bound, par2_batch_info = propagate(prop_method, layer.layers[:β], batch_bound, batch_out_spec, batch_info)
+            batch_bound, batch_info = forward_skip_batch(prop_method, layer.connection, par1_batch_bound, par2_batch_bound, par1_batch_info, par2_batch_info)
+        elseif isa(layer, SkipConnection)
             skip_batch_bound, skip_batch_info = propagate(prop_method, layer.layers, batch_bound, batch_out_spec, batch_info)
-            forward_skip_batch(prop_method, layer.connection, batch_bound, skip_batch_bound, batch_info, skip_batch_info)
+            batch_bound, batch_info = forward_skip_batch(prop_method, layer.connection, batch_bound, skip_batch_bound, batch_info, skip_batch_info)
         else
             batch_bound, batch_info = forward_layer(prop_method, layer, batch_bound, batch_info)
             #println(layer, " reach ", low(batch_bound[1]), high(batch_bound[1]))
@@ -67,10 +71,21 @@ function forward_skip_batch(prop_method::ForwardProp, layer, batch_reach1::Abstr
     return map(first, batch_reach_info), map(last, batch_reach_info)
 end
 
+function is_activation(l)
+    for f in NNlib.ACTIVATIONS
+        isa(l, typeof(@eval NNlib.$(f))) && return true
+    end
+    return false
+end
+
 function forward_layer(prop_method, layer, batch_bound, batch_info)
-    batch_bound, batch_info = forward_linear_batch(prop_method, layer, batch_bound, batch_info)
-    if hasfield(typeof(layer), :σ)
-        batch_bound, batch_info = forward_act_batch(prop_method, layer.σ, batch_bound, batch_info)
+    if is_activation(layer)
+        batch_bound, batch_info = forward_act_batch(prop_method, layer, batch_bound, batch_info)
+    else
+        batch_bound, batch_info = forward_linear_batch(prop_method, layer, batch_bound, batch_info)
+        if hasfield(typeof(layer), :σ)
+            batch_bound, batch_info = forward_act_batch(prop_method, layer.σ, batch_bound, batch_info)
+        end
     end
     return batch_bound, batch_info
 end
