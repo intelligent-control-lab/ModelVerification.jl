@@ -26,7 +26,7 @@ function forward_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBou
     return ImageStarBound(new_center, new_generators, bound.P), batch_info
 end
 
-function backward_linear(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray, batch_info)  #prop_method::BackwardProp, 
+function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray, batch_info)  
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
     #size(batch_reach) = (weight, hight, channel, batch*spec)
@@ -46,7 +46,8 @@ function backward_linear(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, 
     return batch_reach, batch_bias, batch_info
 end  
 
-function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval_low::AbstractArray, interval_high::AbstractArray) 
+function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
+    interval_low = interval[1], interval_high = interval[2]
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
     mid = (interval_low + interval_high) / 2.0
     diff = (interval_high - interval_low) / 2.0
@@ -58,7 +59,7 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     deviation = deviation_propagate_layer(diff)
     upper = center + deviation
     lower = center - deviation
-    return lower, upper
+    return [lower, upper, nothing]
 end
 
 function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)

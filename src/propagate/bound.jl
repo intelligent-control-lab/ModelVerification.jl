@@ -17,6 +17,14 @@ struct ImageZonoBound{T<:Real} <: Bound
     generators::AbstractArray{T, 4}   #  of  h x w x 4
 end
 
+mutable struct Constrain
+    #= batch_size::Int
+    unstable_size::Int
+    output_size::Any =#
+    shape::Any #shape is [batch_size, unstable_size, output_size]
+    unstable_idx::Any
+    #C::Any
+end 
 """
 init_bound(prop_method::ImageStar, batch_input) 
 
@@ -80,7 +88,7 @@ function init_bound(prop_method::Crown, batch_input::AbstractArray)
     return bound
 end
 
-"""
+"""   
 compute_bound(low::AbstractVecOrMat, up::AbstractVecOrMat, data_min_batch, data_max_batch) where N
 
 Compute lower and upper bounds of a relu node in Crown.
@@ -119,6 +127,156 @@ function compute_bound(bound::CrownBound)
     # @assert all(l.<=u) "lower bound larger than upper bound"
     return l, u
 end
+
+function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper = false, final_node_name,
+    intermediate_layer_bounds, batch_info, global_info) # x is the input of the model, C is the constrains of the model
+    # root constrains all the input node, like inputs, input_params
+    root = [batch_info[name] for name in root_name] #batch_info includes each node's input, bonud, and so on 
+    batch_size = size(root[1].inputs, 1)  # BoundParams = "/1" is 1.weight
+    dim_in = 0
+    for i in 1:length(root)
+        value = forward(root[i])
+        if(root[i].ptb == true)
+            ret_init = init_perturbation(root[i].node, root[i].batch_input, root[i].perturbation_info)
+            root[i].interval = [ret_init.batch_Low, ret_init.batch_Up, root[i].perturbation_info]
+            root[i].lower = ret_init.batch_Low
+             root[i].upper = ret_init.batch_Up
+        else
+            # This input/parameter does not have perturbation.
+            root[i].interval = [value, value, nothing]
+            root[i].forward_value = root[i].value = value
+            root[i].lower = root[i].upper = value
+        end
+    end
+    final = batch_info[final_node_name]
+    set_used_nodes(final, batch_info, global_info)
+end
+
+
+function set_used_nodes(final, batch_info, global_info)
+    if final.name != global_info.last_final_node #global_info stores some extra info like last_final_node, used_nodes
+        global_info.last_final_node = final.name
+        global_info.used_nodes = []
+        for i in batch_info
+            i.used = false
+        end
+        final.used = true
+        queue = Queue{Any}()
+        enqueue!(q, final)
+        while isempty(queue)
+            n = dequeue!(queue)
+            push!(global_info.used_nodes, n)
+            for n_pre in n.inputs #input of the node
+                if !n_pre.used
+                    n_pre.used = true
+                    push!(queue, n_pre)
+                end
+            end
+        end
+    end
+end
+
+
+
+function get_sparse_C(node, global_info, sparse_intermediate_bounds = true, ref_intermediate_lb = nothing, 
+    ref_intermediate_ub = nothing)
+    sparse_conv_intermediate_bounds = global_info.sparse_conv_intermediate_bounds 
+    minimum_sparsity = global_info.minimum_sparsity
+    crown_batch_size = global_info.crown_batch_size
+    dim = prod(node.output_shape[2:end])
+    batch_size = global_info.batch_size
+    
+    reduced_dim = false  # Only partial neurons (unstable neurons) are bounded.
+    unstable_idx = nothing
+    unstable_size = Inf
+    newC = nothing
+
+    if node.type == "Dense" || node.type == "MatMul"
+        if sparse_intermediate_bounds
+            # If we are doing bound refinement and reference bounds are given, we only refine unstable neurons.
+            # Also, if we are checking against LP solver we will refine all neurons and do not use this optimization.
+            # For each batch element, we find the unstable neurons.
+            unstable_idx, unstable_size = get_unstable_locations(global_info, ref_intermediate_lb, ref_intermediate_ub)
+            if unstable_size == 0
+                # Do nothing, no bounds will be computed.
+                reduced_dim = true
+                unstable_idx = []
+            elseif unstable_size > crown_batch_size
+                # Create C in batched CROWN
+                newC = "OneHot"
+                reduced_dim = true
+            elseif unstable_size <= minimum_sparsity * dim && unstable_size > 0 && isnothing(alpha_is_sparse) || alpha_is_sparse
+                # When we already have sparse alpha for this layer, we always use sparse C. Otherwise we determine it by sparsity.
+                # Create an abstract C matrix, the unstable_idx are the non-zero elements in specifications for all batches.
+                newC = Constarin([batch_size, unstable_size, node.output_shape[1:end]], unstable_idx)
+                reduced_dim = true
+            else
+                unstable_idx = nothing
+                ref_intermediate_lb = nothing
+                ref_intermediate_ub = nothing
+            end
+        end
+        if !reduced_dim
+            newC = eyeC([batch_size, dim, node.output_shape[1:end]]) #another struct, need to be change
+        end
+    end
+    return newC, reduced_dim, unstable_idx, unstable_size
+end
+
+
+
+function check_optimized_variable_sparsity(node, global_info)
+    alpha_sparsity = nothing  # unknown
+    for relu in global_info.relus
+        if hasproperty(relu, :alpha_lookup_idx) && node.name in relu.alpha_lookup_idx
+            if !isnothing(relu.alpha_lookup_idx[node.name])
+                # This node was created with sparse alpha
+                alpha_sparsity = true
+            else
+                alpha_sparsity = false
+            end
+            break
+        end
+    end
+    return alpha_sparsity
+end
+
+
+
+function get_unstable_locations(global_info, ref_intermediate_lb, ref_intermediate_ub, conv = false, channel_only = false)
+        max_crown_size = global_info.max_crown_size
+        unstable_masks = (ref_intermediate_lb) .< 0 .& (ref_intermediate_ub .> 0)
+        if channel_only
+            unstable_locs = sum(unstable_masks, dims = (1, 2, 4)) .> 0
+            unstable_idx = findall(unstable_locs)
+        else
+            if !conv && ndims(unstable_masks) > 2
+                unstable_masks = reshape(unstable_masks, size(unstable_masks, 1), :)
+                ref_intermediate_lb = reshape(ref_intermediate_lb, size(ref_intermediate_lb, 1), :)
+                ref_intermediate_ub = reshape(ref_intermediate_ub, size(ref_intermediate_ub, 1), :)
+            end
+            unstable_locs = sum(unstable_masks, dims = ndims(unstable_masks)) .> 0
+            if conv
+                unstable_idx = findall(unstable_locs)
+            else
+                unstable_idx = findall(unstable_locs)
+            end
+        end
+    
+        unstable_size = length(unstable_idx)
+        if unstable_size > max_crown_size
+            indices_selected = select_unstable_idx(ref_intermediate_lb, ref_intermediate_ub, unstable_locs, max_crown_size)
+            if isa(unstable_idx, Tuple)
+                unstable_idx = tuple(u[indices_selected] for u in unstable_idx)
+            else
+                unstable_idx = unstable_idx[indices_selected]
+            end
+        end
+        unstable_size = length(unstable_idx)
+    
+        return unstable_idx, unstable_size
+end
+
 
 struct GradientBound{F<:AbstractPolytope, N<:Real}
     sym::LinearBound{F} # reach_dim x input_dim x batch_size

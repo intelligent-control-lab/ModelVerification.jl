@@ -10,6 +10,10 @@ const Box = Ai2{Hyperrectangle}
 
 struct Crown <: ForwardProp end
 
+struct AlphaCrown <: BackwardProp end
+
+struct BetaCrown <: BackwardProp end
+
 struct ImageStar{T<:Union{Star, Zonotope}} <: ForwardProp end
 ImageStar() = ImageStar{Star}()
 const ImageStarZono = ImageStar{Zonotope}

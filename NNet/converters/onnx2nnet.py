@@ -35,7 +35,7 @@ def onnx2nnet(onnxFile, inputMins=None, inputMaxes=None, means=None, ranges=None
         inputName: (string) optional, Name of operation corresponding to input.
         outputName: (string) optional, Name of operation corresponding to output.
     '''
-    
+    print("converting ")
     if nnetFile=="":
         nnetFile = onnxFile[:-4] + 'nnet'
 
@@ -141,8 +141,9 @@ def onnx2nnet(onnxFile, inputMins=None, inputMaxes=None, means=None, ranges=None
 
                 # print(weights)    
                 # print(biases)
-                
-
+    
+    print(len(weights))
+    print(len(biases))
     # Check if the weights and biases were extracted correctly from the graph
     if outputName==inputName and len(weights)>0 and len(weights)==len(biases):
         

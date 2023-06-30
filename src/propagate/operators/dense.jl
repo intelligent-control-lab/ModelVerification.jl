@@ -20,6 +20,18 @@ function forward_linear(prop_method::Crown, layer::Dense, bound::CrownBound, bat
     return new_bound, batch_info
 end
 
+function forward_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound, batch_info)
+    # out_dim x in_dim * in_dim x X_dim x batch_size
+    output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
+    @assert !any(isnan, output_Low) "contains NaN"
+    @assert !any(isnan, output_Up) "contains NaN"
+    output_Low[:, end, :] .+= layer.bias
+    output_Up[:, end, :] .+= layer.bias
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
+    # l, u = compute_bound(new_bound)
+    return new_bound, batch_info
+end
+
 # Ai2z, Ai2h
 function forward_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")

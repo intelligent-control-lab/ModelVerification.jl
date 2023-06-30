@@ -84,7 +84,7 @@ include("propagate/operators/identity.jl")
 include("propagate/operators/convolution.jl")
 include("propagate/operators/util.jl")
 
-export Ai2, Ai2h, Ai2z, Box, Crown, ImageStar, ImageStarZono
+export Ai2, Ai2h, Ai2z, Box, Crown, AlphaCrown, BetaCrown, ImageStar, ImageStarZono
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
