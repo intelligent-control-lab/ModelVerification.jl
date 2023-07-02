@@ -16,6 +16,17 @@ function split_branch(split_method::Bisect, model::Chain, input::LazySet, output
     return split_branch(split_method, model, box_approximation(input), output, info)
 end
 
+
+function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, info)
+    input.A
+    
+end
+
+
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, info)
+    return [input, nothing] #TODO: find a way to split ImageZonoBound
+end
+
 """
     split_interval(dom, i)
 

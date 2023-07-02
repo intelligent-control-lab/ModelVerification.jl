@@ -21,6 +21,13 @@ using NNlib
 using PaddedViews 
 using Accessors
 
+using Images, ImageIO
+using ONNXNaiveNASflux, NaiveNASflux, .NaiveNASlib
+using LinearAlgebra
+using OpenCV
+using Flux
+using DataStructures
+
 abstract type Solver end
 
 abstract type SearchMethod end
@@ -82,9 +89,10 @@ include("propagate/operators/normalise.jl")
 include("propagate/operators/stateless.jl")
 include("propagate/operators/identity.jl")
 include("propagate/operators/convolution.jl")
+include("propagate/operators/bivariate.jl")
 include("propagate/operators/util.jl")
 
-export Ai2, Ai2h, Ai2z, Box, Crown, AlphaCrown, BetaCrown, ImageStar, ImageStarZono
+export Ai2, Ai2h, Ai2z, Ai2s, Box, Crown, AlphaCrown, BetaCrown, ImageStar, ImageStarZono
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)

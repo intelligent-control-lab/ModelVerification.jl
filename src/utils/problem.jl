@@ -8,7 +8,9 @@ The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
 """
 struct Problem{P, Q}
-    model::Chain
+    onnx_model_path::String
+    Flux_model::Chain
+    input_shape::Tuple
     input::P
     output::Q
 end
@@ -73,7 +75,7 @@ Like `BasicResult`, but also returns the output reachable set given the input co
 """
 struct ReachabilityResult <: Result
 	status::Symbol
-	reachable::Vector{<:AbstractPolytope}
+	reachable
     ReachabilityResult(s, r) = new(validate_status(s), r)
 end
 
