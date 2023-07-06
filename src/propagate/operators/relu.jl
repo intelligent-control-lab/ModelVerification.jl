@@ -202,35 +202,7 @@ function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, 
 end  
 
 
-function init_slope()
-    for node in optimizable_activations
-        if method in ["backward", "forward+backward"]
-            c = share_slopes = final_node_name = nothing
-            start_nodes = [start_nodes; get_alpha_crown_start_nodes(
-                node, c, share_slopes, final_node_name)]
-        end
-        init_opt_parameters(start_nodes)
-        init_intermediate_bounds[node.inputs[1].name] = (
-            [detach(node.inputs[1].lower), detach(node.inputs[1].upper)])
-    end
-end
 
-
-function get_alpha_crown_start_nodes(node, c = nothing,  share_slopes = false, final_node_name = nothing)
-    sparse_intermediate_bounds = true
-    use_full_conv_alpha_thresh = 512
-    start_nodes = []
-    for nj in backward_from[node]
-        unstable_idx = nothing
-        use_sparse_conv = nothing
-        use_full_conv_alpha = true
-        if nj.name == final_node_name
-            size_final = isnothing(c) ? final_node_name.output_shape[end] : size(c, 2)
-            push!(start_nodes, (final_node_name, size_final, nothing))
-            continue
-        end
-    end 
-end
 
 
 function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound, 
@@ -289,10 +261,10 @@ function backward_relaxation(Last_A_Low, Last_A_Up, relu_bound::CrownBound, relu
 end 
 
 
-function bound_backward(Last_lA, Last_uA, x::CrownBound, start_node, beta_for_intermediate_layers, unstable_idx)
-    upper_d, upper_b, lower_d, lower_b = backward_relaxation(Last_lA, Last_uA, x::CrownBound, start_node, unstable_idx)
-    uA, ubias = bound_oneside(Last_lA, upper_d, lower_d, upper_b, lower_b)
-    lA, lbias = bound_oneside(Last_lA, upper_d, lower_b, upper_b)
+function bound_backward(last_lA, last_uA, x::CrownBound, start_node, unstable_idx, beta_for_intermediate_layers)
+    upper_d, upper_b, lower_d, lower_b = backward_relaxation(last_lA, last_uA, x::CrownBound, start_node, unstable_idx)
+    uA, ubias = bound_oneside(last_lA, upper_d, lower_d, upper_b, lower_b)
+    lA, lbias = bound_oneside(last_lA, upper_d, lower_b, upper_b)
     return uA, lA, ubias, lbias
 end
 
@@ -320,7 +292,7 @@ function multiply_by_A_signs(Last_A, d_pos, d_neg, b_pos, b_neg)
 end
 
 
-function clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg)
+function clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg) 
     A_pos = clamp.(Last_A, 0, Inf)
     A_neg = clamp.(Last_A, -Inf, 0)
     New_A = d_pos .* A_pos .+ d_neg .* A_neg

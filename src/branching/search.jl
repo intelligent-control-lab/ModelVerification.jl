@@ -3,33 +3,33 @@
     batch_size::Int64 = 1
 end
 
-function search_branches(search_method::BFS, split_method, prop_method, problem)
+function search_branches(search_method::BFS, split_method, prop_method, problem, batch_info, global_info)
     branches = [(problem.input, problem.output, Dict())]
     batch_input = []
     batch_output = []
-    batch_info = []
+    aux_batch_info = []
     for iter in 1:search_method.max_iter # BFS with max iteration
         length(branches) == 0 && break
         input, output, info = popfirst!(branches)
         push!(batch_input, input)
         push!(batch_output, output)
-        push!(batch_info, info)
+        push!(aux_batch_info, info)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
-            # batch_bound, batch_info = propagate(prop_method, problem.Flux_model, batch_input, batch_output, batch_info)
+            # batch_bound, aux_batch_info = propagate(prop_method, problem.Flux_model, batch_input, batch_output, aux_batch_info)
             # batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_output)
-            batch_bound, batch_out_spec, batch_info = prepare_method(prop_method, problem.Flux_model, batch_input, batch_output, batch_info)
-            batch_bound, batch_info = propagate(prop_method, problem.onnx_model_path, problem.Flux_model, problem.input_shape, batch_bound, batch_out_spec, batch_info)
+            batch_bound, batch_out_spec, aux_batch_info = prepare_method(prop_method, problem.Flux_model, batch_input, batch_output, aux_batch_info)
+            batch_bound, aux_batch_info = propagate(prop_method, batch_info, global_info, batch_bound, batch_out_spec, aux_batch_info)
             batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i]
                 # batch_result[i].status == :unknown
-                sub_branches = split_branch(split_method, problem.Flux_model, batch_input[i], batch_output[i], batch_info[i])
+                sub_branches = split_branch(split_method, problem.Flux_model, batch_input[i], batch_output[i], aux_batch_info[i])
                 branches = [branches; sub_branches]
             end
             batch_input = []
             batch_output = []
-            batch_info = []
+            aux_batch_info = []
         end
     end
     length(branches) == 0 && return BasicResult(:holds)

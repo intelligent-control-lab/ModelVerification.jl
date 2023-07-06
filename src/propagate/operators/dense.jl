@@ -65,3 +65,86 @@ end
 #     output_batch_reach = LinearBound(output_Low, output_Up, batch_reach.domain)
 #     return output_batch_reach, batch_info
 # end
+
+function _preprocess(node, batch_info, global_info, a, b, c = nothing)#a:input node's lower/upper b:weight's lower/upper c:bias's lower/upper
+    if batch_info[node]["alpha"] != 1.0 
+        a = batch_info[node]["alpha"] .* a
+    end
+    if !isnothing(c)
+        if batch_info[node]["beta"] != 1.0 
+            c = batch_info[node]["beta"] .* c
+        end
+    end
+    return a, b, c
+end
+
+function bound_oneside(last_A, weight, bias)
+    if isnothing(last_A)
+        return nothing, 0
+    end
+
+    weight = reshape(weight, (size(weight)..., 1)) 
+    weight = repeat(weight, 1, 1, size(last_A)[end]) #add batch dim in weight
+    weight = permutedims(weight, (2, 1, 3)) #permute the 1st and 2sd dims for batched_mul
+    new_A = NNlib.batched_mul(weight, last_A) #note: must be weight * last_A, not last_A * weight
+    
+    if !isnothing(bias)
+        bias = reshape(bias, (size(bias)..., 1, 1)) #add input dim in weight
+        bias = repeat(bias, 1, 1, size(last_A)[end]) #add batch dim in weight
+        bias = permutedims(bias, (2, 1, 3))
+        sum_bias = NNlib.batched_mul(bias, last_A)
+    else
+        sum_bias = 0.0
+    end
+
+    return next_A, sum_bias
+end
+
+function bound_backward(layer::Dense, node, batch_info, global_info)
+    last_lA = batch_info[node]["lA"] #last_lA means lA that has already stored in batch_info[node]
+    last_uA = batch_info[node]["uA"] #last_lA means lA that has already stored in batch_info[node]
+    input_node = batch_info[node]["inputs"][1] #Dense layer could only have 1 input Node
+    if haskey(batch_info[input_node], "lower") 
+        input_node_lb = batch_info[input_node]["lower"]
+    else
+        input_node_lb = nothing
+    end
+
+    if haskey(batch_info[input_node], "upper") 
+        input_node_ub = batch_info[input_node]["upper"]
+    else
+        input_node_ub = nothing
+    end
+
+    #TO DO: we haven't consider the perturbation in weight and bias
+    input_node_lb, weight_lb, bias_lb = _preprocess(node, batch_info, global_info, input_node_lb, layer.weight, layer.bias)
+    input_node_ub, weight_ub, bias_ub = _preprocess(node, batch_info, global_info, input_node_ub, layer.weight, layer.bias)
+    lA_y = uA_y = lA_bias = uA_bias = nothing
+    lbias = ubias = 0
+    batch_size = !isnothing(last_lA) ? size(last_lA)[end] : size(last_lA)[end]
+
+    if !batch_info[node]["weight_ptb"] && (!batch_info[node]["bias_ptb"] || isnothing(layer.bias))
+        weight = weight_lb
+        bias = bias_lb
+        
+        #= index = last_lA
+        coeffs = nothing
+        
+        if !isnothing(weight)
+            new_weight = weight[index, :] #get the parameters that correspond to unstable neuron
+            lA_x = reshape(new_weight, (size(new_weight)..., 1))
+        end
+        if !isnothing(bias)
+            new_bias = bias[index, :] #get the parameters that correspond to unstable neuron
+            lbias = reshape(new_bias, (size(new_bias)..., 1))
+        end
+        uA_x, ubias = lA_x, lbias =#
+        
+        lA_x, lbias = bound_oneside(last_lA, weight, bias)
+        uA_x, ubias = bound_oneside(last_uA, weight, bias)
+
+        return [(lA_x, uA_x), (lA_y, uA_y), (lA_bias, uA_bias)], lbias, ubias
+    end
+
+    return input_node_lb, weight_lb, bias_lb
+end

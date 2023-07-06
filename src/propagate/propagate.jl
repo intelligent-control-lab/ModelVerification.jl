@@ -22,91 +22,16 @@
     return batch_bound, batch_info
 end    =# 
 
-function propagate(prop_method::ForwardProp, onnx_model_path, Flux_model, input_shape, batch_bound, batch_out_spec, aux_batch_info)
+function propagate(prop_method::ForwardProp, batch_info, global_info, batch_bound, batch_out_spec, aux_batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
-    @assert !isnothing(onnx_model_path) 
-
-    #= if !isnothing(Flux_model) && !isnothing(input_shape)
-        save(onnx_model_path, Flux_model, input_shape)
-    end =#
-
-    comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
-    batch_info = Dict()
-    global_info = Dict()
-    push!(global_info, "activation_number" => 0)
-    push!(global_info, "activation_node" => [])
-    push!(global_info, "final_node" => [])
-    for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
-        if index == 1 # the vertex which index == 1 has no useful information, so it's output node will be the start node of the model
-            push!(global_info, "start_node" => [NaiveNASflux.name(output_node) for output_node in outputs(vertex)]) 
-            continue
-        end 
-        
-        node_name = NaiveNASflux.name(vertex)
-        new_dict = Dict() # store the information of this vertex 
-        push!(new_dict, "vertex" => vertex)
-        push!(new_dict, "layer" => NaiveNASflux.layer(vertex))
-        push!(new_dict, "index" => index)
-        push!(new_dict, "outputs" => [NaiveNASflux.name(output_node) for output_node in outputs(vertex)])
-        # add input nodes of current node. If the input nodes of current node have activation(except identity), then the "inputs" should be the activation node
-        if !(node_name in global_info["start_node"])# if current node is not one of the start node
-            push!(new_dict, "inputs" => [])
-            for input_node in inputs(vertex)
-                input_node_name = NaiveNASflux.name(input_node)
-                if hasfield(typeof(batch_info[input_node_name]["layer"]), :σ) && string(batch_info[input_node_name]["layer"].σ) != "identity"
-                    push!(new_dict["inputs"], batch_info[input_node_name]["outputs"][1])
-                else
-                    push!(new_dict["inputs"], input_node_name)
-                end
-            end
-        else
-            push!(new_dict, "inputs" => nothing)
-        end
-        
-        if length(string(NaiveNASflux.name(vertex))) >= 7 && string(NaiveNASflux.name(vertex))[1:7] == "Flatten" 
-            push!(new_dict, "layer" => Flux.flatten)
-            push!(batch_info, node_name => new_dict) #new_dict belongs to batch_info
-        elseif length(string(NaiveNASflux.name(vertex))) >= 3 && string(NaiveNASflux.name(vertex))[1:3] == "add" 
-            push!(new_dict, "layer" => +)
-            push!(batch_info, node_name => new_dict) #new_dict belongs to batch_info
-        elseif length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "relu" 
-            global_info["activation_number"] += 1
-            node_name = "relu" * "_" * string(global_info["activation_number"]) #activate == "relu_5" doesn't mean this node is 5th relu node, but means this node is 5th activation node
-            push!(new_dict, "layer" => NNlib.relu)
-            push!(batch_info, node_name => new_dict) #new_dict belongs to batch_info
-            push!(global_info["activation_node"], node_name)
-        elseif hasfield(typeof(NaiveNASflux.layer(vertex)), :σ) && string(NaiveNASflux.layer(vertex).σ) != "identity"#split this layer into a linear layer and a activative layer
-            global_info["activation_number"] += 1
-            activation_name = string(NaiveNASflux.layer(vertex).σ) * "_" * string(global_info["activation_number"])
-            push!(new_dict, "outputs" => [activation_name]) #new_dict store the information of the linear layer
-            push!(batch_info, node_name => new_dict) #new_dict belongs to batch_info
-                
-            activation_new_dict = Dict()#store the information of the activative layer
-            push!(activation_new_dict, "vertex" => vertex)
-            push!(activation_new_dict, "layer" => NaiveNASflux.layer(vertex).σ)
-            push!(activation_new_dict, "index" => index)# Do not need to change index
-            push!(activation_new_dict, "inputs" => [node_name])
-            push!(activation_new_dict, "outputs" => [NaiveNASflux.name(output_nodes) for output_nodes in outputs(vertex)])
-            push!(batch_info, activation_name => activation_new_dict)
-            push!(global_info["activation_node"], activation_name)
-
-            node_name = activation_name #for getting the final_node
-        else
-            push!(batch_info, node_name => new_dict) #new_dict belongs to batch_info
-        end
-        
-        if length(batch_info[node_name]["outputs"]) == 0  #the final node has no output nodes
-            push!(global_info["final_node"], node_name) 
-        end
-    end
-
+   
     #BFS
     queue = Queue{Any}()
-    start_node = global_info["start_node"]
+    start_nodes = global_info["start_nodes"]
     Isqueue = Dict()#determine whether the node is visited
-    for node in start_node
+    for node in start_nodes
         enqueue!(queue, node)
     end
 
@@ -157,16 +82,141 @@ function propagate(prop_method::ForwardProp, onnx_model_path, Flux_model, input_
         push!(batch_info[node], "aux_batch_info" => aux_batch_info)
     end     
 
-    final_node = global_info["final_node"][1]
-    batch_bound = batch_info[final_node]["output_bound"]
-    aux_batch_info = batch_info[final_node]["aux_batch_info"]
+    final_nodes = global_info["final_nodes"][1]
+    batch_bound = batch_info[final_nodes]["output_bound"]
+    aux_batch_info = batch_info[final_nodes]["aux_batch_info"]
     
 
     return batch_bound, aux_batch_info 
 end     
 
+function propagate(prop_method::BackwardProp, C, node, unstable_idx, unstable_size, batch_info, global_info)
+    for node in global_info["all_nodes"]
+        push!(batch_info[node], "lA" => nothing)
+        push!(batch_info[node], "uA" => nothing)
+        push!(batch_info[node], "bounded" => true)
+    end
+    
+    push!(batch_info[node], "lA" => global_info["bound_lower"] ? C : nothing)
+    push!(batch_info[node], "uA" => global_info["bound_upper"] ? C : nothing)
+    lb = ub = 0 #lb, ub => lower bound, upper bound
+    degree_out = get_degrees(node, batch_info, global_info)
+    C, batch_size, output_dim, output_shape = preprocess_C(C, node, batch_info, global_info)#size(C)=(10, 9, 1) 
+    #batch_size = 1, output_dim = 9, output_shape = [-1] 
+    queue = Queue{Any}()
+    enqueue!(queue, node)
 
-function propagate(prop_method::BackwardProp, model, batch_bound, batch_out_spec, batch_info)
+    while !isempty(queue)
+        n = dequeue!(queue)
+        push!(batch_info[n], "bounded" => true) #means this node has been computed bound
+
+        for input_node in batch_info[n]["inputs"]
+            degree_out[input_node] -= 1
+            if degree_out[input_node] == 0
+                enqueue!(queue, input_node)
+            end
+        end
+
+        if !batch_info[n]["ptb"] #Haven't finish
+            if !haskey(batch_info[n], "forward_value")
+                get_forward_value(n)
+            end
+            lb, ub = add_constant_node(lb, ub, n, batch_info, global_info)
+            continue
+        end
+        
+        if isa(typeof(batch_info[n]["layer"]), typeof(relu))
+            A, lower_b, upper_b = bound_backward(batch_info[n]["layer"], n, node, unstable_idx)
+        elseif is_activation(batch_info[n]["layer"])   
+        else
+            A, lower_b, upper_b = bound_backward(batch_info[n]["layer"], node, batch_info, global_info) 
+        end
+
+        lb = lb .+ lower_b
+        ub = ub .+ upper_b
+
+        for (i, input_node) in enumerate(batch_info[node]["inputs"])
+            add_bound(node, input_node, A[i][1], A[i][2], batch_info, global_info)
+        end
+    end
+
+    lb, ub = concretize(lb, ub, batch_info, global_info) #add perturbation, haven't finish
+
+end
+
+function get_degrees(node, batch_info, global_info)
+    degrees = Dict()
+    push!(batch_info[node], "bounded" => false)
+    queue = Queue{Any}()
+    enqueue!(queue, node)
+    while !isempty(queue)
+        node = dequeue!(queue)
+        if !isnothing(batch_info[node]["inputs"])
+            for input_node in batch_info[node]["inputs"]
+                if haskey(degrees, input_node)
+                    push!(degrees, input_node => degrees[input_node] + 1)
+                else
+                    push!(degrees, input_node => 1)
+                end
+                if batch_info[input_node]["bounded"]
+                    push!(batch_info[input_node], "bounded" => false)
+                    enqueue!(queue, input_node)
+                end
+            end
+        end
+    end
+    return degrees
+end
+
+function preprocess_C(C, node, batch_info, global_info)
+    batch_size = size(C)[end]
+    output_dim = size(C)[2]
+    output_shape = [-1]
+    return C, batch_size, output_dim, output_shape
+end
+
+function add_bound(node, input_node, lA, uA, batch_info, global_info)
+    if !isnothing(lA)
+        if isnothing(batch_info[input_node]["lA"])
+            # First A added to this node.
+            push!(batch_info[input_node], "lA" => lA)
+        else
+            #node_pre.zero_lA_mtx = node_pre.zero_lA_mtx and node.zero_backward_coeffs_l
+            new_node_lA = batch_info[input_node]["lA"] .+ lA
+            push!(batch_info[input_node], "lA" => new_node_lA)
+        end
+    end
+    if !isnothing(uA)
+        if isnothing(batch_info[input_node]["uA"])
+            # First A added to this node.
+            push!(batch_info[input_node], "uA" => uA)
+        else
+            #node_pre.zero_lA_mtx = node_pre.zero_lA_mtx and node.zero_backward_coeffs_l
+            new_node_uA = batch_info[input_node]["uA"] .+ uA
+            push!(batch_info[input_node], "uA" => new_node_uA)
+        end
+    end
+end
+
+
+function concretize(lb, ub, batch_info, global_info)
+    node = global_info["start_nodes"][1]
+    if haskey(batch_info[node], "perturbation_info") #the node need to be perturbated
+        if global_info["bound_lower"]
+            lb = lb .+ ptb_concretize(global_info["model_inputs"], batch_info[node]["lA"], -1, batch_info, global_info)
+        else
+            lb = nothing
+        end
+        if global_info["bound_upper"]
+            ub = ub .+ ptb_concretize(model_inputs, batch_info[node]["uA"], +1)
+        else
+            ub = nothing
+        end    
+    else #the node doesn't need to be perturbated
+    end
+end
+
+#= function propagate(prop_method::BackwardProp, model, batch_bound, batch_out_spec, batch_info)
     # output: batch x ... x ...
     # dfs start from model.output_nodes
     
@@ -182,7 +232,7 @@ function propagate(prop_method::BackwardProp, model, batch_bound, batch_out_spec
         layer_index += 1
     end
     return batch_bound, batch_info
-end
+end =#
 
 
 function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out_spec, batch_info)

@@ -121,48 +121,126 @@ function compute_bound(bound::CrownBound)
     return l, u
 end
 
-#= function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper = false, final_node_name,
+
+
+
+
+function init_slope()
+    for node in global_info
+        if method in ["backward", "forward+backward"]
+            c = share_slopes = final_node_name = nothing
+            start_nodes = [start_nodes; get_alpha_crown_start_nodes(
+                node, c, share_slopes, final_node_name)]
+        end
+        init_opt_parameters(start_nodes)
+        init_intermediate_bounds[node.inputs[1].name] = (
+            [detach(node.inputs[1].lower), detach(node.inputs[1].upper)])
+    end
+end
+
+
+function get_alpha_crown_start_nodes(node, c = nothing,  share_slopes = false, final_node_name = nothing)
+    sparse_intermediate_bounds = true
+    use_full_conv_alpha_thresh = 512
+    start_nodes = []
+    for nj in backward_from[node]
+        unstable_idx = nothing
+        use_sparse_conv = nothing
+        use_full_conv_alpha = true
+        if nj.name == final_node_name
+            size_final = isnothing(c) ? final_node_name.output_shape[end] : size(c, 2)
+            push!(start_nodes, (final_node_name, size_final, nothing))
+            continue
+        end
+    end 
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper = false,
     intermediate_layer_bounds, batch_info, global_info) # x is the input of the model, C is the constrains of the model
-    # root constrains all the input node, like inputs, input_params
-    root = [batch_info[name] for name in root_name] #batch_info includes each node's input, bonud, and so on 
-    batch_size = size(root[1].inputs, 1)  # BoundParams = "/1" is 1.weight
+    batch_size = size(global_info["model_inputs"])[end]
     dim_in = 0
-    for i in 1:length(root)
-        value = forward(root[i])
-        if(root[i].ptb == true)
-            ret_init = init_perturbation(root[i].node, root[i].batch_input, root[i].perturbation_info)
-            root[i].interval = [ret_init.batch_Low, ret_init.batch_Up, root[i].perturbation_info]
-            root[i].lower = ret_init.batch_Low
-             root[i].upper = ret_init.batch_Up
+
+    #This "for" loop maybe useless
+    for node in global_info["start_nodes"]
+        value = global_info["model_inputs"]
+        if haskey(batch_info[node], "perturbation_info") #perturbation_info contains information of perturbation, like eps, norm
+            ret_init = init_perturbation(node, value, batch_info[node]["perturbation_info"], batch_info, global_info)
+            push!(batch_info[node], "interval" => [ret_init.batch_Low, ret_init.batch_Up])
+            push!(batch_info[node], "lower" => ret_init.batch_Low)
+            push!(batch_info[node], "upper" => ret_init.batch_Up)
+            push!(batch_info[node], "bound" => ret_init)
         else
             # This input/parameter does not have perturbation.
-            root[i].interval = [value, value, nothing]
-            root[i].forward_value = root[i].value = value
-            root[i].lower = root[i].upper = value
+            push!(batch_info[node], "interval" => [value, value])
+            push!(batch_info[node], "forward_value" => value)
+            new_bound = CrownBound(value, value, batch_info[node]["data_min"], batch_info[node]["data_max"])
+            push!(batch_info[node], "lower" => value)
+            push!(batch_info[node], "upper" => value)
+            push!(batch_info[node], "bound" => new_bound)
         end
     end
-    final = batch_info[final_node_name]
-    set_used_nodes(final, batch_info, global_info)
-end =#
-
-
-function set_used_nodes(final, batch_info, global_info)
-    if final.name != global_info.last_final_node #global_info stores some extra info like last_final_node, used_nodes
-        global_info.last_final_node = final.name
-        global_info.used_nodes = []
-        for i in batch_info
-            i.used = false
+    
+    for node in global_info["all_nodes"]
+        # Check whether all prior intermediate bounds already exist
+        push!(batch_info[node], "prior_checked" => false)
+        # check whether weights are perturbed and set nonlinear for some operations
+        if isa(batch_info[node]["layer"], Flux.Dense) || isa(batch_info[node]["layer"], Flux.Conv) || isa(batch_info[node]["layer"], Flux.BatchNorm)#if the params of Linear, Conv, Batchnorm need to be perturbed, the Linear, Conv, Batchnorm will be non_linear
+            push!(batch_info[node], "nonlinear" => false)
+            if haskey(batch_info[node], "weight_ptb") || haskey(batch_info[node], "bias_ptb" )
+                push!(batch_info[node], "nonlinear" => true)
+            end
         end
-        final.used = true
+    end
+
+    final_node = global_info["final_nodes"][1]
+    set_used_nodes(final_node, batch_info, global_info)
+    check_prior_bounds(final_node, batch_info, global_info)# Maybe useless
+    propagate(::BackwardProp, C, node, unstable_idx, unstable_size, batch_info, global_info)
+end  
+
+
+function set_used_nodes(final_node, batch_info, global_info) #finish verifying
+    push!(global_info, "last_final_node" => nothing)
+    if final_node != global_info["last_final_node"]
+        push!(global_info, "last_final_node" => final_node)
+        push!(global_info, "used_nodes" => [])
+        for node in global_info["all_nodes"]
+            push!(batch_info[node], "used" => false)
+        end
+        push!(batch_info[final_node], "used" => true)
         queue = Queue{Any}()
-        enqueue!(queue, final)
-        while isempty(queue)
-            n = dequeue!(queue)
-            push!(global_info.used_nodes, n)
-            for n_pre in n.inputs #input of the node
-                if !n_pre.used
-                    n_pre.used = true
-                    push!(queue, n_pre)
+        enqueue!(queue, final_node)
+        while !isempty(queue)
+            node = dequeue!(queue)
+            push!(global_info["used_nodes"], node)
+            if isnothing(batch_info[node]["inputs"])
+                continue
+            else
+                for input_node in batch_info[node]["inputs"]
+                    if !batch_info[input_node]["used"]
+                        push!(batch_info[input_node], "used" => true)
+                        enqueue!(queue, input_node)
+                    end
                 end
             end
         end
@@ -170,8 +248,52 @@ function set_used_nodes(final, batch_info, global_info)
 end
 
 
+function check_prior_bounds(node, batch_info, global_info)
+    if batch_info[node]["prior_checked"] || !(batch_info[node]["used"] && batch_info[node]["ptb"])
+        return
+    end
+    
+    if !isnothing(batch_info[node]["inputs"])
+        for input_node in batch_info[node]["inputs"]
+            check_prior_bounds(input_node, batch_info, global_info)
+        end
+    end
 
-function get_sparse_C(node, global_info, sparse_intermediate_bounds = true, ref_intermediate_lb = nothing, 
+    if haskey(batch_info[node], "nonlinear") && batch_info[node]["nonlinear"]
+        for input_node in batch_info[node]["inputs"]
+            compute_intermediate_bounds(input_node, batch_info, global_info, true)
+        end
+    end
+
+    if haskey(batch_info[node], "requires_input_bounds")
+        for i in batch_info[node]["requires_input_bounds"]
+            compute_intermediate_bounds(batch_info[node]["inputs"][i], batch_info, global_info, true)
+        end
+    end
+    push!(batch_info[node], "prior_checked" => true)
+end
+
+#Haven't finish
+function compute_intermediate_bounds(node, batch_info, global_info, prior_checked = false)
+    if haskey(batch_info[node], "lower")# && !isnothing(batch_info[node]["lower"])
+        return
+    end
+
+    if !prior_checked
+        check_prior_bounds(node, batch_info, global_info)
+    end
+
+    if !batch_info[node]["ptb"]
+        fv = get_forward_value(node)
+        push!(batch_info[node], "interval" => [fv, fv])
+        push!(batch_info[node], "lower" => fv)
+        push!(batch_info[node], "upper" => fv)
+        return
+    end
+end
+
+
+#= function get_sparse_C(node, global_info, sparse_intermediate_bounds = true, ref_intermediate_lb = nothing, 
     ref_intermediate_ub = nothing)
     sparse_conv_intermediate_bounds = global_info.sparse_conv_intermediate_bounds 
     minimum_sparsity = global_info.minimum_sparsity
@@ -268,7 +390,7 @@ function get_unstable_locations(global_info, ref_intermediate_lb, ref_intermedia
         unstable_size = length(unstable_idx)
     
         return unstable_idx, unstable_size
-end
+end =#
 
 
 struct GradientBound{F<:AbstractPolytope, N<:Real}
