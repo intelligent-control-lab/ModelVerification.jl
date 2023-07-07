@@ -10,7 +10,6 @@ the corresponding output of the network must belong to the output set.
 struct Problem{P, Q}
     onnx_model_path::String
     Flux_model::Chain
-    input_shape::Tuple
     input::P
     output::Q
 end

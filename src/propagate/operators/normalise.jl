@@ -1,5 +1,5 @@
 
-function forward_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, info)
+function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -7,10 +7,10 @@ function forward_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageSt
 
     new_center = cen_BN(bound.center)
     new_generators = gen_BN(bound.generators)
-    return ImageStarBound(new_center, new_generators, bound.A, bound.b), info
+    return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-function forward_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::ImageZonoBound, info)
+function propagate_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::ImageZonoBound)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -18,10 +18,10 @@ function forward_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::Ima
 
     new_center = cen_BN(bound.center)
     new_generators = gen_BN(bound.generators)
-    return ImageZonoBound(new_center, new_generators), info
+    return ImageZonoBound(new_center, new_generators)
 end 
 
-function bound_backward(layer::BatchNorm, batch_reach::AbstractArray, batch_info)
+function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray)
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     channels = size(batch_reach)[end-1] #number of channels
 
@@ -45,5 +45,5 @@ function bound_backward(layer::BatchNorm, batch_reach::AbstractArray, batch_info
     else
         batch_bias = dropdims(sum((batch_reach .* tmp_β), dims = channel_dim), dims = channel_dim)
     end
-    return batch_reach, batch_bias, batch_info
+    return batch_reach, batch_bias
 end

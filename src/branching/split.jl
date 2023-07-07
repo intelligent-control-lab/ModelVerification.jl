@@ -2,28 +2,28 @@
     num_split::Int64     = 1
 end
 
-function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, info)
-    split_method.num_split <= 0 && return [(input, output, info)]
+function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output)
+    split_method.num_split <= 0 && return [(input, output)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)
     max_radius, max_idx = findmax(radius)
     input1, input2 = split_interval(input, max_idx)
-    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, info)
-    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, info)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output)
     return [subtree1; subtree2]
 end
 
-function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, info)
-    return split_branch(split_method, model, box_approximation(input), output, info)
+function split_branch(split_method::Bisect, model::Chain, input::LazySet, output)
+    return split_branch(split_method, model, box_approximation(input), output)
 end
 
 
-function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
     input.A
     
 end
 
 
-function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
     return [input, nothing] #TODO: find a way to split ImageZonoBound
 end
 

@@ -1,14 +1,14 @@
 
-function forward_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet, info)
-    reach, info = affine_map(layer, reach), info
-    return reach, info
+function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet)
+    reach = affine_map(layer, reach)
+    return reach
 end
 
 # Ai2 Box
-function forward_linear(prop_method::Box, layer::Dense, reach::LazySet, info)
+function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet)
     isa(reach, AbstractPolytope) || throw("Ai2 only support AbstractPolytope type branches.")
-    reach, info = approximate_affine_map(layer, reach), info
-    return reach, info
+    reach = approximate_affine_map(layer, reach)
+    return reach
 end  
 
 function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractArray) where N
@@ -19,7 +19,7 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
     return (l_new, u_new)
 end
 
-function forward_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
+function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -27,10 +27,10 @@ function forward_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBoun
     output_Low[:, end, :] .+= layer.bias
     output_Up[:, end, :] .+= layer.bias
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound, batch_info
+    return new_bound
 end
 
-function forward_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound, batch_info)
+function propagate_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -39,34 +39,34 @@ function forward_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound
     output_Up[:, end, :] .+= layer.bias
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
     # l, u = compute_bound(new_bound)
-    return new_bound, batch_info
+    return new_bound
 end
 
 # Ai2z, Ai2h
-function forward_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
+function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray)
     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
-    batch_reach, batch_info = affine_map(layer, batch_reach), batch_info
-    return batch_reach, batch_info
+    batch_reach = affine_map(layer, batch_reach)
+    return batch_reach
 end
 
 # Ai2 Box
-function forward_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
+function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray)
     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
-    batch_reach, batch_info = approximate_affine_map(layer, batch_reach), batch_info
-    return batch_reach, batch_info
+    batch_reach = approximate_affine_map(layer, batch_reach)
+    return batch_reach
 end  
 
-# function forward_linear(prop_method::Neurify, layer::Dense, batch_reach::LinearBound, batch_info)
+# function propagate_linear(prop_method::Neurify, layer::Dense, batch_reach::LinearBound)
 #     output_Low, output_Up = batch_interval_map(layer.weights, batch_reach.Low, batch_reach.Up)
 #     output_Low[:, end, :] += layer.bias
 #     output_Up[:, end, :] += layer.bias
 #     output_batch_reach = LinearBound(output_Low, output_Up, batch_reach.domain)
-#     return output_batch_reach, batch_info
+#     return output_batch_reach
 # end
 
-function _preprocess(node, batch_info, global_info, a, b, c = nothing)#a:input node's lower/upper b:weight's lower/upper c:bias's lower/upper
+function _preprocess(node, batch_info, a, b, c = nothing)#a:input node's lower/upper b:weight's lower/upper c:bias's lower/upper
     if batch_info[node]["alpha"] != 1.0 
         a = batch_info[node]["alpha"] .* a
     end
@@ -100,10 +100,11 @@ function bound_oneside(last_A, weight, bias)
     return next_A, sum_bias
 end
 
-function bound_backward(layer::Dense, node, batch_info, global_info)
+function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound)
     last_lA = batch_info[node]["lA"] #last_lA means lA that has already stored in batch_info[node]
     last_uA = batch_info[node]["uA"] #last_lA means lA that has already stored in batch_info[node]
     input_node = batch_info[node]["inputs"][1] #Dense layer could only have 1 input Node
+
     if haskey(batch_info[input_node], "lower") 
         input_node_lb = batch_info[input_node]["lower"]
     else
@@ -117,8 +118,8 @@ function bound_backward(layer::Dense, node, batch_info, global_info)
     end
 
     #TO DO: we haven't consider the perturbation in weight and bias
-    input_node_lb, weight_lb, bias_lb = _preprocess(node, batch_info, global_info, input_node_lb, layer.weight, layer.bias)
-    input_node_ub, weight_ub, bias_ub = _preprocess(node, batch_info, global_info, input_node_ub, layer.weight, layer.bias)
+    input_node_lb, weight_lb, bias_lb = _preprocess(node, batch_info, input_node_lb, layer.weight, layer.bias)
+    input_node_ub, weight_ub, bias_ub = _preprocess(node, batch_info, input_node_ub, layer.weight, layer.bias)
     lA_y = uA_y = lA_bias = uA_bias = nothing
     lbias = ubias = 0
     batch_size = !isnothing(last_lA) ? size(last_lA)[end] : size(last_lA)[end]
@@ -143,8 +144,7 @@ function bound_backward(layer::Dense, node, batch_info, global_info)
         lA_x, lbias = bound_oneside(last_lA, weight, bias)
         uA_x, ubias = bound_oneside(last_uA, weight, bias)
 
-        return [(lA_x, uA_x), (lA_y, uA_y), (lA_bias, uA_bias)], lbias, ubias
+        bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA_x, uA_x, lA_y, uA_y, lbias ,ubias)
+        return bound
     end
-
-    return input_node_lb, weight_lb, bias_lb
 end

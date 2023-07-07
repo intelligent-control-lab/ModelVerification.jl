@@ -1,6 +1,6 @@
 
 
-function forward_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound, info)
+function propagate_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound)
     # copy a Conv and set activation to identity
     # println("layer.bias")
     
@@ -9,39 +9,41 @@ function forward_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZon
     gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
-    return ImageZonoBound(new_center, new_generators), info
+    return ImageZonoBound(new_center, new_generators)
 end
 
-function forward_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, info)
+function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound)
     # copy a Conv and set activation to identity
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     # copy a Conv and set activation to identity
     gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
-    return ImageStarBound(new_center, new_generators, bound.A, bound.b), info
+    return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
 
 
-function forward_linear(prop_method::ImageStarZono, layer::ConvTranspose, bound::ImageZonoBound, info)
+function propagate_linear(prop_method::ImageStarZono, layer::ConvTranspose, bound::ImageZonoBound)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
-    return ImageZonoBound(new_center, new_generators), info
+    return ImageZonoBound(new_center, new_generators)
 end
 
 
-function forward_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, info)
+function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     new_generators = gen_Conv(bound.generators)
-    return ImageStarBound(new_center, new_generators, bound.A, bound.b), info
+    return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray, batch_info)  
+
+
+function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
     #size(batch_reach) = (weight, hight, channel, batch*spec)
@@ -58,7 +60,7 @@ function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vec
     if(output_padding1 != 0 || output_padding2 != 0) #determine the output size of the ConvTranspose
         batch_reach = PaddedView(0, batch_reach, (size(batch_reach)[1] + output_padding1, size(batch_reach)[2] + output_padding2, size(batch_reach)[3], size(batch_reach)[4]))
     end
-    return batch_reach, batch_bias, batch_info
+    return batch_reach, batch_bias
 end  
 
 function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 

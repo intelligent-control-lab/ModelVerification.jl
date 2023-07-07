@@ -1,20 +1,20 @@
 
-function forward_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope)
     reach = overapproximate(Rectification(reach), Zonotope)
-    return reach, info
+    return reach
 end  
 
-function forward_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope)
     reach = convex_hull(UnionSetArray(forward_partition(layer, reach)))
-    return reach, info
+    return reach
 end
 
-function forward_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope)
     reach = rectify(reach)
-    return reach, info
+    return reach
 end  
 
-function forward_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, info)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = overapproximate(Rectification(Zonotope(cen, gen)), Zonotope)
@@ -24,10 +24,10 @@ function forward_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, in
     new_gen = reshape(genmat(flat_reach), sz[1], sz[2], sz[3], :)
     # println("after size: ", size(new_gen))
     new_bound = ImageZonoBound(new_cen, new_gen)
-    return new_bound, info
+    return new_bound
 end
 
-function forward_act(prop_method, layer::typeof(relu), bound::Star, info)
+function propagate_act(prop_method, layer::typeof(relu), bound::Star)
     cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
     n_con = length(constraints_list(bound.P))
@@ -70,7 +70,7 @@ function forward_act(prop_method, layer::typeof(relu), bound::Star, info)
 
     T = eltype(cen)
     new_bound = Star(T.(cen), T.([gen beta_gen]), HPolyhedron(T.(A),T.(b)))
-    return new_bound, info
+    return new_bound
 end  
 
 function ImageStar_to_Star(bound::ImageStarBound)
@@ -89,15 +89,15 @@ function Star_to_ImageStar(bound::Star, sz)
     return ImageStarBound(T.(new_cen), T.(new_gen), T.(A), T.(b))
 end
 
-function forward_act(prop_method, layer::typeof(relu), bound::ImageStarBound, info)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound)
     sz = size(bound.generators)
     flat_bound = ImageStar_to_Star(bound)
-    new_flat_bound, info = forward_act(prop_method, layer, flat_bound, info)
+    new_flat_bound = propagate_act(prop_method, layer, flat_bound)
     new_bound = Star_to_ImageStar(new_flat_bound, sz)
-    return new_bound, info
+    return new_bound
 end
 
-function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -138,7 +138,7 @@ function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, 
     @assert !any(isnan, output_Up) "relu up contains NaN"
     
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound, batch_info
+    return new_bound
 end
 
 
@@ -157,55 +157,9 @@ function forward_partition(layer::typeof(relu), reach)
     return output
 end
 
-function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, batch_info)
-    
-    output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
-
-    # If the lower bound of the lower bound is positive,
-    # No change to the linear bounds.
-    
-    # If the upper bound of the upper bound is negative, set
-    # both linear bounds to 0
-    l, u = compute_bound(bound) # reach_dim x batch
-
-    inact_mask = u .<= 0 # reach_dim x batch
-    inact_mask_ext = broadcast_mid_dim(inact_mask, output_Low) # reach_dim x input_dim x batch
-    output_Low[inact_mask_ext] .= 0
-    output_Up[inact_mask_ext] .= 0
-
-    
-    # if the bounds overlap 0, concretize by setting
-    # the generators to 0, and setting the new upper bound
-    # center to be the current upper-upper bound.
-    unstable_mask = (u .> 0) .& (l .< 0) # reach_dim x batch
-    unstable_mask_ext = broadcast_mid_dim(unstable_mask, output_Low) # reach_dim x input_dim+1 x batch
-    slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # selected_reach_dim * selected_batch
-    slope_mtx = ones(size(u))
-
-    slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
-    broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
-    # broad_slop = reshape(slope, )
-    output_Up .*= broad_slope
-    unstable_mask_bias = copy(unstable_mask_ext)
-    unstable_mask_bias[:,1:end-1,:] .= 0
-
-    output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
-
-    # output_Low[unstable_mask_ext] .*= broad_slope[:]
-    output_Low[unstable_mask_ext] .= 0
-
-    @assert !any(isnan, output_Low) "relu low contains NaN"
-    @assert !any(isnan, output_Up) "relu up contains NaN"
-    
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound, batch_info
-end  
 
 
-
-
-
-function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound, 
+#= function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound, 
     minimum_sparsity, batch_input, batch_info)
     ref = relu_input_bound[0].batch_Low # a reference variable for getting the shape
     batch_size = size(ref)[end]
@@ -230,7 +184,7 @@ function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound,
         sparsity = isnothing(unstable_idx) ? Inf : (typeof(unstable_idx) <: AbstractArray ? size(unstable_idx, 1) : size(unstable_idx[1], 1))
         ###### creat a learnable variable alpha #####
     end
-end   
+end    =#
 
 #Upper bound slope and intercept according to CROWN relaxation.
 function relu_upper_bound(lb, ub)
@@ -260,17 +214,8 @@ function backward_relaxation(Last_A_Low, Last_A_Up, relu_bound::CrownBound, relu
     return  upper_d, upper_b, lower_d, lower_b
 end 
 
-
-function bound_backward(last_lA, last_uA, x::CrownBound, start_node, unstable_idx, beta_for_intermediate_layers)
-    upper_d, upper_b, lower_d, lower_b = backward_relaxation(last_lA, last_uA, x::CrownBound, start_node, unstable_idx)
-    uA, ubias = bound_oneside(last_lA, upper_d, lower_d, upper_b, lower_b)
-    lA, lbias = bound_oneside(last_lA, upper_d, lower_b, upper_b)
-    return uA, lA, ubias, lbias
-end
-
-
 #bound oneside of the relu, like upper or lower
-function bound_onside(Last_A, d_pos, d_neg, b_pos, b_neg)
+function bound_oneside(Last_A, d_pos, d_neg, b_pos, b_neg)
     if isnothing(Last_A)
         return None, 0
     end
@@ -347,5 +292,12 @@ function clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg)
     New_bias = bias_pos .+ bias_neg
     return New_A, New_bias
 end 
-    
+
+
+function propagate_act_batch(prop_method::BackwardProp, last_lA, last_uA, x::CrownBound, start_node, unstable_idx, beta_for_intermediate_layers)
+    upper_d, upper_b, lower_d, lower_b = backward_relaxation(last_lA, last_uA, x::CrownBound, start_node, unstable_idx)
+    uA, ubias = bound_oneside(last_lA, upper_d, lower_d, upper_b, lower_b)
+    lA, lbias = bound_oneside(last_lA, upper_d, lower_b, upper_b, lower_b)
+    return uA, lA, ubias, lbias
+end
             

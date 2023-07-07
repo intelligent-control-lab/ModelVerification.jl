@@ -1,17 +1,17 @@
-forward_linear(prop_method, layer::typeof(flatten), bound::ImageStarBound, info) = 
-    Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b)), info
+propagate_linear(prop_method, layer::typeof(flatten), bound::ImageStarBound) = 
+    Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b))
 
-forward_linear(prop_method, layer::typeof(flatten), bound::ImageZonoBound, info) =
-    Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4))), info
+propagate_linear(prop_method, layer::typeof(flatten), bound::ImageZonoBound) =
+    Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
 
-function forward_linear(prop_method, layer::MeanPool, bound::ImageStarBound, info)
+function propagate_linear(prop_method, layer::MeanPool, bound::ImageStarBound)
     new_center = layer(bound.center)
     new_generators = layer(bound.generators)
-    return ImageStarBound(new_center, new_generators, bound.A, bound.b), info
+    return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-function forward_linear(prop_method, layer::MeanPool, bound::ImageZonoBound, info)
+function propagate_linear(prop_method, layer::MeanPool, bound::ImageZonoBound)
     new_center = layer(bound.center)
     new_generators = layer(bound.generators)
-    return ImageZonoBound(new_center, new_generators), info
+    return ImageZonoBound(new_center, new_generators)
 end

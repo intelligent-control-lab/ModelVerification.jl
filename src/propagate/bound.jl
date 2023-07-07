@@ -22,14 +22,6 @@ struct ImageZonoBound{T<:Real} <: Bound
     generators::AbstractArray{T, 4}   #  h x w x c x n_gen
 end
 
-mutable struct Constrain
-    #= batch_size::Int
-    unstable_size::Int
-    output_size::Any =#
-    shape::Any #shape is [batch_size, unstable_size, output_size]
-    unstable_idx::Any
-    #C::Any
-end 
 """
 init_bound(prop_method::ImageStar, batch_input) 
 
@@ -83,6 +75,17 @@ struct CrownBound{T<:Real} <: Bound
     batch_data_max::AbstractArray{T, 2}     # input_dim+1 x batch_size
 end
 
+struct AlphaCrownBound{T<:Real} <: Bound
+    batch_Low::AbstractArray{T, 3}    # reach_dim x input_dim+1 x batch_size
+    batch_Up::AbstractArray{T, 3}     # reach_dim x input_dim+1 x batch_size
+    lower_A_x
+    upper_A_x
+    lower_A_W
+    upper_A_W
+    lower_bias
+    upper_bias
+end
+
 function init_batch_bound(prop_method::Crown, batch_input::AbstractArray)
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
@@ -125,8 +128,8 @@ end
 
 
 
-function init_slope()
-    for node in global_info
+#= function init_slope()
+    for node in Model
         if method in ["backward", "forward+backward"]
             c = share_slopes = final_node_name = nothing
             start_nodes = [start_nodes; get_alpha_crown_start_nodes(
@@ -153,38 +156,19 @@ function get_alpha_crown_start_nodes(node, c = nothing,  share_slopes = false, f
             continue
         end
     end 
-end
+end =#
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper = false,
-    intermediate_layer_bounds, batch_info, global_info) # x is the input of the model, C is the constrains of the model
-    batch_size = size(global_info["model_inputs"])[end]
+#= function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper = false,
+    intermediate_layer_bounds, batch_info, Model) # x is the input of the model, C is the constrains of the model
+    batch_size = size(Model["model_inputs"])[end]
     dim_in = 0
 
     #This "for" loop maybe useless
-    for node in global_info["start_nodes"]
-        value = global_info["model_inputs"]
+    for node in Model["start_nodes"]
+        value = Model["model_inputs"]
         if haskey(batch_info[node], "perturbation_info") #perturbation_info contains information of perturbation, like eps, norm
-            ret_init = init_perturbation(node, value, batch_info[node]["perturbation_info"], batch_info, global_info)
+            ret_init = init_perturbation(node, value, batch_info[node]["perturbation_info"], batch_info, Model)
             push!(batch_info[node], "interval" => [ret_init.batch_Low, ret_init.batch_Up])
             push!(batch_info[node], "lower" => ret_init.batch_Low)
             push!(batch_info[node], "upper" => ret_init.batch_Up)
@@ -200,7 +184,7 @@ function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper 
         end
     end
     
-    for node in global_info["all_nodes"]
+    for node in Model["all_nodes"]
         # Check whether all prior intermediate bounds already exist
         push!(batch_info[node], "prior_checked" => false)
         # check whether weights are perturbed and set nonlinear for some operations
@@ -212,19 +196,19 @@ function compute_bound(x, C, bound::CrownBound, bound_lower = true, bound_upper 
         end
     end
 
-    final_node = global_info["final_nodes"][1]
-    set_used_nodes(final_node, batch_info, global_info)
-    check_prior_bounds(final_node, batch_info, global_info)# Maybe useless
-    propagate(::BackwardProp, C, node, unstable_idx, unstable_size, batch_info, global_info)
-end  
+    final_node = Model["final_nodes"][1]
+    set_used_nodes(final_node, batch_info, Model)
+    check_prior_bounds(final_node, batch_info, Model)# Maybe useless
+    propagate(::BackwardProp, C, node, unstable_idx, unstable_size, batch_info, Model)
+end =#  
 
 
-function set_used_nodes(final_node, batch_info, global_info) #finish verifying
-    push!(global_info, "last_final_node" => nothing)
-    if final_node != global_info["last_final_node"]
-        push!(global_info, "last_final_node" => final_node)
-        push!(global_info, "used_nodes" => [])
-        for node in global_info["all_nodes"]
+function set_used_nodes(final_node, batch_info, Model) #finish verifying
+    push!(Model, "last_final_node" => nothing)
+    if final_node != Model["last_final_node"]
+        push!(Model, "last_final_node" => final_node)
+        push!(Model, "used_nodes" => [])
+        for node in Model["all_nodes"]
             push!(batch_info[node], "used" => false)
         end
         push!(batch_info[final_node], "used" => true)
@@ -232,7 +216,7 @@ function set_used_nodes(final_node, batch_info, global_info) #finish verifying
         enqueue!(queue, final_node)
         while !isempty(queue)
             node = dequeue!(queue)
-            push!(global_info["used_nodes"], node)
+            push!(Model["used_nodes"], node)
             if isnothing(batch_info[node]["inputs"])
                 continue
             else
@@ -248,39 +232,39 @@ function set_used_nodes(final_node, batch_info, global_info) #finish verifying
 end
 
 
-function check_prior_bounds(node, batch_info, global_info)
+#= function check_prior_bounds(node, batch_info, Model)
     if batch_info[node]["prior_checked"] || !(batch_info[node]["used"] && batch_info[node]["ptb"])
         return
     end
     
     if !isnothing(batch_info[node]["inputs"])
         for input_node in batch_info[node]["inputs"]
-            check_prior_bounds(input_node, batch_info, global_info)
+            check_prior_bounds(input_node, batch_info, Model)
         end
     end
 
     if haskey(batch_info[node], "nonlinear") && batch_info[node]["nonlinear"]
         for input_node in batch_info[node]["inputs"]
-            compute_intermediate_bounds(input_node, batch_info, global_info, true)
+            compute_intermediate_bounds(input_node, batch_info, Model, true)
         end
     end
 
     if haskey(batch_info[node], "requires_input_bounds")
         for i in batch_info[node]["requires_input_bounds"]
-            compute_intermediate_bounds(batch_info[node]["inputs"][i], batch_info, global_info, true)
+            compute_intermediate_bounds(batch_info[node]["inputs"][i], batch_info, Model, true)
         end
     end
     push!(batch_info[node], "prior_checked" => true)
 end
 
 #Haven't finish
-function compute_intermediate_bounds(node, batch_info, global_info, prior_checked = false)
+function compute_intermediate_bounds(node, batch_info, Model, prior_checked = false)
     if haskey(batch_info[node], "lower")# && !isnothing(batch_info[node]["lower"])
         return
     end
 
     if !prior_checked
-        check_prior_bounds(node, batch_info, global_info)
+        check_prior_bounds(node, batch_info, Model)
     end
 
     if !batch_info[node]["ptb"]
@@ -290,16 +274,16 @@ function compute_intermediate_bounds(node, batch_info, global_info, prior_checke
         push!(batch_info[node], "upper" => fv)
         return
     end
-end
+end =#
 
 
-#= function get_sparse_C(node, global_info, sparse_intermediate_bounds = true, ref_intermediate_lb = nothing, 
+#= function get_sparse_C(node, Model, sparse_intermediate_bounds = true, ref_intermediate_lb = nothing, 
     ref_intermediate_ub = nothing)
-    sparse_conv_intermediate_bounds = global_info.sparse_conv_intermediate_bounds 
-    minimum_sparsity = global_info.minimum_sparsity
-    crown_batch_size = global_info.crown_batch_size
+    sparse_conv_intermediate_bounds = Model.sparse_conv_intermediate_bounds 
+    minimum_sparsity = Model.minimum_sparsity
+    crown_batch_size = Model.crown_batch_size
     dim = prod(node.output_shape[2:end])
-    batch_size = global_info.batch_size
+    batch_size = Model.batch_size
     
     reduced_dim = false  # Only partial neurons (unstable neurons) are bounded.
     unstable_idx = nothing
@@ -311,7 +295,7 @@ end
             # If we are doing bound refinement and reference bounds are given, we only refine unstable neurons.
             # Also, if we are checking against LP solver we will refine all neurons and do not use this optimization.
             # For each batch element, we find the unstable neurons.
-            unstable_idx, unstable_size = get_unstable_locations(global_info, ref_intermediate_lb, ref_intermediate_ub)
+            unstable_idx, unstable_size = get_unstable_locations(Model, ref_intermediate_lb, ref_intermediate_ub)
             if unstable_size == 0
                 # Do nothing, no bounds will be computed.
                 reduced_dim = true
@@ -340,9 +324,9 @@ end
 
 
 
-function check_optimized_variable_sparsity(node, global_info)
+function check_optimized_variable_sparsity(node, Model)
     alpha_sparsity = nothing  # unknown
-    for relu in global_info.relus
+    for relu in Model.relus
         if hasproperty(relu, :alpha_lookup_idx) && node.name in relu.alpha_lookup_idx
             if !isnothing(relu.alpha_lookup_idx[node.name])
                 # This node was created with sparse alpha
@@ -358,8 +342,8 @@ end
 
 
 
-function get_unstable_locations(global_info, ref_intermediate_lb, ref_intermediate_ub, conv = false, channel_only = false)
-        max_crown_size = global_info.max_crown_size
+function get_unstable_locations(Model, ref_intermediate_lb, ref_intermediate_ub, conv = false, channel_only = false)
+        max_crown_size = Model.max_crown_size
         unstable_masks = (ref_intermediate_lb) .< 0 .& (ref_intermediate_ub .> 0)
         if channel_only
             unstable_locs = sum(unstable_masks, dims = (1, 2, 4)) .> 0

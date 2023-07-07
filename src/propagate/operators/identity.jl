@@ -1,3 +1,3 @@
-function forward_act(prop_method, σ::typeof(identity), bound, info)
-    return bound, info
+function propagate_act(prop_method, σ::typeof(identity), bound)
+    return bound
 end
