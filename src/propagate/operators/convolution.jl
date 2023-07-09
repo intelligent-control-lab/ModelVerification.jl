@@ -1,6 +1,6 @@
 
 
-function propagate_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound)
+function propagate_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
     # println("layer.bias")
     
@@ -12,7 +12,7 @@ function propagate_linear(prop_method::ImageStarZono, layer::Conv, bound::ImageZ
     return ImageZonoBound(new_center, new_generators)
 end
 
-function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound)
+function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
     # copy a Conv and set activation to identity
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     # copy a Conv and set activation to identity
@@ -24,7 +24,7 @@ end
 
 
 
-function propagate_linear(prop_method::ImageStarZono, layer::ConvTranspose, bound::ImageZonoBound)
+function propagate_linear(prop_method::ImageStarZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
@@ -33,7 +33,7 @@ function propagate_linear(prop_method::ImageStarZono, layer::ConvTranspose, boun
 end
 
 
-function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound)
+function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)

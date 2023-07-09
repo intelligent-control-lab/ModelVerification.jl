@@ -1,3 +1,69 @@
+function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
+    function get_chain(vertex)
+        m = Any[]
+        curr_vertex = vertex
+        while length(NaiveNASflux.inputs(curr_vertex)) == 1
+            # println("curr vertex ", name(curr_vertex))
+            push!(m, NaiveNASflux.layer(curr_vertex))
+            curr_vertex = NaiveNASflux.outputs(curr_vertex)[1]
+        end
+        return Chain(m...), curr_vertex
+    end
+    outs = NaiveNASflux.outputs(comp_vertices[index_more_than_one_outputs])
+    @assert length(outs) == 2
+    chain1, vertex_more_than_one_inputs = get_chain(outs[1])
+    chain2, _ = get_chain(outs[2])
+    #@assert occursin("Add", NaiveNASflux.name(vertex_more_than_one_inputs))
+    inner_iter = findfirst(v -> NaiveNASflux.name(v) == NaiveNASflux.name(vertex_more_than_one_inputs), comp_vertices)
+    if length(chain1) == 0
+        return SkipConnection(chain2, (+)), inner_iter
+    elseif length(chain2) == 0
+        return SkipConnection(chain1, (+)), inner_iter
+    else
+        return Parallel(+; α = chain1, β = chain2), inner_iter
+    end
+end
+
+function build_flux_model(onnx_model_path)
+    comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
+
+    # find mean value
+    model_vec = Any[]
+    # sub_vertices = findvertices("/Sub", comp_graph)
+    # if !isempty(sub_vertices)
+    #     img_mean = inputs(sub_vertices[1])[2]()
+    #     println(img_mean)
+    #     # println(inputs(vertices(comp_graph)[5])[1]())
+
+    #     push!(model_vec, x -> x .- img_mean)
+    # end
+    img_mean = reshape([0.48500, 0.45600, 0.40600], (1, 1, 3))
+    push!(model_vec, x -> x .- img_mean)
+
+    img_variance = reshape([0.2990, 0.22400, 0.22500], (1, 1, 3))
+    push!(model_vec, x -> x ./ img_variance)
+
+    inner_iter = 0
+    for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
+        if index < 2 || index <= inner_iter
+            continue
+        end 
+        # println(index, "   ",layer(vertex))
+        push!(model_vec, NaiveNASflux.layer(vertex))
+        if length(NaiveNASflux.outputs(vertex)) > 1
+            parallel_chain, inner_iter = get_parallel_chains(ONNXNaiveNASflux.vertices(comp_graph), index)
+            push!(model_vec, parallel_chain)
+        end
+    end
+    model = Chain(model_vec...)
+    Flux.testmode!(model)
+    return (model)
+end
+
+function build_onnx_model(path, model::Chain, input)
+    input_shape = size(input)
+    ONNXNaiveNASflux.save(path, model, input_shape)
+end
 
 """
     Problem{P, Q}(network::Network, input::P, output::Q)
@@ -13,8 +79,10 @@ struct Problem{P, Q}
     input::P
     output::Q
 end
-
-
+Problem(path, input_data, output_data) = #If the Problem doesn't have Flux_mdoel input
+    Problem(path, build_flux_model(path), input_data, output_data)
+Problem(path, model, input_data, output_data) = #If the Problem have Flux_mdoel input
+    Problem(build_onnx_model(path, model, input_data), model, input_data, output_data) 
 
 """
     Result

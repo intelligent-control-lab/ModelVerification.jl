@@ -1,11 +1,11 @@
 
-function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet)
+function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
     return reach
 end
 
 # Ai2 Box
-function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet)
+function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
     isa(reach, AbstractPolytope) || throw("Ai2 only support AbstractPolytope type branches.")
     reach = approximate_affine_map(layer, reach)
     return reach
@@ -19,7 +19,7 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
     return (l_new, u_new)
 end
 
-function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound)
+function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -30,7 +30,7 @@ function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBo
     return new_bound
 end
 
-function propagate_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound)
+function propagate_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -43,7 +43,7 @@ function propagate_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBou
 end
 
 # Ai2z, Ai2h
-function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray)
+function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
     batch_reach = affine_map(layer, batch_reach)
@@ -51,7 +51,7 @@ function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::A
 end
 
 # Ai2 Box
-function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray)
+function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
     batch_reach = approximate_affine_map(layer, batch_reach)
@@ -100,7 +100,7 @@ function bound_oneside(last_A, weight, bias)
     return next_A, sum_bias
 end
 
-function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound)
+function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
     last_lA = batch_info[node]["lA"] #last_lA means lA that has already stored in batch_info[node]
     last_uA = batch_info[node]["uA"] #last_lA means lA that has already stored in batch_info[node]
     input_node = batch_info[node]["inputs"][1] #Dense layer could only have 1 input Node

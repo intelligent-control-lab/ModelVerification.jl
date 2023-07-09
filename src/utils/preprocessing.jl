@@ -18,11 +18,6 @@ end
 
 function onnx_parse(onnx_model_path, Flux_model, input_shape)
     @assert !isnothing(onnx_model_path) 
-
-    if !isnothing(Flux_model) 
-        save(onnx_model_path, Flux_model, input_shape)
-    end  
-
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
     batch_info = Dict() # store the information of node
     activation_number = 0

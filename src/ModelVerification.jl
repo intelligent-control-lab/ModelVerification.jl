@@ -109,7 +109,6 @@ export BFS, Bisect, BFSBisect
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
 function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
     batch_info, model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
-    println(model_info)
     search_branches(search_method, split_method, prop_method, problem, batch_info, model_info)
 end
 

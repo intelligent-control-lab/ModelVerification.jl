@@ -19,17 +19,17 @@ function propagate(prop_method::PropMethod, start_node, end_node, batch_bound, b
         end
 
         if isnothing(batch_info[node]["inputs"])
-            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], batch_bound)
+            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], batch_bound, batch_info)
         elseif length(batch_info[node]["inputs"]) == 2
             input_node1 = batch_info[node]["inputs"][1]
             input_node2 = batch_info[node]["inputs"][2]
             current_batch_bound1 = batch_info[input_node1]["bound"]
             current_batch_bound2 = batch_info[input_node2]["bound"]
-            batch_bound = propagate_skip_batch(prop_method, batch_info[node]["layer"], current_batch_bound1, current_batch_bound2)
+            batch_bound = propagate_skip_batch(prop_method, batch_info[node]["layer"], current_batch_bound1, current_batch_bound2, batch_info)
         else #length(batch_info[n][inputs] == 1
             input_node = batch_info[node]["inputs"][1]
             current_batch_bound = batch_info[input_node]["bound"]
-            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], current_batch_bound)
+            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], current_batch_bound, batch_info)
         end
         push!(batch_info[node], "bound" => batch_bound)
     end     
@@ -108,18 +108,18 @@ function forward(model, batch_input::AbstractArray)
 end
 
 
-function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray)
-    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i]) for i in eachindex(batch_reach)]
+function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
+    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], batch_info) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray)
-    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i]) for i in eachindex(batch_reach)]
+function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info)
+    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], batch_info) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray)
-    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i]) for i in eachindex(batch_reach1)]
+function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
+    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info) for i in eachindex(batch_reach1)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
@@ -130,11 +130,11 @@ function is_activation(l)
     return false
 end
 
-function propagate_layer(prop_method, layer, batch_bound)
+function propagate_layer(prop_method, layer, batch_bound, batch_info)
     if is_activation(layer)
-        batch_bound = propagate_act_batch(prop_method, layer, batch_bound)
+        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
     else
-        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound)
+        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
         #if hasfield(typeof(layer), :σ)
         #    batch_bound = propagate_act_batch(prop_method, layer.σ, batch_bound)
         #end
