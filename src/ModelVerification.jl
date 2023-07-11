@@ -49,6 +49,12 @@ abstract type PropMethod end
 # value(vars::Vector) = value.(vars)
 # value(val) = val
 
+
+include("spec/spec.jl")
+
+export ImageConvexHull, InputSpec, OutputSpec
+
+
 include("utils/activation.jl")
 include("utils/network.jl")
 include("utils/problem.jl")
@@ -76,8 +82,6 @@ export
 # solve(m::Model; kwargs...) = JuMP.solve(m; kwargs...)
 # export solve
 
-include("spec/spec.jl")
-
 # TODO: consider creating sub-modules for each of these.
 include("propagate/solver.jl")
 include("propagate/bound.jl")
@@ -92,7 +96,11 @@ include("propagate/operators/convolution.jl")
 include("propagate/operators/bivariate.jl")
 include("propagate/operators/util.jl")
 
-export Ai2, Ai2h, Ai2z, Ai2s, Box, Crown, AlphaCrown, BetaCrown, ImageStar, ImageStarZono
+
+export Ai2, Ai2h, Ai2z, Box
+export StarSet
+export ImageStar, ImageStarZono
+export Crown, AlphaCrown, BetaCrown
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
@@ -108,8 +116,8 @@ export BFS, Bisect, BFSBisect
 
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
 function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
-    batch_info, model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
-    search_branches(search_method, split_method, prop_method, problem, batch_info, model_info)
+    model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
+    search_branches(search_method, split_method, prop_method, problem, model_info)
 end
 
 export verify

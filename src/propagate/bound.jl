@@ -32,7 +32,8 @@ Outputs:
 - `ImageStarBound`
 """
 
-function init_bound(prop_method::ImageStar, imgs::AbstractVector) 
+function init_bound(prop_method::ImageStar, ch::ImageConvexHull) 
+    imgs = ch.imgs
     T = typeof(imgs[1][1,1,1])
     cen = cat([imgs[1] .+ sum([0.5 .* (img .- imgs[1]) for img in imgs[2:end]])]..., dims=4)
     gen = cat([0.5 .* (img .- imgs[1]) for img in imgs[2:end]]..., dims=4)
@@ -43,16 +44,17 @@ function init_bound(prop_method::ImageStar, imgs::AbstractVector)
     return ImageStarBound(T.(cen), T.(gen), A, b)
 end
 
-function init_bound(prop_method::ImageStarZono, imgs::AbstractVector) 
+function init_bound(prop_method::ImageStarZono, ch::ImageConvexHull) 
+    imgs = ch.imgs
     cen = cat([imgs[1] .+ sum([0.5 .* (img .- imgs[1]) for img in imgs[2:end]])]..., dims=4)
     gen = cat([0.5 .* (img .- imgs[1]) for img in imgs[2:end]]..., dims=4)
     return ImageZonoBound(cen, gen)
 end
 
-function init_bound(prop_method::Ai2s, input::Hyperrectangle) 
+function init_bound(prop_method::StarSet, input::Hyperrectangle) 
     isa(input, Star) && return input
-    cen = center(input) 
-    gen = genmat(input)
+    cen = LazySets.center(input) 
+    gen = LazySets.genmat(input)
     T = eltype(input)
     n = dim(input)
     I = Matrix{T}(LinearAlgebra.I(n))

@@ -1,41 +1,37 @@
-function propagate(prop_method::PropMethod, start_node, end_node, batch_bound, batch_out_spec, batch_info)
+function propagate(prop_method::PropMethod, model_info, init_bound, batch_out_spec, batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
     #BFS
     queue = Queue{Any}()
-    enqueue!(queue, start_node)
-    degree_out = get_degrees(prop_method, start_node, batch_info)
+    enqueue!(queue, model_info.start_nodes...)
+    visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
     while !isempty(queue)
         node = dequeue!(queue)
-        push!(batch_info[node], "bounded" => true) #means this n has been computed bound
-        if !isnothing(batch_info[node]["outputs"])
-            for output_node in batch_info[node]["outputs"]
-                degree_out[output_node] -= 1
-                if degree_out[output_node] == 0
-                    enqueue!(queue, output_node)
-                end
+        for output_node in model_info.node_nexts[node]
+            visit_cnt[output_node] += 1
+            if visit_cnt[output_node] == length(model_info.node_prevs[output_node])
+                enqueue!(queue, output_node)
             end
         end
 
-        if isnothing(batch_info[node]["inputs"])
-            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], batch_bound, batch_info)
-        elseif length(batch_info[node]["inputs"]) == 2
-            input_node1 = batch_info[node]["inputs"][1]
-            input_node2 = batch_info[node]["inputs"][2]
-            current_batch_bound1 = batch_info[input_node1]["bound"]
-            current_batch_bound2 = batch_info[input_node2]["bound"]
-            batch_bound = propagate_skip_batch(prop_method, batch_info[node]["layer"], current_batch_bound1, current_batch_bound2, batch_info)
+        if in(node, model_info.start_nodes)
+            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], init_bound, batch_info, node)
+        elseif length(model_info.node_prevs[node]) == 2
+            input_node1 = model_info.node_prevs[node][1]
+            input_node2 = model_info.node_prevs[node][2]
+            batch_bound1 = batch_info[input_node1]["bound"]
+            batch_bound2 = batch_info[input_node2]["bound"]
+            batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], batch_bound1, batch_bound2, batch_info, node)
         else #length(batch_info[n][inputs] == 1
-            input_node = batch_info[node]["inputs"][1]
-            current_batch_bound = batch_info[input_node]["bound"]
-            batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], current_batch_bound, batch_info)
+            input_node = model_info.node_prevs[node][1]
+            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node]["bound"], batch_info, node)
         end
         addbound(prop_method, node, batch_bound, batch_info)
-    end     
+    end
 
-    batch_bound = batch_info[end_node]["bound"]
-    return batch_bound
+    batch_bound = batch_info[model_info.final_nodes[1]]["bound"]
+    return batch_bound, batch_info
 end
 
 function addbound(prop_method::ForwardProp, node, batch_bound, batch_info)
@@ -74,32 +70,6 @@ function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
     push!(batch_info[node], "bound" => new_bound)
 end
 
-
-function get_degrees(prop_method::ForwardProp, node, batch_info)
-    degrees = Dict()
-    push!(batch_info[node], "bounded" => false)
-    queue = Queue{Any}()
-    enqueue!(queue, node)
-    while !isempty(queue)
-        node = dequeue!(queue)
-        if !isnothing(batch_info[node]["outputs"])
-            for output_node in batch_info[node]["outputs"]
-                if haskey(degrees, output_node)
-                    push!(degrees, output_node => degrees[output_node] + 1)
-                else
-                    push!(degrees, output_node => 1)
-                end
-                if batch_info[output_node]["bounded"]
-                    push!(batch_info[output_node], "bounded" => false)
-                    enqueue!(queue, output_node)
-                end
-            end
-        end
-    end
-    return degrees
-end
-
-
 function get_degrees(prop_method::BackwardProp, node, batch_info)
     degrees = Dict()
     push!(batch_info[node], "bounded" => false)
@@ -107,8 +77,8 @@ function get_degrees(prop_method::BackwardProp, node, batch_info)
     enqueue!(queue, node)
     while !isempty(queue)
         node = dequeue!(queue)
-        if !isnothing(batch_info[node]["inputs"])
-            for input_node in batch_info[node]["inputs"]
+        if !isnothing(model_info.node_prevs[node])
+            for input_node in model_info.node_prevs[node]
                 if haskey(degrees, input_node)
                     push!(degrees, input_node => degrees[input_node] + 1)
                 else
@@ -143,18 +113,18 @@ function forward(model, batch_input::AbstractArray)
 end
 
 
-function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
-    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], batch_info) for i in eachindex(batch_reach)]
+function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info, node)
+    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], batch_info, node) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info)
-    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], batch_info) for i in eachindex(batch_reach)]
+function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info, node)
+    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], batch_info, node) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
-    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info) for i in eachindex(batch_reach1)]
+function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info, node)
+    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info, node) for i in eachindex(batch_reach1)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
@@ -165,11 +135,11 @@ function is_activation(l)
     return false
 end
 
-function propagate_layer(prop_method, layer, batch_bound, batch_info)
+function propagate_layer_batch(prop_method, layer, batch_bound, batch_info, node)
     if is_activation(layer)
-        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
+        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info, node)
     else
-        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
+        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info, node)
         #if hasfield(typeof(layer), :σ)
         #    batch_bound = propagate_act_batch(prop_method, layer.σ, batch_bound)
         #end

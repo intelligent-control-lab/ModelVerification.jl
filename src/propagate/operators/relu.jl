@@ -1,20 +1,20 @@
 
-function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
 end  
 
-function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
     reach = convex_hull(UnionSetArray(forward_partition(layer, reach)))
     return reach
 end
 
-function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
     reach = rectify(reach)
     return reach
 end  
 
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info, node::String)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = overapproximate(Rectification(Zonotope(cen, gen)), Zonotope)
@@ -27,13 +27,19 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     return new_bound
 end
 
-function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info, node::String)
     cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
     n_con = length(constraints_list(bound.P))
     n_alpha = size(gen, 2)
-    box = overapproximate(bound, Hyperrectangle)
-    l, u = low(box), high(box)
+    l, u = nothing, nothing
+    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+        input_node = batch_info[node]["inputs"][1]
+        l, u = compute_bound(batch_info[input_node]["pre_bound"])
+    else
+        box = overapproximate(bound, Hyperrectangle)
+        l, u = low(box), high(box)
+    end
     
     bA = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
@@ -89,15 +95,15 @@ function Star_to_ImageStar(bound::Star, sz)
     return ImageStarBound(T.(new_cen), T.(new_gen), T.(A), T.(b))
 end
 
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info, node::String)
     sz = size(bound.generators)
     flat_bound = ImageStar_to_Star(bound)
-    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
+    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info, node)
     new_bound = Star_to_ImageStar(new_flat_bound, sz)
     return new_bound
 end
 
-function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info, node::String)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -141,8 +147,6 @@ function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), boun
     return new_bound
 end
 
-
-
 function forward_partition(layer::typeof(relu), reach)
     N = dim(reach)
     output = HPolytope{Float64}[]
@@ -156,8 +160,6 @@ function forward_partition(layer::typeof(relu), reach)
     end
     return output
 end
-
-
 
 #= function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound, 
     minimum_sparsity, batch_input, batch_info)

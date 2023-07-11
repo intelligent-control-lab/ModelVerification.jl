@@ -42,13 +42,11 @@ function build_flux_model(onnx_model_path)
     return (model)
 end
 
-function build_onnx_model(path, model::Chain, input)
-    if isa(input, AbstractArray)
-        input_shape = size(input)
-    else
-        input_shape = (1,1)
-    end
+function build_onnx_model(path, model::Chain, input::InputSpec)
+    input_shape = get_size(input)
+    input_shape = (input_shape..., 1)
     ONNXNaiveNASflux.save(path, model, input_shape)
+    return path
 end
 
 """
@@ -65,10 +63,10 @@ struct Problem{P, Q}
     input::P
     output::Q
 end
-Problem(path, input_data, output_data) = #If the Problem doesn't have Flux_mdoel input
+Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
-Problem(path, model, input_data, output_data) = #If the Problem have Flux_mdoel input
-    Problem(build_onnx_model(path, model, input_data), model, input_data, output_data) 
+Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_mdoel input
+    Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data) 
 
 """
     Result

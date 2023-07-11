@@ -2,8 +2,8 @@
     max_iter::Int64
     batch_size::Int64 = 1
 end
-  
-function search_branches(search_method::BFS, split_method, prop_method, problem, batch_info, model_info)
+
+function search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
     branches = [(problem.input, problem.output)]
     batch_input = []
     batch_output = []
@@ -15,8 +15,8 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
             # batch_bound = propagate(prop_method, problem.Flux_model, batch_input, batch_output)
             # batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_output)
-            batch_bound, batch_out_spec = prepare_method(prop_method, batch_input, batch_output, batch_info, model_info)
-            batch_bound = propagate(prop_method, model_info.start_nodes[1], model_info.final_nodes[1], batch_bound, batch_out_spec, batch_info)
+            batch_bound, batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, model_info)
+            batch_bound, batch_info = propagate(prop_method, model_info, batch_bound, batch_out_spec, batch_info)
             batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue

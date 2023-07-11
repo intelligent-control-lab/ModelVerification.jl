@@ -1,12 +1,24 @@
 
 abstract type Spec end
 
+struct ImageConvexHull <: Spec
+    # spec: A x - b <= 0 is the safe set or unsafe set
+    imgs::AbstractArray # list of images (h,w,c)
+end
+
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
     A::AbstractArray{Float64, 3} # spec_dim x out_dim x batch_size
     b::AbstractArray{Float64, 2} # spec_dim x batch_size
     is_complement::Bool
 end
+
+const InputSpec = Union{LazySet, ImageConvexHull}
+const OutputSpec = Union{LazySet, LinearSpec}
+
+get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
+get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
+
 
 function get_linear_spec(batch_out_set::AbstractVector)
     max_spec_num = maximum([length(constraints_list(o)) for o in batch_out_set])

@@ -6,8 +6,12 @@ struct Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: ForwardProp e
 Ai2() = Ai2{Zonotope}()
 const Ai2h = Ai2{HPolytope}
 const Ai2z = Ai2{Zonotope}
-const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}  
+
+struct StarSet <: ForwardProp
+    pre_bound_method::Union{ForwardProp, Nothing}
+end
+StarSet() = StarSet(nothing)
 
 struct Crown <: ForwardProp 
     bound_lower::Bool
@@ -28,20 +32,37 @@ struct ImageStar{T<:Union{Star, Zonotope}} <: ForwardProp end
 ImageStar() = ImageStar{Star}()
 const ImageStarZono = ImageStar{Zonotope}
 
-function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, batch_info, model_info)
+function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    batch_info = Dict(node => Dict() for node in model_info.all_nodes)
     for node in model_info.all_nodes
         push!(batch_info[node], "bounded" => true)
     end
-    return init_batch_bound(prop_method, batch_input), batch_output
+    return init_batch_bound(prop_method, batch_input), batch_output, batch_info
 end
 
-function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, batch_info, model_info)
-    prop_method.bound_lower = true
-    prop_method.bound_upper = false
-    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output)
+function prepare_method(prop_method::StarSet, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    batch_info = Dict(node => Dict() for node in model_info.all_nodes)
+    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+        pre_batch_bound, pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info)
+        pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_bound, pre_batch_out_spec, pre_batch_info)
+        for node in model_info.all_nodes
+            if haskey(pre_batch_info[node], "bound")
+                batch_info[node]["pre_bound"] = pre_batch_info[node]["bound"]
+            end
+        end
+    end
+    return init_batch_bound(prop_method, batch_input), batch_output, batch_info
 end
 
-function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_info, model_info)
+function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    # prop_method.bound_lower = true
+    # prop_method.bound_upper = false
+    batch_info = Dict(node => Dict() for node in model_info.all_nodes)
+    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output), batch_info
+end
+
+function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    batch_info = Dict(node => Dict() for node in model_info.all_nodes)
     prop_method.bound_lower = true
     prop_method.bound_upper = false
     for node in model_info.all_nodes
@@ -56,13 +77,17 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     C, batch_size, output_dim, output_shape = preprocess(C)#size(C)=(10, 9, 1) 
     #batch_size = 1, output_dim = 9, output_shape = [-1] 
 
-    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output)
+    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output), batch_info
 end
 
-function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_info, model_info)
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    batch_info = Dict(node => Dict() for node in model_info.all_nodes)
     prop_method.bound_lower = true
     prop_method.bound_upper = false
-    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output)
+    for node in model_info.all_nodes
+        push!(batch_info[node], "bounded" => true)
+    end
+    return init_batch_bound(prop_method, batch_input), get_linear_spec(batch_output), batch_info
 end
 
 function preprocess(C)
