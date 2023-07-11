@@ -7,16 +7,16 @@ struct Model
 end
 
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
-    batch_info, model_info = onnx_parse(problem.onnx_model_path, problem.Flux_model, size(problem.input))
+    batch_info, model_info = onnx_parse(problem.onnx_model_path)
     return batch_info, model_info, problem
 end
 
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
-    batch_info, model_info = onnx_parse(problem.onnx_model_path, problem.Flux_model, size(problem.input))
+    batch_info, model_info = onnx_parse(problem.onnx_model_path)
     return batch_info, model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
 end
 
-function onnx_parse(onnx_model_path, Flux_model, input_shape)
+function onnx_parse(onnx_model_path)
     @assert !isnothing(onnx_model_path) 
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
     batch_info = Dict() # store the information of node
@@ -26,10 +26,11 @@ function onnx_parse(onnx_model_path, Flux_model, input_shape)
     final_nodes = []
     all_nodes = []
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
-        if index == 1 # the vertex which index == 1 has no useful information, so it's output node will be the start node of the model
-            start_nodes = [NaiveNASflux.name(output_node) for output_node in outputs(vertex)]
-            continue
-        end 
+        if length(inputs(vertex)) == 0 #mean vertex is data node, data node's next nodes are start_nodes
+            for output_node in outputs(vertex)
+                push!(start_nodes, NaiveNASflux.name(output_node))
+            end
+        end
         node_name = NaiveNASflux.name(vertex)
         new_dict = Dict() # store the information of this vertex 
         push!(new_dict, "vertex" => vertex)

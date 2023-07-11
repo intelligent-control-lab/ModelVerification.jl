@@ -63,6 +63,7 @@ function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vec
     return batch_reach, batch_bias
 end  
 
+
 function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
     interval_low = interval[1], interval_high = interval[2]
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
@@ -78,6 +79,7 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     lower = center - deviation
     return [lower, upper, nothing]
 end
+  
 
 function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups

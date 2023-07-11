@@ -74,7 +74,7 @@ struct CrownBound{T<:Real} <: Bound
     batch_data_min::AbstractArray{T, 2}     # input_dim+1 x batch_size
     batch_data_max::AbstractArray{T, 2}     # input_dim+1 x batch_size
 end
-
+  
 struct AlphaCrownBound{T<:Real} <: Bound
     batch_Low::AbstractArray{T, 3}    # reach_dim x input_dim+1 x batch_size
     batch_Up::AbstractArray{T, 3}     # reach_dim x input_dim+1 x batch_size

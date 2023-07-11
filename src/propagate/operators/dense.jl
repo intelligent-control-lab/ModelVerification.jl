@@ -66,16 +66,13 @@ end
 #     return output_batch_reach
 # end
 
-function _preprocess(node, batch_info, a, b, c = nothing)#a:input node's lower/upper b:weight's lower/upper c:bias's lower/upper
-    if batch_info[node]["alpha"] != 1.0 
-        a = batch_info[node]["alpha"] .* a
-    end
-    if !isnothing(c)
+function _preprocess(node, batch_info, bias = nothing)
+    if !isnothing(bias)
         if batch_info[node]["beta"] != 1.0 
-            c = batch_info[node]["beta"] .* c
+            bias = batch_info[node]["beta"] .* bias
         end
     end
-    return a, b, c
+    return bias
 end
 
 function bound_oneside(last_A, weight, bias)
@@ -100,32 +97,19 @@ function bound_oneside(last_A, weight, bias)
     return next_A, sum_bias
 end
 
-function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
-    last_lA = batch_info[node]["lA"] #last_lA means lA that has already stored in batch_info[node]
-    last_uA = batch_info[node]["uA"] #last_lA means lA that has already stored in batch_info[node]
-    input_node = batch_info[node]["inputs"][1] #Dense layer could only have 1 input Node
-
-    if haskey(batch_info[input_node], "lower") 
-        input_node_lb = batch_info[input_node]["lower"]
-    else
-        input_node_lb = nothing
-    end
-
-    if haskey(batch_info[input_node], "upper") 
-        input_node_ub = batch_info[input_node]["upper"]
-    else
-        input_node_ub = nothing
-    end
+function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bound::AlphaCrownBound, batch_info)
+    last_lA = bound.lower_A_x
+    last_uA = bound.upper_A_x
 
     #TO DO: we haven't consider the perturbation in weight and bias
-    input_node_lb, weight_lb, bias_lb = _preprocess(node, batch_info, input_node_lb, layer.weight, layer.bias)
-    input_node_ub, weight_ub, bias_ub = _preprocess(node, batch_info, input_node_ub, layer.weight, layer.bias)
+    bias_lb = _preprocess(node, batch_info, layer.bias)
+    bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_y = uA_y = lA_bias = uA_bias = nothing
     lbias = ubias = 0
     batch_size = !isnothing(last_lA) ? size(last_lA)[end] : size(last_lA)[end]
 
     if !batch_info[node]["weight_ptb"] && (!batch_info[node]["bias_ptb"] || isnothing(layer.bias))
-        weight = weight_lb
+        weight = layer.weight
         bias = bias_lb
         
         #= index = last_lA
@@ -144,7 +128,7 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::Al
         lA_x, lbias = bound_oneside(last_lA, weight, bias)
         uA_x, ubias = bound_oneside(last_uA, weight, bias)
 
-        bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA_x, uA_x, lA_y, uA_y, lbias ,ubias)
+        bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA_x, uA_x, lA_y, uA_y, lbias, ubias)
         return bound
     end
 end

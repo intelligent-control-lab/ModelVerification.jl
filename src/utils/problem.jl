@@ -13,7 +13,6 @@ function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
     @assert length(outs) == 2
     chain1, vertex_more_than_one_inputs = get_chain(outs[1])
     chain2, _ = get_chain(outs[2])
-    #@assert occursin("Add", NaiveNASflux.name(vertex_more_than_one_inputs))
     inner_iter = findfirst(v -> NaiveNASflux.name(v) == NaiveNASflux.name(vertex_more_than_one_inputs), comp_vertices)
     if length(chain1) == 0
         return SkipConnection(chain2, (+)), inner_iter
@@ -26,29 +25,12 @@ end
 
 function build_flux_model(onnx_model_path)
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
-
-    # find mean value
     model_vec = Any[]
-    # sub_vertices = findvertices("/Sub", comp_graph)
-    # if !isempty(sub_vertices)
-    #     img_mean = inputs(sub_vertices[1])[2]()
-    #     println(img_mean)
-    #     # println(inputs(vertices(comp_graph)[5])[1]())
-
-    #     push!(model_vec, x -> x .- img_mean)
-    # end
-    img_mean = reshape([0.48500, 0.45600, 0.40600], (1, 1, 3))
-    push!(model_vec, x -> x .- img_mean)
-
-    img_variance = reshape([0.2990, 0.22400, 0.22500], (1, 1, 3))
-    push!(model_vec, x -> x ./ img_variance)
-
     inner_iter = 0
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
-        if index < 2 || index <= inner_iter
+        if length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "data"
             continue
         end 
-        # println(index, "   ",layer(vertex))
         push!(model_vec, NaiveNASflux.layer(vertex))
         if length(NaiveNASflux.outputs(vertex)) > 1
             parallel_chain, inner_iter = get_parallel_chains(ONNXNaiveNASflux.vertices(comp_graph), index)
@@ -61,7 +43,11 @@ function build_flux_model(onnx_model_path)
 end
 
 function build_onnx_model(path, model::Chain, input)
-    input_shape = size(input)
+    if isa(input, AbstractArray)
+        input_shape = size(input)
+    else
+        input_shape = (1,1)
+    end
     ONNXNaiveNASflux.save(path, model, input_shape)
 end
 

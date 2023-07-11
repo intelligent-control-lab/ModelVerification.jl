@@ -31,13 +31,48 @@ function propagate(prop_method::PropMethod, start_node, end_node, batch_bound, b
             current_batch_bound = batch_info[input_node]["bound"]
             batch_bound = propagate_layer(prop_method, batch_info[node]["layer"], current_batch_bound, batch_info)
         end
-        push!(batch_info[node], "bound" => batch_bound)
+        addbound(prop_method, node, batch_bound, batch_info)
     end     
 
     batch_bound = batch_info[end_node]["bound"]
     return batch_bound
 end
 
+function addbound(prop_method::ForwardProp, node, batch_bound, batch_info)
+    push!(batch_info[node], "bound" => batch_bound)
+end
+
+function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
+    if !isnothing(batch_bound.lower_A_x)
+        if isnothing(batch_info[node]["bound"].lower_A_x)
+            # First A added to this node.
+            new_node_lA = batch_bound.lower_A_x
+        else
+            new_node_lA = batch_info[node]["bound"].lower_A_x .+ batch_bound.lower_A_x
+        end
+    else
+        new_node_lA = nothing
+    end
+
+    if !isnothing(batch_bound.upper_A_x)
+        if isnothing(batch_info[input_node]["uA"])
+            # First A added to this node.
+            new_node_uA = batch_bound.upper_A_x
+        else
+            new_node_uA = batch_info[node]["bound"].upper_A_x .+ batch_bound.upper_A_x
+        end
+    else
+        new_node_uA = nothing  
+    end
+    batch_Low = batch_info[node]["bound"].batch_Low
+    batch_Up = batch_info[node]["bound"].batch_Up
+    lower_A_W = batch_info[node]["bound"].lower_A_W
+    upper_A_W = batch_info[node]["bound"].upper_A_W
+    lower_bias = batch_info[node]["bound"].lower_bias
+    upper_bias = batch_info[node]["bound"].upper_bias
+    new_bound = AlphaCrownBound(batch_Low, batch_Up, new_node_lA, new_node_uA, lower_A_W, upper_A_W, lower_bias, upper_bias)
+    push!(batch_info[node], "bound" => new_bound)
+end
 
 
 function get_degrees(prop_method::ForwardProp, node, batch_info)
@@ -88,7 +123,7 @@ function get_degrees(prop_method::BackwardProp, node, batch_info)
     end
     return degrees
 end
-
+  
 function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out_spec, batch_info)
     # output: batch x ... x ...
     throw("unimplemented")

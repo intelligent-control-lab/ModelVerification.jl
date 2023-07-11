@@ -198,48 +198,51 @@ function relu_upper_bound(lb, ub)
 end
 
 
-function backward_relaxation(Last_A_Low, Last_A_Up, relu_bound::CrownBound, relu_input_bound::CrownBound, unstable_idx)
-    if relu_input_bound !== nothing
-        lower = relu_input_bound.batch_Low
-        upper = relu_input_bound.batch_Up
+function backward_relaxation(node, batch_info)
+    if !isnothing(batch_info[node]["inputs"])
+        input_node = batch_info[node]["inputs"][1]
+        lower = batch_info[input_node]["bound"].batch_Low
+        upper = batch_info[input_node]["bound"].batch_Up
     else
-        lower = relu_bound.batch_Low
-        upper = relu_bound.batch_Up
+        lower = batch_info[node]["bound"].batch_Low
+        upper = batch_info[node]["bound"].batch_Up
     end
-    upper_d, upper_b = relu_upper_bound(lower, upper)
+
+    upper_d, upper_b = relu_upper_bound(lower, upper) #upper_d:upper of slope  upper_b:Upper of bias
     #if the slope is adaptive
-    lower_d = convert(typeof(upper_d), (upper_d .> 0.5))
+    lower_d = convert(typeof(upper_d), (upper_d .> 0.5)) #lower_d：lower of slope
     lower_d = reshape(lower_d, (size(x)...,1))
     lower_b = nothing
     return  upper_d, upper_b, lower_d, lower_b
 end 
 
 #bound oneside of the relu, like upper or lower
-function bound_oneside(Last_A, d_pos, d_neg, b_pos, b_neg)
-    if isnothing(Last_A)
+function bound_oneside(last_A, d_pos, d_neg, b_pos, b_neg)
+    if isnothing(last_A)
         return None, 0
     end
-    New_A, New_bias = multiply_by_A_signs(Last_A, d_pos, d_neg, b_pos, b_neg)
+    New_A, New_bias = multiply_by_A_signs(last_A, d_pos, d_neg, b_pos, b_neg)
+    return New_A, New_bias
 end
 
 
-#using Last_A for getting New_A
-function multiply_by_A_signs(Last_A, d_pos, d_neg, b_pos, b_neg)
+#using last_A for getting New_A
+function multiply_by_A_signs(last_A, d_pos, d_neg, b_pos, b_neg)
     if ndims(d_pos) == 1
         # Special case for LSTM, the bias term is 1-dimension. 
-        New_A = clamp.(Last_A, 0, Inf) .* d_pos .+ clamp.(Last_A, -Inf, 0) .* d_neg
-        New_bias = clamp.(Last_A, 0, Inf) .* b_pos .+ clamp.(Last_A, -Inf, 0) .* b_neg
+        New_A = clamp.(last_A, 0, Inf) .* d_pos .+ clamp.(last_A, -Inf, 0) .* d_neg
+        New_bias = clamp.(last_A, 0, Inf) .* b_pos .+ clamp.(last_A, -Inf, 0) .* b_neg
         return New_A, New_bias
     else
-        New_A, New_bias = clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg)
+        New_A, New_bias = clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg)
         return New_A, New_bias
     end
 end
 
 
-function clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg) 
-    A_pos = clamp.(Last_A, 0, Inf)
-    A_neg = clamp.(Last_A, -Inf, 0)
+function clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg) 
+    A_pos = clamp.(last_A, 0, Inf)
+    A_neg = clamp.(last_A, -Inf, 0)
     New_A = d_pos .* A_pos .+ d_neg .* A_neg
     bias_pos = bias_neg = [0.0]
     if b_pos !== nothing #bias_pos = torch.einsum('...sb,...sb->sb', A_pos, b_pos)
@@ -294,10 +297,13 @@ function clamp_mutiply_forward(Last_A, d_pos, d_neg, b_pos, b_neg)
 end 
 
 
-function propagate_act_batch(prop_method::BackwardProp, last_lA, last_uA, x::CrownBound, start_node, unstable_idx, beta_for_intermediate_layers, batch_info)
-    upper_d, upper_b, lower_d, lower_b = backward_relaxation(last_lA, last_uA, x::CrownBound, start_node, unstable_idx)
-    uA, ubias = bound_oneside(last_lA, upper_d, lower_d, upper_b, lower_b)
-    lA, lbias = bound_oneside(last_lA, upper_d, lower_b, upper_b, lower_b)
+function propagate_act_batch(prop_method::BackwardProp, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
+    upper_d, upper_b, lower_d, lower_b = backward_relaxation(node, batch_info)
+    push!(batch_info[node], "upper_d" => upper_d)
+    push!(batch_info[node], "lower_d" => lower_d)
+    uA, ubias = bound_oneside(bound.lower_A_x, upper_d, lower_d, upper_b, lower_b)
+    lA, lbias = bound_oneside(bound.upper_A_x, upper_d, lower_b, upper_b, lower_b)
+    bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA, uA, nothing, nothing, lbias, ubias)
     return uA, lA, ubias, lbias
 end
-            
+               

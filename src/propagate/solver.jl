@@ -45,13 +45,13 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     prop_method.bound_lower = true
     prop_method.bound_upper = false
     for node in model_info.all_nodes
-        push!(batch_info[node], "lA" => nothing)
-        push!(batch_info[node], "uA" => nothing)
+        bound = AlphaCrownBound(nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
+        push!(batch_info[node], "bound" => bound)
         push!(batch_info[node], "bounded" => true)
     end
     
-    push!(batch_info[node], "lA" => prop_method.bound_lower ? C : nothing)
-    push!(batch_info[node], "uA" => prop_method.bound_upper ? C : nothing)
+    #push!(batch_info[node], "lA" => prop_method.bound_lower ? C : nothing)
+    #push!(batch_info[node], "uA" => prop_method.bound_upper ? C : nothing)
     lb = ub = 0 #lb, ub => lower bound, upper bound
     C, batch_size, output_dim, output_shape = preprocess(C)#size(C)=(10, 9, 1) 
     #batch_size = 1, output_dim = 9, output_shape = [-1] 
