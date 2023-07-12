@@ -36,7 +36,8 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
         node = batch_info[:current_node]
         batch_index = batch_info[:batch_index]
-        l, u = compute_bound(batch_info[node][:pre_bound][batch_index])
+        l, u = compute_bound(batch_info[node][:pre_bound])
+        l, u = l[:,batch_index], u[:,batch_index]
     else
         box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)
@@ -162,61 +163,77 @@ function forward_partition(layer::typeof(relu), reach)
     return output
 end
 
-#= function init_opt(layer::typeof(relu), relu_input_bound, start_node::CrownBound, 
-    minimum_sparsity, batch_input, batch_info)
-    ref = relu_input_bound[0].batch_Low # a reference variable for getting the shape
-    batch_size = size(ref)[end]
-    alpha[layer] = []
-    alpha_lookup_idx[layer] = []  # For alpha with sparse spec dimention.
-    alpha_indices[layer] = nothing  # indices of non-zero alphas.
-    verbosity = 1
 
-    alpha_indices[layer] = (relu_input_bound[0].batch_Up .> 0) .& (relu_input_bound[0].batch_Low .< 0)
-    alpha_indices[layer] = dropdims(any(alpha_indices[layer], dims = ndims(alpha_indices[layer])), dims = ndims(alpha_indices[layer]))
-    alpha_indices[layer] = findall(alpha_indices[layer]) #now is Matrix, but actually alpha_indices should be Tuple
 
-    total_neuron_size = length(ref) ÷ batch_size #number of the neuron of the input layer of relu
-    if length(alpha_indices[layer]) <= minimum_sparsity * total_neuron_size
-        alpha_shape = [length(alpha_indices[layer])] # shape of the number of the unstable neurons
-        if(ndims(alpha_indices[layer]) == 1)
-            alpha_init = layer.lower_d[alpha_indices[layer], :, :]
-        end
+
+#initalize relu's alpha_lower and alpha_upper
+function init_alpha(layer::typeof(relu), node, batch_info)
+    relu_input_lower, relu_input_upper = compute_bound(batch[node]["bound"]) # reach_dim x batch #now the bound is crown
+    #batch_size = size(relu_input_lower)[end]
+    unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
+    alpha_indices = findall(unstable_mask) 
+    upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
+    lower_d = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    push!(batch_info[node], "alpha_shape" => size(lower_d))
+    #minimum_sparsity = batch_info[node]["minimum_sparsity"]
+    #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
+
+    #fully alpha
+    @assert ndims(relu_input_lower) == 2 || ndims(relu_input_lower) == 4 "pre_layer of relu should be dense or conv"
+    #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
+    #end
+    #alpha_lower is for lower bound, alpha_upper is for upper bound
+    alpha_lower = alpha_upper = lower_d .* unstable_mask
+    push!(batch_info[node], "alpha_lower" => alpha_lower) #reach_dim x batch
+    push!(batch_info[node], "alpha_upper" => alpha_upper) #reach_dim x batch
+end    
+
+
+
+function get_lower_d(lower, upper, lb_lower_slope, ub_lower_slope)
+    lower_mask = (lower .>= 0)
+    upper_mask = (upper .<= 0)
+    unstable_mask = (upper .> 0) .& (lower .< 0)
+    
+    if !isnothing(lb_lower_slope)
+        lb_lower_slope = clamp.(lb_lower_slope, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
     end
-    for (ns, output_shape, unstable_idx) in start_nodes
-        size_s = output_shape
-        sparsity = isnothing(unstable_idx) ? Inf : (typeof(unstable_idx) <: AbstractArray ? size(unstable_idx, 1) : size(unstable_idx[1], 1))
-        ###### creat a learnable variable alpha #####
+    
+    if !isnothing(ub_lower_slope)
+        ub_lower_slope = clamp.(ub_lower_slope, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
     end
-end    =#
-
-#Upper bound slope and intercept according to CROWN relaxation.
-function relu_upper_bound(lb, ub)
-    lb_r = clamp.(lb, -Inf, 0)
-    ub_r = clamp.(ub, 0, Inf)
-    #lb_r .= min.(lb_r, 0)
-    ub_r .= max.(ub_r, lb_r .+ 1e-8)
-    upper_d = ub_r ./ (ub_r .- lb_r) #the slope of the relu upper bound
-    upper_b = - lb_r .* upper_d #the bias of the relu upper bound
-    return upper_d, upper_b
+    
+    return lb_lower_slope, ub_lower_slope
 end
 
 
-function backward_relaxation(node, batch_info)
+
+#Upper bound slope and intercept according to CROWN relaxation.
+function relu_upper_bound(lower, upper)
+    lower_r = clamp.(lower, -Inf, 0)
+    upper_r = clamp.(upper, 0, Inf)
+    #lower_r .= min.(lower_r, 0)
+    upper_r .= max.(upper_r, lower_r .+ 1e-8)
+    upper_slope = upper_r ./ (upper_r .- lower_r) #the slope of the relu upper bound
+    upper_bias = - lower_r .* upper_slope #the bias of the relu upper bound
+    return upper_slope, upper_bias
+end
+
+
+
+function backward_relaxation(bound_lower, bound_upper, node, batch_info)
     if !isnothing(batch_info[node]["inputs"])
         input_node = batch_info[node]["inputs"][1]
-        lower = batch_info[input_node][:bound].batch_Low
-        upper = batch_info[input_node][:bound].batch_Up
+        lower, upper = compute_bound(batch_info[input_node]["bound"])
     else
-        lower = batch_info[node][:bound].batch_Low
-        upper = batch_info[node][:bound].batch_Up
+        lower, upper = compute_bound(batch_info[node]["bound"])
     end
-
-    upper_d, upper_b = relu_upper_bound(lower, upper) #upper_d:upper of slope  upper_b:Upper of bias
-    #if the slope is adaptive
-    lower_d = convert(typeof(upper_d), (upper_d .> 0.5)) #lower_d：lower of slope
-    lower_d = reshape(lower_d, (size(x)...,1))
-    lower_b = nothing
-    return  upper_d, upper_b, lower_d, lower_b
+    lower_bias = nothing
+    alpha_lower = batch_info[node]["alpha_lower"]
+    alpha_upper = batch_info[node]["alpha_upper"]
+    upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
+    lb_lower_slope, ub_lower_slope = get_lower_d(lower, upper, alpha_lower, alpha_upper) #lower_d：lower of slope lower_d：lower of bias
+    return  upper_slope, upper_bias, lb_lower_slope, ub_lower_slope, lower_bias
 end 
 
 #bound oneside of the relu, like upper or lower
@@ -224,6 +241,7 @@ function bound_oneside(last_A, d_pos, d_neg, b_pos, b_neg)
     if isnothing(last_A)
         return None, 0
     end
+
     New_A, New_bias = multiply_by_A_signs(last_A, d_pos, d_neg, b_pos, b_neg)
     return New_A, New_bias
 end
@@ -301,12 +319,15 @@ end
 
 
 function propagate_act_batch(prop_method::BackwardProp, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
-    upper_d, upper_b, lower_d, lower_b = backward_relaxation(node, batch_info)
-    push!(batch_info[node], "upper_d" => upper_d)
-    push!(batch_info[node], "lower_d" => lower_d)
-    uA, ubias = bound_oneside(bound.lower_A_x, upper_d, lower_d, upper_b, lower_b)
-    lA, lbias = bound_oneside(bound.upper_A_x, upper_d, lower_b, upper_b, lower_b)
-    bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA, uA, nothing, nothing, lbias, ubias)
-    return uA, lA, ubias, lbias
+    upper_slope, upper_bias, ub_lower_slope, lb_lower_slope, lower_bias = backward_relaxation(prop_method.bound_lower, prop_method.bound_upper, node, boundbatch_info)
+
+    if prop_method.bound_upper
+        uA, ubias = bound_oneside(bound.lower_A_x, upper_slope, ub_lower_slope, upper_bias, lower_bias)
+    end
+    if prop_method.bound_lower
+        lA, lbias = bound_oneside(bound.upper_A_x, lb_lower_slope, upper_slope, lower_bias, upper_bias)
+    end
+    bound = AlphaCrownBound(lA, uA, nothing, nothing, lbias, ubias, bound.batch_data_min, bound.batch_data_max)
+    return bound
 end
                

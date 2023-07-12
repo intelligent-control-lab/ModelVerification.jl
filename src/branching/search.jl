@@ -13,8 +13,6 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
         push!(batch_input, input)
         push!(batch_output, output)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
-            # batch_bound = propagate(prop_method, problem.Flux_model, batch_input, batch_output)
-            # batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_output)
             batch_info = init_start_node_bound(prop_method, batch_input, model_info)
             batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, model_info, batch_info)
             batch_bound, batch_info = propagate(prop_method, model_info, batch_out_spec, batch_info)

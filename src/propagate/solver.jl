@@ -46,7 +46,8 @@ end
 
 function prepare_method(prop_method::StarSet, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info, batch_info)
+        pre_batch_info = init_start_node_bound(prop_method.pre_bound_method, batch_input, model_info)
+        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info, pre_batch_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_out_spec, pre_batch_info)
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1

@@ -140,9 +140,6 @@ function propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
         batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
     else
         batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
-        #if hasfield(typeof(layer), :σ)
-        #    batch_bound = propagate_act_batch(prop_method, layer.σ, batch_bound)
-        #end
     end
     return batch_bound
 end
