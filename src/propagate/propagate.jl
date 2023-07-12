@@ -1,13 +1,15 @@
-function propagate(prop_method::PropMethod, model_info, init_bound, batch_out_spec, batch_info)
+function propagate(prop_method::PropMethod, model_info, batch_out_spec, batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
     #BFS
     queue = Queue{Any}()
-    enqueue!(queue, model_info.start_nodes...)
+    enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
     while !isempty(queue)
         node = dequeue!(queue)
+        batch_info[:current_node] = node
+
         for output_node in model_info.node_nexts[node]
             visit_cnt[output_node] += 1
             if visit_cnt[output_node] == length(model_info.node_prevs[output_node])
@@ -15,59 +17,57 @@ function propagate(prop_method::PropMethod, model_info, init_bound, batch_out_sp
             end
         end
 
-        if in(node, model_info.start_nodes)
-            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], init_bound, batch_info, node)
-        elseif length(model_info.node_prevs[node]) == 2
+        if length(model_info.node_prevs[node]) == 2
             input_node1 = model_info.node_prevs[node][1]
             input_node2 = model_info.node_prevs[node][2]
-            batch_bound1 = batch_info[input_node1]["bound"]
-            batch_bound2 = batch_info[input_node2]["bound"]
-            batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], batch_bound1, batch_bound2, batch_info, node)
+            batch_bound1 = batch_info[input_node1][:bound]
+            batch_bound2 = batch_info[input_node2][:bound]
+            batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], batch_bound1, batch_bound2, batch_info)
         else #length(batch_info[n][inputs] == 1
             input_node = model_info.node_prevs[node][1]
-            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node]["bound"], batch_info, node)
+            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node][:bound], batch_info)
         end
         addbound(prop_method, node, batch_bound, batch_info)
     end
 
-    batch_bound = batch_info[model_info.final_nodes[1]]["bound"]
+    batch_bound = batch_info[model_info.final_nodes[1]][:bound]
     return batch_bound, batch_info
 end
 
 function addbound(prop_method::ForwardProp, node, batch_bound, batch_info)
-    push!(batch_info[node], "bound" => batch_bound)
+    push!(batch_info[node], :bound => batch_bound)
 end
 
 function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
     if !isnothing(batch_bound.lower_A_x)
-        if isnothing(batch_info[node]["bound"].lower_A_x)
+        if isnothing(batch_info[node][:bound].lower_A_x)
             # First A added to this node.
             new_node_lA = batch_bound.lower_A_x
         else
-            new_node_lA = batch_info[node]["bound"].lower_A_x .+ batch_bound.lower_A_x
+            new_node_lA = batch_info[node][:bound].lower_A_x .+ batch_bound.lower_A_x
         end
     else
         new_node_lA = nothing
     end
 
     if !isnothing(batch_bound.upper_A_x)
-        if isnothing(batch_info[input_node]["uA"])
+        if isnothing(batch_info[input_node][:uA])
             # First A added to this node.
             new_node_uA = batch_bound.upper_A_x
         else
-            new_node_uA = batch_info[node]["bound"].upper_A_x .+ batch_bound.upper_A_x
+            new_node_uA = batch_info[node][:bound].upper_A_x .+ batch_bound.upper_A_x
         end
     else
         new_node_uA = nothing  
     end
-    batch_Low = batch_info[node]["bound"].batch_Low
-    batch_Up = batch_info[node]["bound"].batch_Up
-    lower_A_W = batch_info[node]["bound"].lower_A_W
-    upper_A_W = batch_info[node]["bound"].upper_A_W
-    lower_bias = batch_info[node]["bound"].lower_bias
-    upper_bias = batch_info[node]["bound"].upper_bias
+    batch_Low = batch_info[node][:bound].batch_Low
+    batch_Up = batch_info[node][:bound].batch_Up
+    lower_A_W = batch_info[node][:bound].lower_A_W
+    upper_A_W = batch_info[node][:bound].upper_A_W
+    lower_bias = batch_info[node][:bound].lower_bias
+    upper_bias = batch_info[node][:bound].upper_bias
     new_bound = AlphaCrownBound(batch_Low, batch_Up, new_node_lA, new_node_uA, lower_A_W, upper_A_W, lower_bias, upper_bias)
-    push!(batch_info[node], "bound" => new_bound)
+    push!(batch_info[node], :bound => new_bound)
 end
 
 function get_degrees(prop_method::BackwardProp, node, batch_info)
@@ -113,18 +113,18 @@ function forward(model, batch_input::AbstractArray)
 end
 
 
-function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info, node)
-    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], batch_info, node) for i in eachindex(batch_reach)]
+function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
+    batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info, node)
-    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], batch_info, node) for i in eachindex(batch_reach)]
+function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info)
+    batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info, node)
-    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info, node) for i in eachindex(batch_reach1)]
+function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
+    batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach1)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
@@ -135,11 +135,11 @@ function is_activation(l)
     return false
 end
 
-function propagate_layer_batch(prop_method, layer, batch_bound, batch_info, node)
+function propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
     if is_activation(layer)
-        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info, node)
+        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
     else
-        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info, node)
+        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
         #if hasfield(typeof(layer), :σ)
         #    batch_bound = propagate_act_batch(prop_method, layer.σ, batch_bound)
         #end
@@ -160,22 +160,22 @@ end
 
 #= function add_bound(node, input_node, lA, uA, batch_info)
     if !isnothing(lA)
-        if isnothing(batch_info[input_node]["lA"])
+        if isnothing(batch_info[input_node][:lA])
             # First A added to this node.
             push!(batch_info[input_node], "lA" => lA)
         else
             #node_pre.zero_lA_mtx = node_pre.zero_lA_mtx and node.zero_backward_coeffs_l
-            new_node_lA = batch_info[input_node]["lA"] .+ lA
+            new_node_lA = batch_info[input_node][:lA] .+ lA
             push!(batch_info[input_node], "lA" => new_node_lA)
         end
     end
     if !isnothing(uA)
-        if isnothing(batch_info[input_node]["uA"])
+        if isnothing(batch_info[input_node][:uA])
             # First A added to this node.
             push!(batch_info[input_node], "uA" => uA)
         else
             #node_pre.zero_lA_mtx = node_pre.zero_lA_mtx and node.zero_backward_coeffs_l
-            new_node_uA = batch_info[input_node]["uA"] .+ uA
+            new_node_uA = batch_info[input_node][:uA] .+ uA
             push!(batch_info[input_node], "uA" => new_node_uA)
         end
     end
@@ -186,12 +186,12 @@ end=#
     node = model_info["start_nodes"][1]
     if haskey(batch_info[node], "perturbation_info") #the node need to be perturbated
         if model_info["bound_lower"]
-            lb = lb .+ ptb_concretize(model_info["model_inputs"], batch_info[node]["lA"], -1, batch_info, model_info)
+            lb = lb .+ ptb_concretize(model_info["model_inputs"], batch_info[node][:lA], -1, batch_info, model_info)
         else
             lb = nothing
         end
         if model_info["bound_upper"]
-            ub = ub .+ ptb_concretize(model_inputs, batch_info[node]["uA"], +1)
+            ub = ub .+ ptb_concretize(model_inputs, batch_info[node][:uA], +1)
         else
             ub = nothing
         end    

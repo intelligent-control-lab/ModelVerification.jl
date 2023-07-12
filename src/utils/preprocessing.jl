@@ -1,4 +1,4 @@
-struct Model 
+struct Model
     start_nodes::Array{String, 1}
     final_nodes::Array{String, 1}
     all_nodes::Array{String, 1}
@@ -8,6 +8,7 @@ struct Model
     activation_nodes::Array{String, 1}
     activation_number::Int
 end
+
 
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
@@ -31,14 +32,12 @@ function onnx_parse(onnx_model_path)
     node_nexts = Dict()
     node_layer = Dict()
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
-        if length(inputs(vertex)) == 0 #mean vertex is data node, data node's next nodes are start_nodes
-            for output_node in outputs(vertex)
-                push!(start_nodes, NaiveNASflux.name(output_node))
-            end
+        node_name = NaiveNASflux.name(vertex)
+        
+        if length(inputs(vertex)) == 0 # the start node has no input nodes
+            push!(start_nodes, node_name)
         end
         
-        node_name = NaiveNASflux.name(vertex)
-
         if length(string(NaiveNASflux.name(vertex))) >= 7 && string(NaiveNASflux.name(vertex))[1:7] == "Flatten" 
             node_layer[node_name] = Flux.flatten
         elseif length(string(NaiveNASflux.name(vertex))) >= 3 && string(NaiveNASflux.name(vertex))[1:3] == "add" 
@@ -85,7 +84,7 @@ function onnx_parse(onnx_model_path)
             node_name = activation_name  # for getting the final_nodes
         end
         
-        if length(node_nexts[node_name]) == 0  #the final node has no output nodes
+        if length(outputs(vertex)) == 0  #the final node has no output nodes
             push!(final_nodes, node_name) 
         end
     end

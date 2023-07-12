@@ -14,7 +14,7 @@ function check_inclusion(prop_method::ForwardProp, model, input, bound::ImageSta
     return ReachabilityResult(:holds, bound)
 end
 
-function check_inclusion(prop_method::ImageStar, model, input::Union{ImageZonoBound, ImageStarBound}, node::String, reach::LazySet, output::LazySet)
+function check_inclusion(prop_method::ImageStar, model, input::Union{ImageZonoBound, ImageStarBound}, reach::LazySet, output::LazySet)
     box_reach = box_approximation(reach)
     println(volume(box_reach))
     ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
@@ -24,7 +24,7 @@ function check_inclusion(prop_method::ImageStar, model, input::Union{ImageZonoBo
     return CounterExampleResult(:violated, x)
 end
 
-function check_inclusion(prop_method::ForwardProp, model, input::LazySet, node::String, reach::LazySet, output::LazySet)
+function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::LazySet)
     x = LazySets.center(input)
     # println(reach)
     # println(⊆(reach, output))
@@ -33,7 +33,7 @@ function check_inclusion(prop_method::ForwardProp, model, input::LazySet, node::
     return CounterExampleResult(:violated, x)
 end
 
-function check_inclusion(prop_method::ForwardProp, model, input::LazySet, node::String, reach::LazySet, output::Complement)
+function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::Complement)
     x = LazySets.center(input)
     unsafe_output = Complement(output)
     box_reach = box_approximation(reach)

@@ -1,5 +1,5 @@
 
-function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info, node::String)
+function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -10,7 +10,7 @@ function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::Image
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-function propagate_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::ImageZonoBound, batch_info, node::String)
+function propagate_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -21,7 +21,7 @@ function propagate_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::I
     return ImageZonoBound(new_center, new_generators)
 end 
 
-function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, batch_info, node::String)
+function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, batch_info)
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     channels = size(batch_reach)[end-1] #number of channels
 

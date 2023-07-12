@@ -1,20 +1,20 @@
 
-function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
+function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
 end  
 
-function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
+function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = convex_hull(UnionSetArray(forward_partition(layer, reach)))
     return reach
 end
 
-function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info, node::String)
+function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = rectify(reach)
     return reach
 end  
 
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info, node::String)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = overapproximate(Rectification(Zonotope(cen, gen)), Zonotope)
@@ -27,15 +27,16 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     return new_bound
 end
 
-function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info, node::String)
+function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
     cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
     n_con = length(constraints_list(bound.P))
     n_alpha = size(gen, 2)
     l, u = nothing, nothing
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        input_node = batch_info[node]["inputs"][1]
-        l, u = compute_bound(batch_info[input_node]["pre_bound"])
+        node = batch_info[:current_node]
+        batch_index = batch_info[:batch_index]
+        l, u = compute_bound(batch_info[node][:pre_bound][batch_index])
     else
         box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)
@@ -95,7 +96,7 @@ function Star_to_ImageStar(bound::Star, sz)
     return ImageStarBound(T.(new_cen), T.(new_gen), T.(A), T.(b))
 end
 
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info, node::String)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     sz = size(bound.generators)
     flat_bound = ImageStar_to_Star(bound)
     new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info, node)
@@ -103,7 +104,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, 
     return new_bound
 end
 
-function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info, node::String)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -203,11 +204,11 @@ end
 function backward_relaxation(node, batch_info)
     if !isnothing(batch_info[node]["inputs"])
         input_node = batch_info[node]["inputs"][1]
-        lower = batch_info[input_node]["bound"].batch_Low
-        upper = batch_info[input_node]["bound"].batch_Up
+        lower = batch_info[input_node][:bound].batch_Low
+        upper = batch_info[input_node][:bound].batch_Up
     else
-        lower = batch_info[node]["bound"].batch_Low
-        upper = batch_info[node]["bound"].batch_Up
+        lower = batch_info[node][:bound].batch_Low
+        upper = batch_info[node][:bound].batch_Up
     end
 
     upper_d, upper_b = relu_upper_bound(lower, upper) #upper_d:upper of slope  upper_b:Upper of bias
