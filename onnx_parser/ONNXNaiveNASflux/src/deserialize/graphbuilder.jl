@@ -58,7 +58,7 @@ function output_to_node(nodes, initdict)
       # println("name: ", nodeproto.name, "   type: ", nodeproto.op_type)
       push!(op, nodeproto.op_type)
    end
-   println(op)
+#    println(op)
    for nodeproto in nodes
       # Past this point we get hard to interpret errors if optype is not supported
       if optype(nodeproto) ∉ keys(verts) 

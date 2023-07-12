@@ -1,10 +1,17 @@
+enqueue_nodes!(prop_method::ForwardProp, queue, model_info) = enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
+enqueue_nodes!(prop_method::BackwardProp, queue, model_info) = enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.final_nodes]...)...)
+
+all_prevs_in(prop_method::ForwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_prevs[output_node]))
+all_prevs_in(prop_method::BackwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_nexts[output_node]))
+
 function propagate(prop_method::PropMethod, model_info, batch_out_spec, batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
     #BFS
     queue = Queue{Any}()
-    enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
+    enqueue_nodes!(prop_method, queue, model_info)
+    # enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
     while !isempty(queue)
         node = dequeue!(queue)
@@ -12,7 +19,7 @@ function propagate(prop_method::PropMethod, model_info, batch_out_spec, batch_in
 
         for output_node in model_info.node_nexts[node]
             visit_cnt[output_node] += 1
-            if visit_cnt[output_node] == length(model_info.node_prevs[output_node])
+            if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])
                 enqueue!(queue, output_node)
             end
         end
@@ -27,16 +34,14 @@ function propagate(prop_method::PropMethod, model_info, batch_out_spec, batch_in
             input_node = model_info.node_prevs[node][1]
             batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node][:bound], batch_info)
         end
-        addbound(prop_method, node, batch_bound, batch_info)
+
+        batch_info[node][:bound] = batch_bound
     end
 
     batch_bound = batch_info[model_info.final_nodes[1]][:bound]
     return batch_bound, batch_info
 end
 
-function addbound(prop_method::ForwardProp, node, batch_bound, batch_info)
-    push!(batch_info[node], :bound => batch_bound)
-end
 
 function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
     if !isnothing(batch_bound.lower_A_x)
@@ -70,48 +75,12 @@ function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
     push!(batch_info[node], :bound => new_bound)
 end
 
-function get_degrees(prop_method::BackwardProp, node, batch_info)
-    degrees = Dict()
-    push!(batch_info[node], "bounded" => false)
-    queue = Queue{Any}()
-    enqueue!(queue, node)
-    while !isempty(queue)
-        node = dequeue!(queue)
-        if !isnothing(model_info.node_prevs[node])
-            for input_node in model_info.node_prevs[node]
-                if haskey(degrees, input_node)
-                    push!(degrees, input_node => degrees[input_node] + 1)
-                else
-                    push!(degrees, input_node => 1)
-                end
-                if batch_info[input_node]["bounded"]
-                    push!(batch_info[input_node], "bounded" => false)
-                    enqueue!(queue, input_node)
-                end
-            end
-        end
-    end
-    return degrees
-end
-  
 function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out_spec, batch_info)
     # output: batch x ... x ...
     throw("unimplemented")
     # couterexample_result, batch_info = attack(prop_method, model, batch_input, batch_out_spec, batch_info)
     # return couterexample_result, batch_info
 end
-
-
-function forward(model, batch_input::AbstractArray)
-    input_size = [] #input_size is a list
-    for layer in (model.layers)
-        layer_input_size = [size(batch_input, i) for i in 1:ndims(batch_input)-2] #only get the input size of the layer, the last 2 dims if channel and batchsize  
-        push!(input_size, layer_input_size)
-        batch_input = layer(batch_input)
-    end
-    return input_size
-end
-
 
 function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
     batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
