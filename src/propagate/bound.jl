@@ -76,14 +76,16 @@ struct CrownBound{T<:Real} <: Bound
 end
   
 struct AlphaCrownBound{T<:Real} <: Bound
-    batch_Low::AbstractArray{T, 3}    # reach_dim x input_dim+1 x batch_size
-    batch_Up::AbstractArray{T, 3}     # reach_dim x input_dim+1 x batch_size
+    #batch_Low::AbstractArray{T, 3}    # reach_dim x input_dim+1 x batch_size
+    #batch_Up::AbstractArray{T, 3}     # reach_dim x input_dim+1 x batch_size
     lower_A_x
     upper_A_x
     lower_A_W
     upper_A_W
     lower_bias
     upper_bias
+    batch_data_min
+    batch_data_max
 end
 
 function init_batch_bound(prop_method::Crown, batch_input::AbstractArray)
@@ -124,7 +126,15 @@ function compute_bound(bound::CrownBound)
     return l, u
 end
 
-
+function compute_bound(bound::AlphaCrownBound)
+    A_lower = bound.lower_A_x
+    A_upper = bound.upper_A_x
+    b_lower = bound.lower_bias
+    b_upper = bound.upper_bias
+    l = batched_mul(A_lower, bound.batch_center) .+ b_lower
+    u = batched_mul(A_upper, bound.batch_center) .+ b_lower
+    return l, u
+end
 
 
 
