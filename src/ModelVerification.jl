@@ -27,6 +27,7 @@ using LinearAlgebra
 using OpenCV
 using Flux
 using DataStructures
+using Einsum
 
 abstract type Solver end
 

@@ -9,6 +9,9 @@ function init_bound(prop_method::ForwardProp, input)
     return input
 end
 
+function init_bound(prop_method::BackwardProp, input)
+    return input
+end
 
 struct ImageStarBound{T<:Real} <: Bound
     center::AbstractArray{T, 4}       # h x w x c x 1
@@ -77,9 +80,7 @@ struct CrownBound{T<:Real} <: Bound
     batch_data_max::AbstractArray{T, 2}     # input_dim+1 x batch_size
 end
   
-struct AlphaCrownBound{T<:Real} <: Bound
-    #batch_Low::AbstractArray{T, 3}    # reach_dim x input_dim+1 x batch_size
-    #batch_Up::AbstractArray{T, 3}     # reach_dim x input_dim+1 x batch_size
+struct AlphaCrownBound <: Bound
     lower_A_x
     upper_A_x
     lower_A_W
@@ -97,12 +98,22 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray)
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
     batch_Low = repeat([I Z], outer=(1, 1, batch_size))
-    batch_Up = repeat([I Z], outer=(1,1, batch_size))
+    batch_Up = repeat([I Z], outer=(1, 1, batch_size))
     batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
     batch_data_min = [batch_data_min; ones(batch_size)'] # the last dimension is for bias
     batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
     batch_data_max = [batch_data_max; ones(batch_size)'] # the last dimension is for bias
     bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    return bound
+end
+
+function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, spec)
+    # batch_input : list of Hyperrectangle
+    batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
+    #batch_data_min = [batch_data_min] # the last dimension is for bias
+    batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
+    #batch_data_max = [batch_data_max] # the last dimension is for bias
+    bound = AlphaCrownBound(spec.A, spec.A, nothing, nothing, spec.b, spec.b, batch_data_min, batch_data_max)
     return bound
 end
 
@@ -129,12 +140,9 @@ function compute_bound(bound::CrownBound)
 end
 
 function compute_bound(bound::AlphaCrownBound)
-    A_lower = bound.lower_A_x
-    A_upper = bound.upper_A_x
-    b_lower = bound.lower_bias
-    b_upper = bound.upper_bias
-    l = batched_mul(A_lower, bound.batch_center) .+ b_lower
-    u = batched_mul(A_upper, bound.batch_center) .+ b_lower
+    z = zeros(size(bound.lower_A_x))
+    l = batched_mul(max.(bound.lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(bound.lower_A_x, z), bound.batch_data_max) .+ bound.lower_bias
+    u = batched_mul(max.(bound.upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(bound.upper_A_x, z), bound.batch_data_min) .+ bound.upper_bias
     return l, u
 end
 

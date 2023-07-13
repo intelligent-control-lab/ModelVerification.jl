@@ -100,12 +100,12 @@ end
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     sz = size(bound.generators)
     flat_bound = ImageStar_to_Star(bound)
-    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info, node)
+    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
     new_bound = Star_to_ImageStar(new_flat_bound, sz)
     return new_bound
 end
 
-function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), node, bound::CrownBound, batch_info)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -168,13 +168,13 @@ end
 
 #initalize relu's alpha_lower and alpha_upper
 function init_alpha(layer::typeof(relu), node, batch_info)
-    relu_input_lower, relu_input_upper = compute_bound(batch[node]["bound"]) # reach_dim x batch #now the bound is crown
+    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
     #batch_size = size(relu_input_lower)[end]
     unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
     lower_d = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    push!(batch_info[node], "alpha_shape" => size(lower_d))
+    push!(batch_info[node], :alpha_shape => size(lower_d))
     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
     #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
 
@@ -184,8 +184,8 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     #end
     #alpha_lower is for lower bound, alpha_upper is for upper bound
     alpha_lower = alpha_upper = lower_d .* unstable_mask
-    push!(batch_info[node], "alpha_lower" => alpha_lower) #reach_dim x batch
-    push!(batch_info[node], "alpha_upper" => alpha_upper) #reach_dim x batch
+    push!(batch_info[node], :alpha_lower => alpha_lower) #reach_dim x batch
+    push!(batch_info[node], :alpha_upper => alpha_upper) #reach_dim x batch
 end    
 
 
@@ -221,56 +221,58 @@ end
 
 
 
-function backward_relaxation(bound_lower, bound_upper, node, batch_info)
-    if !isnothing(batch_info[node]["inputs"])
-        input_node = batch_info[node]["inputs"][1]
-        lower, upper = compute_bound(batch_info[input_node]["bound"])
+function backward_relaxation(node, batch_info)
+    if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
+        lower, upper = compute_bound(batch_info[node][:pre_bound])
     else
-        lower, upper = compute_bound(batch_info[node]["bound"])
+        lower = batch_info[node][:pre_lower]
+        upper = batch_info[node][:pre_upper]
     end
     lower_bias = nothing
-    alpha_lower = batch_info[node]["alpha_lower"]
-    alpha_upper = batch_info[node]["alpha_upper"]
+    alpha_lower = batch_info[node][:alpha_lower]
+    alpha_upper = batch_info[node][:alpha_upper]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
     lb_lower_slope, ub_lower_slope = get_lower_d(lower, upper, alpha_lower, alpha_upper) #lower_d：lower of slope lower_d：lower of bias
     return  upper_slope, upper_bias, lb_lower_slope, ub_lower_slope, lower_bias
 end 
 
 #bound oneside of the relu, like upper or lower
-function bound_oneside(last_A, d_pos, d_neg, b_pos, b_neg)
+function bound_oneside(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
     if isnothing(last_A)
         return None, 0
     end
 
-    New_A, New_bias = multiply_by_A_signs(last_A, d_pos, d_neg, b_pos, b_neg)
+    New_A, New_bias = multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
     return New_A, New_bias
 end
 
 
 #using last_A for getting New_A
-function multiply_by_A_signs(last_A, d_pos, d_neg, b_pos, b_neg)
-    if ndims(d_pos) == 1
+function multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
+    if ndims(slope_pos) == 1
         # Special case for LSTM, the bias term is 1-dimension. 
-        New_A = clamp.(last_A, 0, Inf) .* d_pos .+ clamp.(last_A, -Inf, 0) .* d_neg
-        New_bias = clamp.(last_A, 0, Inf) .* b_pos .+ clamp.(last_A, -Inf, 0) .* b_neg
+        New_A = clamp.(last_A, 0, Inf) .* slope_pos .+ clamp.(last_A, -Inf, 0) .* slope_neg
+        New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
         return New_A, New_bias
     else
-        New_A, New_bias = clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg)
+        New_A, New_bias = clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
         return New_A, New_bias
     end
 end
 
 
-function clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg) 
+function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg) 
     A_pos = clamp.(last_A, 0, Inf)
     A_neg = clamp.(last_A, -Inf, 0)
-    New_A = d_pos .* A_pos .+ d_neg .* A_neg
-    bias_pos = bias_neg = [0.0]
-    if b_pos !== nothing #bias_pos = torch.einsum('...sb,...sb->sb', A_pos, b_pos)
-        s_pos = max(size(A_pos)[end], size(b_pos)[end])
-        h_pos = max(size(A_pos)[end-1], size(b_pos)[end-1])
+    slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
+    slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
+    New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
+    new_bias_pos = new_bias_neg = [0.0]
+    if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
+        #= s_pos = max(size(A_pos)[end], size(bias_pos)[end])
+        h_pos = max(size(A_pos)[end-1], size(bias_pos)[end-1])
         shape_A_pos = collect(size(A_pos))
-        shape_b_pos = collect(size(b_pos))
+        shape_b_pos = collect(size(bias_pos))
 
         shape_A_pos[end] = s_pos 
         shape_A_pos[end-1] = h_pos 
@@ -278,23 +280,25 @@ function clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg)
         shape_b_pos[end-1] = h_pos 
 
         A_pos_repeat_times = shape_A_pos .÷ collect(size(A_pos))
-        b_pos_repeat_times = shape_b_pos .÷ collect(size(b_pos))
+        b_pos_repeat_times = shape_b_pos .÷ collect(size(bias_pos))
 
-        bias_pos = zeros(h_pos, s_pos)
+        new_bias_pos = zeros(h_pos, s_pos)
         A_pos = repeat(A_pos, outer = A_pos_repeat_times) 
-        b_pos = repeat(b_pos, outer = b_pos_repeat_times)
+        bias_pos = repeat(bias_pos, outer = b_pos_repeat_times)
         for i in 1:s_pos
             for j in 1:h_pos
-                bias_pos[j, i] = sum(A_pos[:, j, i] .* b_pos[:, j, i])
+                new_bias_pos[j, i] = sum(A_pos[j, :, i] .* bias_pos[j, i])
             end
-        end
+        end =#
+        new_bias_pos = zeros((size(A_pos)[1], size(A_pos)[end]))#spec_dim x batch dim
+        @einsum new_bias_pos[s,b] = A_pos[s,r,b] * bias_pos[r,b]
     end
 
-    if b_neg !== nothing #bias_neg = torch.einsum('...sb,...sb->sb', A_neg, b_neg)
-        s_neg = max(size(A_neg)[end], size(b_neg)[end])
-        h_neg = max(size(A_neg)[end-1], size(b_neg)[end-1])
+    if bias_neg !== nothing #new_bias_neg = torch.einsum('...sb,...sb->sb', A_neg, bias_neg)
+        #= s_neg = max(size(A_neg)[end], size(bias_neg)[end])
+        h_neg = max(size(A_neg)[end-1], size(bias_neg)[end-1])
         shape_A_neg = collect(size(A_neg))
-        shape_b_neg = collect(size(b_neg))
+        shape_b_neg = collect(size(bias_neg))
 
         shape_A_neg[end] = s_neg 
         shape_A_neg[end-1] = h_neg 
@@ -302,24 +306,27 @@ function clamp_mutiply_forward(last_A, d_pos, d_neg, b_pos, b_neg)
         shape_b_neg[end-1] = h_neg 
 
         A_neg_repeat_times = shape_A_neg .÷ collect(size(A_neg))
-        b_neg_repeat_times = shape_b_neg .÷ collect(size(b_neg))
+        b_neg_repeat_times = shape_b_neg .÷ collect(size(bias_neg))
 
-        bias_neg = zeros(h_neg, s_neg)
+        new_bias_neg = zeros(h_neg, s_neg)
         A_neg = repeat(A_neg, outer = A_neg_repeat_times) 
-        b_neg = repeat(b_neg, outer = b_neg_repeat_times)
+        bias_neg = repeat(bias_neg, outer = b_neg_repeat_times)
         for i in 1:s_neg
             for j in 1:h_neg
-                bias_neg[j, i] = sum(A_neg[:, j, i] .* b_neg[:, j, i])
+                new_bias_neg[j, i] = sum(A_neg[j, :, i] .* bias_neg[j, i])
             end
-        end
+        end =#
+        new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
+        @einsum new_bias_neg[s,b] = A_neg[s,r,b] * bias_neg[r,b]
     end
-    New_bias = bias_pos .+ bias_neg
+    New_bias = new_bias_pos .+ new_bias_neg
     return New_A, New_bias
 end 
 
 
-function propagate_act_batch(prop_method::BackwardProp, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
-    upper_slope, upper_bias, ub_lower_slope, lb_lower_slope, lower_bias = backward_relaxation(prop_method.bound_lower, prop_method.bound_upper, node, boundbatch_info)
+function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
+    println(2)
+    upper_slope, upper_bias, ub_lower_slope, lb_lower_slope, lower_bias = backward_relaxation(node, batch_info)
 
     if prop_method.bound_upper
         uA, ubias = bound_oneside(bound.lower_A_x, upper_slope, ub_lower_slope, upper_bias, lower_bias)

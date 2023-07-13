@@ -19,7 +19,7 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
     return (l_new, u_new)
 end
 
-function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
+function propagate_linear_batch(prop_method::Crown, layer::Dense, node, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -27,18 +27,6 @@ function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBo
     output_Low[:, end, :] .+= layer.bias
     output_Up[:, end, :] .+= layer.bias
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound
-end
-
-function propagate_linear(prop_method::AlphaCrown, layer::Dense, bound::CrownBound, batch_info)
-    # out_dim x in_dim * in_dim x X_dim x batch_size
-    output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
-    @assert !any(isnan, output_Low) "contains NaN"
-    @assert !any(isnan, output_Up) "contains NaN"
-    output_Low[:, end, :] .+= layer.bias
-    output_Up[:, end, :] .+= layer.bias
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    # l, u = compute_bound(new_bound)
     return new_bound
 end
 
@@ -68,8 +56,8 @@ end
 
 function _preprocess(node, batch_info, bias = nothing)
     if !isnothing(bias)
-        if batch_info[node]["beta"] != 1.0 
-            bias = batch_info[node]["beta"] .* bias
+        if batch_info[node][:beta] != 1.0 
+            bias = batch_info[node][:beta] .* bias
         end
     end
     return bias
@@ -82,53 +70,39 @@ function bound_oneside(last_A, weight, bias)
 
     weight = reshape(weight, (size(weight)..., 1)) 
     weight = repeat(weight, 1, 1, size(last_A)[end]) #add batch dim in weight
-    weight = permutedims(weight, (2, 1, 3)) #permute the 1st and 2sd dims for batched_mul
-    new_A = NNlib.batched_mul(weight, last_A) #note: must be weight * last_A, not last_A * weight
+    #weight = permutedims(weight, (2, 1, 3)) #permute the 1st and 2sd dims for batched_mul
+    new_A = NNlib.batched_mul(last_A, weight) 
+
     
     if !isnothing(bias)
-        bias = reshape(bias, (size(bias)..., 1, 1)) #add input dim in weight
-        bias = repeat(bias, 1, 1, size(last_A)[end]) #add batch dim in weight
-        bias = permutedims(bias, (2, 1, 3))
-        sum_bias = NNlib.batched_mul(bias, last_A)
+        bias = reshape(bias, (size(bias)..., 1))
+        bias = repeat(bias, 1, size(last_A)[end]) 
+        #bias = permutedims(bias, (2, 1, 3))
+        sum_bias = NNlib.batched_mul(last_A, bias)
     else
-        sum_bias = 0.0
+        sum_bias = [0.0]
     end
 
-    return next_A, sum_bias
+    return new_A, sum_bias
 end
 
 function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bound::AlphaCrownBound, batch_info)
+    println(2)
     last_lA = bound.lower_A_x
     last_uA = bound.upper_A_x
-
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_y = uA_y = lA_bias = uA_bias = nothing
     lbias = ubias = 0
-    batch_size = !isnothing(last_lA) ? size(last_lA)[end] : size(last_lA)[end]
 
-    if !batch_info[node]["weight_ptb"] && (!batch_info[node]["bias_ptb"] || isnothing(layer.bias))
+    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         weight = layer.weight
         bias = bias_lb
         
-        #= index = last_lA
-        coeffs = nothing
-        
-        if !isnothing(weight)
-            new_weight = weight[index, :] #get the parameters that correspond to unstable neuron
-            lA_x = reshape(new_weight, (size(new_weight)..., 1))
-        end
-        if !isnothing(bias)
-            new_bias = bias[index, :] #get the parameters that correspond to unstable neuron
-            lbias = reshape(new_bias, (size(new_bias)..., 1))
-        end
-        uA_x, ubias = lA_x, lbias =#
-        
         lA_x, lbias = bound_oneside(last_lA, weight, bias)
         uA_x, ubias = bound_oneside(last_uA, weight, bias)
-
-        bound = AlphaCrownBound(bound.batch_Low, bound.batch_Up, lA_x, uA_x, lA_y, uA_y, lbias, ubias)
+        bound = AlphaCrownBound(lA_x, uA_x, lA_y, uA_y, lbias, ubias, bound.batch_data_min, bound.batch_data_max)
         return bound
     end
 end

@@ -19,6 +19,7 @@ struct Crown <: ForwardProp
 end
 
 struct AlphaCrown <: BackwardProp 
+    pre_bound_method::Union{ForwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
 end
@@ -33,10 +34,17 @@ ImageStar() = ImageStar{Star}()
 const ImageStarZono = ImageStar{Zonotope}
 
 
-function init_start_node_bound(prop_method, batch_input, model_info)
+function init_start_node_bound(prop_method::ForwardProp, batch_input, model_info)
     @assert length(model_info.start_nodes) == 1
     batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
     batch_info[model_info.start_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
+    return batch_info
+end
+
+
+function init_start_node_bound(prop_method::AlphaCrown, batch_input, model_info)
+    @assert length(model_info.start_nodes) == 1
+    batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
     return batch_info
 end
 
@@ -59,18 +67,36 @@ function prepare_method(prop_method::StarSet, batch_input::AbstractVector, batch
 end
 
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)
-    # prop_method.bound_lower = true
-    # prop_method.bound_upper = false
     batch_info[model_info.start_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return get_linear_spec(batch_output), batch_info
 end
 
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)
-    for node in model_info.all_nodes
-        bound = AlphaCrownBound(nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
-        push!(batch_info[node], :bound => bound)
+    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+        pre_batch_info = init_start_node_bound(prop_method.pre_bound_method, batch_input, model_info)
+        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info, pre_batch_info)
+        pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_out_spec, pre_batch_info)
+        for node in model_info.activation_nodes
+            @assert length(model_info.node_prevs[node]) == 1
+            prev_node = model_info.node_prevs[node][1]
+            batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
+        end
     end
-    return get_linear_spec(batch_output), batch_info
+    
+    #initialize alpha 
+    for node in model_info.activation_nodes
+        init_alpha(model_info.node_layer[node], node, batch_info)
+    end
+
+    for node in model_info.all_nodes
+        batch_info[node][:beta] = 1
+        batch_info[node][:weight_ptb] = false
+        batch_info[node][:bias_ptb] = false
+    end
+
+    linear_spec = get_linear_spec(batch_output)
+    batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input, linear_spec)
+    return linear_spec, batch_info
 end
 
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)
