@@ -16,6 +16,7 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             batch_info = init_start_node_bound(prop_method, batch_input, model_info)
             batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, model_info, batch_info)
             batch_bound, batch_info = propagate(prop_method, model_info, batch_out_spec, batch_info)
+            batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec)
             batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue

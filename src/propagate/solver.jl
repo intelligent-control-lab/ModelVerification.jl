@@ -94,9 +94,8 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         batch_info[node][:bias_ptb] = false
     end
 
-    linear_spec = get_linear_spec(batch_output)
-    batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input, linear_spec)
-    return linear_spec, batch_info
+    batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
+    return get_linear_spec(batch_output), batch_info
 end
 
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)

@@ -81,12 +81,12 @@ struct CrownBound{T<:Real} <: Bound
 end
   
 struct AlphaCrownBound <: Bound
-    lower_A_x
-    upper_A_x
+    lower_A_x::Function
+    upper_A_x::Function
     lower_A_W
     upper_A_W
-    lower_bias
-    upper_bias
+    lower_bias::Function
+    upper_bias::Function
     batch_data_min
     batch_data_max
 end
@@ -107,13 +107,19 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray)
     return bound
 end
 
-function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, spec)
+function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray)
     # batch_input : list of Hyperrectangle
+    batch_size = length(batch_input)
+    n = dim(batch_input[1])
+    I = Matrix{Float64}(LinearAlgebra.I(n))
+    Z = zeros(n)
+    #A = repeat(I, outer=(1, 1, batch_size))
+    #b = repeat(Z, outer=(1, 1, batch_size))
+    A(x) = repeat(I, outer=(1, 1, batch_size))
+    b(x) = repeat(Z, outer=(1, 1, batch_size))
     batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
-    #batch_data_min = [batch_data_min] # the last dimension is for bias
     batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
-    #batch_data_max = [batch_data_max] # the last dimension is for bias
-    bound = AlphaCrownBound(spec.A, spec.A, nothing, nothing, spec.b, spec.b, batch_data_min, batch_data_max)
+    bound = AlphaCrownBound(A, A, nothing, nothing, b, b, batch_data_min, batch_data_max)
     return bound
 end
 
@@ -147,6 +153,18 @@ function compute_bound(bound::AlphaCrownBound)
 end
 
 
+function process_bound(prop_method, batch_bound, batch_out_spec)
+    lower_output, upper_output = compute_bound(batch_bound)
+    spec_lower_output = batched_mul(batch_out_spec.A, lower_output) .- batch_out_spec.b
+    spec_upper_output = batched_mul(batch_out_spec.A, upper_output) .- batch_out_spec.b
+    lower_loss = sum(spec_lower_output)
+    upper_loss = sum(spec_upper_output)
+    optimizer = Flux.Optimiser(Flux.ADAM(0.1))
+    for i in 1:prop_method.max_optimize_iter
+        Flux.train!(lower_loss, optimizer)
+        Flux.train!(upper_loss, optimizer)
+    end
+end
 
 #= function init_slope()
     for node in Model

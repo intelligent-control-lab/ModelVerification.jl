@@ -70,24 +70,22 @@ function bound_oneside(last_A, weight, bias)
 
     weight = reshape(weight, (size(weight)..., 1)) 
     weight = repeat(weight, 1, 1, size(last_A)[end]) #add batch dim in weight
-    #weight = permutedims(weight, (2, 1, 3)) #permute the 1st and 2sd dims for batched_mul
-    new_A = NNlib.batched_mul(last_A, weight) 
+    #new_A = NNlib.batched_mul(last_A, weight) 
+    new_A(A) = NNlib.batched_mul(A, weight) 
 
-    
     if !isnothing(bias)
         bias = reshape(bias, (size(bias)..., 1))
         bias = repeat(bias, 1, size(last_A)[end]) 
-        #bias = permutedims(bias, (2, 1, 3))
-        sum_bias = NNlib.batched_mul(last_A, bias)
+        #sum_bias = NNlib.batched_mul(last_A, bias)
+        sum_bias(A) = NNlib.batched_mul(A, bias)
     else
-        sum_bias = [0.0]
+        sum_bias(A) = [0.0]
     end
 
     return new_A, sum_bias
 end
 
 function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bound::AlphaCrownBound, batch_info)
-    println(2)
     last_lA = bound.lower_A_x
     last_uA = bound.upper_A_x
     #TO DO: we haven't consider the perturbation in weight and bias

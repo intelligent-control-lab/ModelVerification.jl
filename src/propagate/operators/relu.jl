@@ -190,17 +190,20 @@ end
 
 
 
-function get_lower_d(lower, upper, lb_lower_slope, ub_lower_slope)
+function get_lower_d(lower, upper, alpha_lower, alpha_upper)
     lower_mask = (lower .>= 0)
     upper_mask = (upper .<= 0)
     unstable_mask = (upper .> 0) .& (lower .< 0)
     
-    if !isnothing(lb_lower_slope)
-        lb_lower_slope = clamp.(lb_lower_slope, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
+    if !isnothing(alpha_lower)
+        #lb_lower_slope = clamp.(alpha_lower, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
+        lb_lower_slope(alpha) = clamp.(alpha, 0.0, 1.0) .* unstable_mask .+ lower_mask
+        Flux.params(lb_lower_slope) = alpha_lower
     end
-    
-    if !isnothing(ub_lower_slope)
-        ub_lower_slope = clamp.(ub_lower_slope, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
+    if !isnothing(alpha_upper)
+        #ub_lower_slope = clamp.(alpha_upper, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
+        ub_lower_slope(alpha) = clamp.(alpha, 0.0, 1.0) .* unstable_mask .+ lower_mask
+        Flux.params(ub_lower_slope) = alpha_upper
     end
     
     return lb_lower_slope, ub_lower_slope
@@ -251,8 +254,10 @@ end
 function multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
     if ndims(slope_pos) == 1
         # Special case for LSTM, the bias term is 1-dimension. 
-        New_A = clamp.(last_A, 0, Inf) .* slope_pos .+ clamp.(last_A, -Inf, 0) .* slope_neg
-        New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
+        #New_A = clamp.(last_A, 0, Inf) .* slope_pos .+ clamp.(last_A, -Inf, 0) .* slope_neg
+        #New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
+        New_A(A) = clamp.(A, 0, Inf) .* slope_pos .+ clamp.(A, -Inf, 0) .* slope_neg
+        New_bias(A) = clamp.(A, 0, Inf) .* bias_pos .+ clamp.(A, -Inf, 0) .* bias_neg
         return New_A, New_bias
     else
         New_A, New_bias = clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
@@ -262,8 +267,14 @@ end
 
 
 function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg) 
-    A_pos = clamp.(last_A, 0, Inf)
-    A_neg = clamp.(last_A, -Inf, 0)
+    #A_pos = clamp.(last_A, 0, Inf)
+    #A_neg = clamp.(last_A, -Inf, 0)
+    #slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
+    #slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
+    #New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
+    #new_bias_pos = new_bias_neg = [0.0]
+    A_pos(A) = clamp.(A, 0, Inf)
+    A_neg(A) = clamp.(A, -Inf, 0)
     slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
     slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
     New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
@@ -295,27 +306,6 @@ function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
     end
 
     if bias_neg !== nothing #new_bias_neg = torch.einsum('...sb,...sb->sb', A_neg, bias_neg)
-        #= s_neg = max(size(A_neg)[end], size(bias_neg)[end])
-        h_neg = max(size(A_neg)[end-1], size(bias_neg)[end-1])
-        shape_A_neg = collect(size(A_neg))
-        shape_b_neg = collect(size(bias_neg))
-
-        shape_A_neg[end] = s_neg 
-        shape_A_neg[end-1] = h_neg 
-        shape_b_neg[end] = s_neg 
-        shape_b_neg[end-1] = h_neg 
-
-        A_neg_repeat_times = shape_A_neg .÷ collect(size(A_neg))
-        b_neg_repeat_times = shape_b_neg .÷ collect(size(bias_neg))
-
-        new_bias_neg = zeros(h_neg, s_neg)
-        A_neg = repeat(A_neg, outer = A_neg_repeat_times) 
-        bias_neg = repeat(bias_neg, outer = b_neg_repeat_times)
-        for i in 1:s_neg
-            for j in 1:h_neg
-                new_bias_neg[j, i] = sum(A_neg[j, :, i] .* bias_neg[j, i])
-            end
-        end =#
         new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
         @einsum new_bias_neg[s,b] = A_neg[s,r,b] * bias_neg[r,b]
     end
@@ -325,7 +315,6 @@ end
 
 
 function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
-    println(2)
     upper_slope, upper_bias, ub_lower_slope, lb_lower_slope, lower_bias = backward_relaxation(node, batch_info)
 
     if prop_method.bound_upper
