@@ -81,12 +81,12 @@ struct CrownBound{T<:Real} <: Bound
 end
   
 struct AlphaCrownBound <: Bound
-    lower_A_x::Function
-    upper_A_x::Function
+    lower_A_x
+    upper_A_x
     lower_A_W
     upper_A_W
-    lower_bias::Function
-    upper_bias::Function
+    lower_bias
+    upper_bias
     batch_data_min
     batch_data_max
 end
@@ -146,25 +146,38 @@ function compute_bound(bound::CrownBound)
 end
 
 function compute_bound(bound::AlphaCrownBound)
-    z = zeros(size(bound.lower_A_x))
-    l = batched_mul(max.(bound.lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(bound.lower_A_x, z), bound.batch_data_max) .+ bound.lower_bias
-    u = batched_mul(max.(bound.upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(bound.upper_A_x, z), bound.batch_data_min) .+ bound.upper_bias
+    #z = zeros(size(bound.lower_A_x))
+    #l = batched_mul(max.(bound.lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(bound.lower_A_x, z), bound.batch_data_max) .+ bound.lower_bias
+    #u = batched_mul(max.(bound.upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(bound.upper_A_x, z), bound.batch_data_min) .+ bound.upper_bias
+    lower_A_x = bound.lower_A_x
+    upper_A_x = bound.upper_A_x
+    Pos_A = push!(lower_A_x, x -> batched_mul(clamp.(x, 0, Inf), bound.batch_data_min) .+ batched_mul(clamp.(x, -Inf, 0), bound.batch_data_max))
+    Neg_A = push!(upper_A_x, x -> batched_mul(clamp.(x, 0, Inf), bound.batch_data_max) .+ batched_mul(clamp.(x, -Inf, 0), bound.batch_data_min))
+    l = Chain(Join(.+, Chain(Pos_A), Chain(Neg_A)))
     return l, u
-end
+end 
 
 
 function process_bound(prop_method, batch_bound, batch_out_spec)
     lower_output, upper_output = compute_bound(batch_bound)
-    spec_lower_output = batched_mul(batch_out_spec.A, lower_output) .- batch_out_spec.b
-    spec_upper_output = batched_mul(batch_out_spec.A, upper_output) .- batch_out_spec.b
-    lower_loss = sum(spec_lower_output)
-    upper_loss = sum(spec_upper_output)
+    #spec_lower_output = batched_mul(batch_out_spec.A, lower_output) .- batch_out_spec.b
+    #spec_upper_output = batched_mul(batch_out_spec.A, upper_output) .- batch_out_spec.b
+    spec_lower_output = push!(lower_output, batched_mul(batch_out_spec.A, x) .- batch_out_spec.b)
+    spec_upper_output = push!(upper_output, batched_mul(batch_out_spec.A, x) .- batch_out_spec.b)
+    lower_loss = push!(spec_lower_output, sum(x))
+    upper_loss = push!(spec_upper_output, sum(x))
+
     optimizer = Flux.Optimiser(Flux.ADAM(0.1))
-    for i in 1:prop_method.max_optimize_iter
-        Flux.train!(lower_loss, optimizer)
-        Flux.train!(upper_loss, optimizer)
+    lower_grads = Flux.gradient(Flux.params(lower_loss)) do
+        Chain(lower_loss)([1])#Any input is OK here because the input has already become a constant function
     end
+    upper_grads = Flux.gradient(Flux.params(upper_loss)) do
+        Chain(upper_loss)([1])#Any input is OK here because the input has already become a constant function
+    end
+    Flux.Optimise.update!(opt, Flux.params(lower_loss), lower_grads)
+    Flux.Optimise.update!(opt, Flux.params(upper_loss), upper_grads)
 end
+    
 
 #= function init_slope()
     for node in Model

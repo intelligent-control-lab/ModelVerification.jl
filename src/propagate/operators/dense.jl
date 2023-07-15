@@ -65,24 +65,27 @@ end
 
 function bound_oneside(last_A, weight, bias)
     if isnothing(last_A)
-        return nothing, 0
+        #return nothing, 0
+        return nothing, nothing
     end
 
     weight = reshape(weight, (size(weight)..., 1)) 
-    weight = repeat(weight, 1, 1, size(last_A)[end]) #add batch dim in weight
-    #new_A = NNlib.batched_mul(last_A, weight) 
-    new_A(A) = NNlib.batched_mul(A, weight) 
+    weight = repeat(weight, 1, 1, batch_info[:batch_size]) #add batch dim in weight
+    #New_A = NNlib.batched_mul(last_A, weight) 
+    push!(New_A, x -> NNlib.batched_mul(x, weight)) 
 
     if !isnothing(bias)
         bias = reshape(bias, (size(bias)..., 1))
-        bias = repeat(bias, 1, size(last_A)[end]) 
-        #sum_bias = NNlib.batched_mul(last_A, bias)
-        sum_bias(A) = NNlib.batched_mul(A, bias)
+        bias = repeat(bias, 1, batch_info[:batch_size]) 
+        #New_bias = NNlib.batched_mul(last_A, bias)
+        push!(New_A, x -> NNlib.batched_mul(x, bias)) 
     else
-        sum_bias(A) = [0.0]
+        New_bias = []
+        z(x) = [0.0]
+        push!(New_bias, z)
     end
 
-    return new_A, sum_bias
+    return New_A, New_bias
 end
 
 function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bound::AlphaCrownBound, batch_info)
@@ -92,7 +95,6 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bou
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_y = uA_y = lA_bias = uA_bias = nothing
-    lbias = ubias = 0
 
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         weight = layer.weight

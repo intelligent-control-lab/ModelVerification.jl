@@ -93,7 +93,6 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         batch_info[node][:weight_ptb] = false
         batch_info[node][:bias_ptb] = false
     end
-
     batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return get_linear_spec(batch_output), batch_info
 end

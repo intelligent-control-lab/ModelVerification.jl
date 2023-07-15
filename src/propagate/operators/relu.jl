@@ -164,8 +164,6 @@ function forward_partition(layer::typeof(relu), reach)
 end
 
 
-
-
 #initalize relu's alpha_lower and alpha_upper
 function init_alpha(layer::typeof(relu), node, batch_info)
     relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
@@ -184,32 +182,36 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     #end
     #alpha_lower is for lower bound, alpha_upper is for upper bound
     alpha_lower = alpha_upper = lower_d .* unstable_mask
-    push!(batch_info[node], :alpha_lower => alpha_lower) #reach_dim x batch
-    push!(batch_info[node], :alpha_upper => alpha_upper) #reach_dim x batch
+    push!(batch_info[node], :alpha_lower => AlphaLayer(alpha_lower)) #reach_dim x batch
+    push!(batch_info[node], :alpha_upper => AlphaLayer(alpha_upper)) #reach_dim x batch
 end    
 
 
+struct AlphaLayer
+    alpha
+end
+(l::AlphaLayer)(x) = clamp.(l.alpha, 0.0, 1.0)
+Flux.@functor AlphaLayer
 
 function get_lower_d(lower, upper, alpha_lower, alpha_upper)
     lower_mask = (lower .>= 0)
     upper_mask = (upper .<= 0)
     unstable_mask = (upper .> 0) .& (lower .< 0)
-    
+
     if !isnothing(alpha_lower)
         #lb_lower_slope = clamp.(alpha_lower, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
-        lb_lower_slope(alpha) = clamp.(alpha, 0.0, 1.0) .* unstable_mask .+ lower_mask
-        Flux.params(lb_lower_slope) = alpha_lower
+        lb_lower_slope = [AlphaLayer(alpha_lower)]
+        push!(lb_lower_slope, x -> x .* unstable_mask .+ lower_mask)
     end
+
     if !isnothing(alpha_upper)
         #ub_lower_slope = clamp.(alpha_upper, 0.0, 1.0) .* unstable_mask .+ lower_mask #the slope of unstable neuron is alpha, the slope of activative neuron is 1
-        ub_lower_slope(alpha) = clamp.(alpha, 0.0, 1.0) .* unstable_mask .+ lower_mask
-        Flux.params(ub_lower_slope) = alpha_upper
+        ub_lower_slope = [AlphaLayer(alpha_upper)]
+        push!(ub_lower_slope, x -> x .* unstable_mask .+ lower_mask)
     end
     
-    return lb_lower_slope, ub_lower_slope
+    return Chain(lb_lower_slope), Chain(ub_lower_slope)
 end
-
-
 
 #Upper bound slope and intercept according to CROWN relaxation.
 function relu_upper_bound(lower, upper)
@@ -231,7 +233,7 @@ function backward_relaxation(node, batch_info)
         lower = batch_info[node][:pre_lower]
         upper = batch_info[node][:pre_upper]
     end
-    lower_bias = nothing
+    lower_bias = [0.0]
     alpha_lower = batch_info[node][:alpha_lower]
     alpha_upper = batch_info[node][:alpha_upper]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
@@ -240,45 +242,57 @@ function backward_relaxation(node, batch_info)
 end 
 
 #bound oneside of the relu, like upper or lower
-function bound_oneside(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
+function bound_oneside(last_A, slope_pos, slope_neg, bias_pos, bias_neg, batch_info)
     if isnothing(last_A)
-        return None, 0
+        #return None, 0
+        return nothing, nothing
     end
-
-    New_A, New_bias = multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
+    New_A, New_bias = multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg, batch_info)
     return New_A, New_bias
 end
 
-
 #using last_A for getting New_A
-function multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
+function multiply_by_A_signs(last_A, slope_pos, slope_neg, bias_pos, bias_neg, batch_info)
+    New_A = last_A
+    New_bias = last_A
     if ndims(slope_pos) == 1
         # Special case for LSTM, the bias term is 1-dimension. 
         #New_A = clamp.(last_A, 0, Inf) .* slope_pos .+ clamp.(last_A, -Inf, 0) .* slope_neg
         #New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
-        New_A(A) = clamp.(A, 0, Inf) .* slope_pos .+ clamp.(A, -Inf, 0) .* slope_neg
-        New_bias(A) = clamp.(A, 0, Inf) .* bias_pos .+ clamp.(A, -Inf, 0) .* bias_neg
-        return New_A, New_bias
+        Pos_last_A(x) = clamp.(x, 0, Inf)
+        Neg_last_A(x) = clamp.(x, -Inf, 0)
+        Pos_New_A = Chain(Join(.*, Pos_last_A, slope_pos))
+        Neg_New_A = Chain(Join(.*, Neg_last_A, slope_neg))
+        push!(New_A, Chain(Join(.*, Pos_New_A, Neg_New_A)))
+
+        Pos_New_bias(x) = clamp.(x, 0, Inf) .* bias_pos
+        Neg_New_bias(x) = clamp.(x, -Inf, 0) .* bias_neg
+        push!(New_bias ,Chain(Join(.*, Pos_New_bias, Neg_New_bias)))
     else
-        New_A, New_bias = clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
+        New_A, New_bias = clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg, batch_info)
         return New_A, New_bias
     end
 end
 
 
-function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg) 
+function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg, batch_info) 
     #A_pos = clamp.(last_A, 0, Inf)
     #A_neg = clamp.(last_A, -Inf, 0)
     #slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
     #slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
     #New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
     #new_bias_pos = new_bias_neg = [0.0]
-    A_pos(A) = clamp.(A, 0, Inf)
-    A_neg(A) = clamp.(A, -Inf, 0)
-    slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
-    slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
-    New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
-    new_bias_pos = new_bias_neg = [0.0]
+    New_A = last_A
+    New_bias = last_A
+
+    Pos_last_A(x) = clamp.(x, 0, Inf)
+    Neg_last_A(x) = clamp.(x, -Inf, 0)
+    add_spec_dim(x) = repeat(reshape(x, (1, size(x)...)), batch_info[:spec_number], 1, 1) 
+    Process_slope_pos = Chain([slope_pos, add_spec_dim])
+    Process_slope_neg = Chain([slope_neg, add_spec_dim])
+    Pos_New_A = Chain(Join(.*, Process_slope_pos, Pos_last_A))
+    Neg_New_A = Chain(Join(.*, Process_slope_neg, Neg_last_A))
+    New_A = Chain(Join(.*, Pos_New_A, Neg_New_A))
     if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
         #= s_pos = max(size(A_pos)[end], size(bias_pos)[end])
         h_pos = max(size(A_pos)[end-1], size(bias_pos)[end-1])
@@ -309,7 +323,7 @@ function clamp_mutiply_forward(last_A, slope_pos, slope_neg, bias_pos, bias_neg)
         new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
         @einsum new_bias_neg[s,b] = A_neg[s,r,b] * bias_neg[r,b]
     end
-    New_bias = new_bias_pos .+ new_bias_neg
+    New_bias = Chain(Join(.*, new_bias_pos, new_bias_neg))
     return New_A, New_bias
 end 
 
@@ -318,10 +332,10 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), node,
     upper_slope, upper_bias, ub_lower_slope, lb_lower_slope, lower_bias = backward_relaxation(node, batch_info)
 
     if prop_method.bound_upper
-        uA, ubias = bound_oneside(bound.lower_A_x, upper_slope, ub_lower_slope, upper_bias, lower_bias)
+        uA, ubias = bound_oneside(bound.lower_A_x, upper_slope, ub_lower_slope, upper_bias, lower_bias, batch_info)
     end
     if prop_method.bound_lower
-        lA, lbias = bound_oneside(bound.upper_A_x, lb_lower_slope, upper_slope, lower_bias, upper_bias)
+        lA, lbias = bound_oneside(bound.upper_A_x, lb_lower_slope, upper_slope, lower_bias, upper_bias, batch_info)
     end
     bound = AlphaCrownBound(lA, uA, nothing, nothing, lbias, ubias, bound.batch_data_min, bound.batch_data_max)
     return bound
