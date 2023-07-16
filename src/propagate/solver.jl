@@ -93,6 +93,12 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         batch_info[node][:weight_ptb] = false
         batch_info[node][:bias_ptb] = false
     end
+    
+    batch_info[:propagate_start_node] = model_info.final_nodes[1]
+    batch_info[:batch_size] = size(batch_input)[end]
+    linear_spec = get_linear_spec(batch_output)
+    batch_info[:spec_number] = size(linear_spec.A)[end]
+
     batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return get_linear_spec(batch_output), batch_info
 end
@@ -100,7 +106,7 @@ end
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info, batch_info)
     return get_linear_spec(batch_output), batch_info
 end
-
+  
 function preprocess(C)
     batch_size = size(C)[end]
     output_dim = size(C)[2]

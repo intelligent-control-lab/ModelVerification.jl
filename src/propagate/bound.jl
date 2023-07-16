@@ -113,10 +113,8 @@ function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray)
     n = dim(batch_input[1])
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
-    #A = repeat(I, outer=(1, 1, batch_size))
-    #b = repeat(Z, outer=(1, 1, batch_size))
-    A(x) = repeat(I, outer=(1, 1, batch_size))
-    b(x) = repeat(Z, outer=(1, 1, batch_size))
+    A = repeat(I, outer=(1, 1, batch_size))
+    b = repeat(Z, outer=(1, 1, batch_size))
     batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
     batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
     bound = AlphaCrownBound(A, A, nothing, nothing, b, b, batch_data_min, batch_data_max)
@@ -146,36 +144,52 @@ function compute_bound(bound::CrownBound)
 end
 
 function compute_bound(bound::AlphaCrownBound)
-    #z = zeros(size(bound.lower_A_x))
-    #l = batched_mul(max.(bound.lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(bound.lower_A_x, z), bound.batch_data_max) .+ bound.lower_bias
-    #u = batched_mul(max.(bound.upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(bound.upper_A_x, z), bound.batch_data_min) .+ bound.upper_bias
-    lower_A_x = bound.lower_A_x
-    upper_A_x = bound.upper_A_x
-    Pos_A = push!(lower_A_x, x -> batched_mul(clamp.(x, 0, Inf), bound.batch_data_min) .+ batched_mul(clamp.(x, -Inf, 0), bound.batch_data_max))
-    Neg_A = push!(upper_A_x, x -> batched_mul(clamp.(x, 0, Inf), bound.batch_data_max) .+ batched_mul(clamp.(x, -Inf, 0), bound.batch_data_min))
-    l = Chain(Join(.+, Chain(Pos_A), Chain(Neg_A)))
+    z = zeros(size(bound.lower_A_x))
+    lower_A_x = Chain(bound.lower_A_x)(bound.lower_A_x[1]) #bound.lower_A_x[1] stores the input lower A(Identity Matrix)
+    upper_A_x = Chain(bound.upper_A_x)(bound.upper_A_x[1]) #bound.upper_A_x[1] stores the input upper A(Identity Matrix)
+    l = batched_mul(max.(lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(lower_A_x, z), bound.batch_data_max) #.+ bound.lower_bias
+    u = batched_mul(max.(upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(upper_A_x, z), bound.batch_data_min) #.+ bound.upper_bias
     return l, u
 end 
 
+struct Compute_bound
+    batch_data_min
+    batch_data_max
+    spec_A
+    spec_b
+end
+Flux.@functor Compute_bound
 
-function process_bound(prop_method, batch_bound, batch_out_spec)
-    lower_output, upper_output = compute_bound(batch_bound)
-    #spec_lower_output = batched_mul(batch_out_spec.A, lower_output) .- batch_out_spec.b
-    #spec_upper_output = batched_mul(batch_out_spec.A, upper_output) .- batch_out_spec.b
-    spec_lower_output = push!(lower_output, batched_mul(batch_out_spec.A, x) .- batch_out_spec.b)
-    spec_upper_output = push!(upper_output, batched_mul(batch_out_spec.A, x) .- batch_out_spec.b)
-    lower_loss = push!(spec_lower_output, sum(x))
-    upper_loss = push!(spec_upper_output, sum(x))
+function (f::Compute_bound)(x)
+    z = zeros(size(x))
+    result = batched_mul(max.(x, z), f.batch_data_min) .+ batched_mul(min.(x, z), f.batch_data_max) #.+ bound.lower_bias
+    result = batched_mul(f.spec_A, result) .- f.spec_b
+    return result
+end
 
+function process_bound(prop_method, batch_bound, start_bound, batch_out_spec)
+    input_lower_A = start_bound.lower_A_x #start_bound.lower_A_x[1] stores the input lower A(Identity Matrix)
+    input_upper_A = start_bound.upper_A_x #start_bound.upper_A_x[1] stores the input upper A(Identity Matrix)
+    optimize_lower_A_function = batch_bound.lower_A_x
+    optimize_upper_A_function = batch_bound.upper_A_x
+    compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max, batch_out_spec.spec_A, batch_out_spec.spec_b)
+    Flux.trainable(compute_bound::Compute_bound) = ()
+    push!(optimize_lower_A_function, compute_bound)
+    push!(optimize_upper_A_function, compute_bound)
+    optimize_lower_A_function = Chain(optimize_lower_A_function)
+    optimize_upper_A_function = Chain(optimize_upper_A_function)
+    loss(x) = sum(x)
     optimizer = Flux.Optimiser(Flux.ADAM(0.1))
-    lower_grads = Flux.gradient(Flux.params(lower_loss)) do
-        Chain(lower_loss)([1])#Any input is OK here because the input has already become a constant function
+    lower_grads = Flux.gradient(optimize_lower_A_function) do m
+        result = m(input_lower_A)
+        my_loss(result)
     end
-    upper_grads = Flux.gradient(Flux.params(upper_loss)) do
-        Chain(upper_loss)([1])#Any input is OK here because the input has already become a constant function
+    upper_grads = Flux.gradient(optimize_upper_A_function) do m
+        result = m(input_upper_A)
+        my_loss(result)
     end
-    Flux.Optimise.update!(opt, Flux.params(lower_loss), lower_grads)
-    Flux.Optimise.update!(opt, Flux.params(upper_loss), upper_grads)
+    Flux.Optimise.update!(optimizer, Flux.params(lower_loss), lower_grads[1])
+    Flux.Optimise.update!(optimizer, Flux.params(upper_loss), upper_grads[1])
 end
     
 

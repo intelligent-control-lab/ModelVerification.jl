@@ -102,7 +102,6 @@ export Ai2, Ai2h, Ai2z, Box
 export StarSet
 export ImageStar, ImageStarZono
 export Crown, AlphaCrown, BetaCrown
-export Join
 
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
