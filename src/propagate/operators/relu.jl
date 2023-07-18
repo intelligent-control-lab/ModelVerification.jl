@@ -1,4 +1,3 @@
-
 function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
@@ -105,7 +104,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, 
     return new_bound
 end
 
-function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), node, bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -189,20 +188,17 @@ end
 
 
 struct AlphaLayer
+    node
     alpha
-    lower#if lower==false, this Layer is Alpha_Upper_Layer
+    lower
     unstable_mask
     lower_mask 
-    upper_slope
-end
-Flux.@functor AlphaLayer
-
-struct Alpha_Bias_Layer
     upper_slope
     lower_bias
     upper_bias
 end
-Flux.@functor Alpha_Bias_Layer
+Flux.@functor AlphaLayer (alpha,) #only alpha need to be trained
+
 
 #Upper bound slope and intercept according to CROWN relaxation.
 function relu_upper_bound(lower, upper)
@@ -271,24 +267,24 @@ function bound_oneside(last_A, slope_pos, slope_neg)
 end
 
 function (f::AlphaLayer)(x)
+    Last_A = x[1]
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
     if f.lower 
-        New_A = bound_oneside(x, lower_slope, f.upper_slope)
+        New_A = bound_oneside(Last_A, lower_slope, f.upper_slope)
     else
-        New_A = bound_oneside(x, f.upper_slope, lower_slope)
-    return New_A
-end
-
-function (f::Alpha_Bias_Layer)(x)
-    if isnothing(x)
-        return nothing
+        New_A = bound_oneside(Last_A, f.upper_slope, lower_slope)
     end
-    New_bias = multiply_bias(x, f.upper_slope, f.upper_bias, f.lower_bias)
-    return New_bias
+
+    if isnothing(Last_A)
+        return [New_A, nothing]
+    end
+    New_bias = multiply_bias(Last_A, f.upper_slope, f.upper_bias, f.lower_bias)
+
+    return [New_A, New_bias]
 end
 
-function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), node, bound::AlphaCrownBound, batch_info)
-
+function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
+    node = batch_info[:current_node]
     if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
         lower, upper = compute_bound(batch_info[node][:pre_bound])
     else
@@ -301,36 +297,21 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), node,
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
 
     if prop_method.bound_lower
-        Alpha_Lower_Layer = AlphaLayer(alpha_lower, true, unstable_mask, lower_mask, upper_slope)
-        Alpha_Lower_Bias_Layer = Alpha_Bias_Layer(upper_slope, upper_bias, lower_bias)
-        Flux.trainable(Alpha_Lower_Layer::AlphaLayer) = (Alpha_Lower_Layer.alpha,)
-        Flux.trainable(Alpha_Lower_Bias_Layer::Alpha_Bias_Layer) = () # no trainable params
+        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, upper_bias, lower_bias)
     else 
         Alpha_Lower_Layer = nothing
-        Alpha_Lower_Bias_Layer = nothing
     end
 
     if prop_method.bound_upper
-        Alpha_Upper_Layer = AlphaLayer(alpha_upper, false, unstable_mask, lower_mask, upper_slope)
-        Alpha_Upper_Bias_Layer = Alpha_Bias_Layer(upper_slope, lower_bias, upper_bias)
-        Flux.trainable(Alpha_Upper_Layer::AlphaLayer) = (Alpha_Upper_Layer.alpha,)
-        Flux.trainable(Alpha_Upper_Bias_Layer::Alpha_Bias_Layer) = () # no trainable params
+        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
     else
         Alpha_Upper_Layer = nothing
-        Alpha_Upper_Bias_Layer = nothing
     end
-
-    if !(node in batch_info[:propagate_start_node])
-        lower_A = bound.lower_A_x
-        upper_A = bound.upper_A_x
-    else 
-        # if this node is propagate_start_node, bound.lower_A_x will be a Identity Matrix rather that a couple of function
-        lower_A = [] 
-        upper_A = []
-    end
+    lower_A = bound.lower_A_x
+    upper_A = bound.upper_A_x
     push!(lower_A, Alpha_Lower_Layer)
     push!(upper_A, Alpha_Upper_Layer)
-    bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, Alpha_Lower_Bias_Layer, Alpha_Upper_Bias_Layer, bound.batch_data_min, bound.batch_data_max)
+    push!(batch_info[:Alpha_Lower_Layer_node], node)
+    bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
     return bound
 end
-               

@@ -22,6 +22,8 @@ struct AlphaCrown <: BackwardProp
     pre_bound_method::Union{ForwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
+    optimizer
+    trian_iteration::Int
 end
 
 struct BetaCrown <: BackwardProp 
@@ -94,8 +96,8 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         batch_info[node][:bias_ptb] = false
     end
     
-    batch_info[:propagate_start_node] = model_info.final_nodes[1]
-    batch_info[:batch_size] = size(batch_input)[end]
+    batch_info[:Alpha_Lower_Layer_node] = []#store the order of the node which has AlphaLayer
+    batch_info[:batch_size] = length(batch_input)
     linear_spec = get_linear_spec(batch_output)
     batch_info[:spec_number] = size(linear_spec.A)[end]
 
@@ -112,4 +114,17 @@ function preprocess(C)
     output_dim = size(C)[2]
     output_shape = [-1]
     return batch_size, output_dim, output_shape
+end
+
+function init_A_bias(prop_method::AlphaCrown, batch_input, batch_info)
+    # batch_input : list of Hyperrectangle
+    batch_size = length(batch_input)
+    batch_info[:batch_size] = batch_size
+    n = dim(batch_input[1])
+    I = Matrix{Float64}(LinearAlgebra.I(n))
+    Z = zeros(n)
+    A = repeat(I, outer=(1, 1, batch_size))
+    b = repeat(Z, outer=(1, 1, batch_size))
+    batch_info[:init_lower_A_bias] = [A, b]
+    batch_info[:init_upper_A_bias] = [A, b]
 end

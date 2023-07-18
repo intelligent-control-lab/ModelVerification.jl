@@ -1,4 +1,4 @@
-using .Flux
+#= #= using .Flux
 
 # Network -> Flux
 
@@ -29,4 +29,5 @@ _flux(f::GeneralAct) = f.f
 _flux(m::Layer) = Dense(m.weights, m.bias, _flux(m.activation))
 _flux(m::Network) = Chain(_flux.(m.layers)...)
 
-Flux.Chain(m::Network) = _flux(m)
+Flux.Chain(m::Network) = _flux(m) =#
+ =#

@@ -19,7 +19,7 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
     return (l_new, u_new)
 end
 
-function propagate_linear_batch(prop_method::Crown, layer::Dense, node, bound::CrownBound, batch_info)
+function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -63,7 +63,7 @@ function _preprocess(node, batch_info, bias = nothing)
     return bias
 end
 
-function bound_oneside(last_A, weight, bias)
+function dense_bound_oneside(last_A, weight, bias)
     if isnothing(last_A)
         #return nothing, 0
         return nothing, nothing
@@ -72,44 +72,37 @@ function bound_oneside(last_A, weight, bias)
     weight = reshape(weight, (size(weight)..., 1)) 
     weight = repeat(weight, 1, 1, batch_info[:batch_size]) #add batch dim in weight
     #New_A = NNlib.batched_mul(last_A, weight) 
-    push!(last_A, x -> NNlib.batched_mul(x, weight)) 
 
     if !isnothing(bias)
         New_bias = []
         bias = reshape(bias, (size(bias)..., 1))
         bias = repeat(bias, 1, batch_info[:batch_size]) 
         #New_bias = NNlib.batched_mul(last_A, bias)
-        push!(New_bias, x -> NNlib.batched_mul(x, bias)) 
+        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_mul(x[1], bias)]) 
     else
-        z(x) = [0.0]
-        push!(New_bias, z)
+        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), 0.0]) 
     end
 
     return last_A, New_bias
 end
 
-function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, node, bound::AlphaCrownBound, batch_info)
+function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
+    node = batch_info[:current_node]
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_y = uA_y = lA_bias = uA_bias = nothing
 
-    if !(node in batch_info[:propagate_start_node])
-        lower_A = bound.lower_A_x
-        upper_A = bound.upper_A_x
-    else 
-        # if this node is propagate_start_node, bound.lower_A_x will be a Identity Matrix rather that a couple of function
-        lower_A = [] 
-        upper_A = []
-    end
+    lower_A = bound.lower_A_x
+    upper_A = bound.upper_A_x
 
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         weight = layer.weight
         bias = bias_lb
         
-        lA_x, lbias = bound_oneside(lower_A, weight, bias)
-        uA_x, ubias = bound_oneside(upper_A, weight, bias)
-        bound = AlphaCrownBound(lA_x, uA_x, lA_y, uA_y, lbias, ubias, bound.batch_data_min, bound.batch_data_max)
+        lA_x = dense_bound_oneside(lower_A, weight, bias)
+        uA_x = dense_bound_oneside(upper_A, weight, bias)
+        bound = AlphaCrownBound(lA_x, uA_x, lA_y, uA_y, bound.batch_data_min, bound.batch_data_max)
         return bound
     end
 end

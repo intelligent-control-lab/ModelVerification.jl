@@ -90,7 +90,7 @@ function propagate_skip_method(prop_method::ForwardProp, model_info, batch_info,
     input_node2 = model_info.node_prevs[node][2]
     batch_bound1 = batch_info[input_node1][:bound]
     batch_bound2 = batch_info[input_node2][:bound]
-    batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], node, batch_bound1, batch_bound2, batch_info)
+    batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], batch_bound1, batch_bound2, batch_info)
     return batch_bound
 end
 
@@ -101,7 +101,7 @@ function propagate_skip_method(prop_method::BackwardProp, model_info, batch_info
         output_node2 = model_info.node_nexts[node][2]
         batch_bound1 = batch_info[output_node1][:bound]
         batch_bound2 = batch_info[output_node2][:bound]
-        batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], node, batch_bound1, batch_bound2, batch_info)
+        batch_bound = propagate_skip_batch(prop_method, model_info.node_layer[node], batch_bound1, batch_bound2, batch_info)
     else
         return nothing
     end
@@ -112,7 +112,7 @@ end
 
 function propagate_layer_method(prop_method::ForwardProp, model_info, batch_info, node)
     input_node = model_info.node_prevs[node][1]
-    batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], node, batch_info[input_node][:bound], batch_info)
+    batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node][:bound], batch_info)
     return batch_bound
 end
 
@@ -121,9 +121,9 @@ function propagate_layer_method(prop_method::BackwardProp, model_info, batch_inf
     if !(node in model_info.start_nodes)
         if length(model_info.node_nexts[node]) != 0
             output_node = model_info.node_nexts[node][1]
-            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], node, batch_info[output_node][:bound], batch_info)
+            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[output_node][:bound], batch_info)
         else #the node is final_node
-            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], node, batch_info[node][:bound], batch_info)
+            batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[node][:bound], batch_info)
         end
     else
         return nothing
@@ -172,17 +172,17 @@ function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out
     # return couterexample_result, batch_info
 end
 
-function propagate_linear_batch(prop_method::ForwardProp, layer, node, batch_reach::AbstractArray, batch_info)
+function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
     batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_act_batch(prop_method::ForwardProp, σ, node, batch_reach::AbstractArray, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info)
     batch_reach_info = [propagate_act(prop_method, σ, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)
 end
 
-function propagate_skip_batch(prop_method::ForwardProp, layer, node, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
+function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
     batch_reach_info = [propagate_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach1)]
     return batch_reach_info#map(first, batch_reach_info)
 end
@@ -194,11 +194,11 @@ function is_activation(l)
     return false
 end
 
-function propagate_layer_batch(prop_method, layer, node, batch_bound, batch_info)
+function propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
     if is_activation(layer)
-        batch_bound = propagate_act_batch(prop_method, layer, node, batch_bound, batch_info)
+        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
     else
-        batch_bound = propagate_linear_batch(prop_method, layer, node, batch_bound, batch_info)
+        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
     end
     return batch_bound
 end

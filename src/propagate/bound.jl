@@ -25,6 +25,7 @@ struct ImageZonoBound{T<:Real} <: Bound
     generators::AbstractArray{T, 4}   #  h x w x c x n_gen
 end
 
+
 """
 init_bound(prop_method::ImageStar, batch_input) 
 
@@ -85,8 +86,6 @@ struct AlphaCrownBound <: Bound
     upper_A_x
     lower_A_W
     upper_A_W
-    lower_bias
-    upper_bias
     batch_data_min
     batch_data_max
 end
@@ -108,16 +107,9 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray)
 end
 
 function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray)
-    # batch_input : list of Hyperrectangle
-    batch_size = length(batch_input)
-    n = dim(batch_input[1])
-    I = Matrix{Float64}(LinearAlgebra.I(n))
-    Z = zeros(n)
-    A = repeat(I, outer=(1, 1, batch_size))
-    b = repeat(Z, outer=(1, 1, batch_size))
     batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
     batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
-    bound = AlphaCrownBound(A, A, nothing, nothing, b, b, batch_data_min, batch_data_max)
+    bound = AlphaCrownBound([], [], nothing, nothing, batch_data_min, batch_data_max)
     return bound
 end
 
@@ -143,6 +135,7 @@ function compute_bound(bound::CrownBound)
     return l, u
 end
 
+
 function compute_bound(bound::AlphaCrownBound)
     z = zeros(size(bound.lower_A_x))
     lower_A_x = Chain(bound.lower_A_x)(bound.lower_A_x[1]) #bound.lower_A_x[1] stores the input lower A(Identity Matrix)
@@ -152,46 +145,6 @@ function compute_bound(bound::AlphaCrownBound)
     return l, u
 end 
 
-struct Compute_bound
-    batch_data_min
-    batch_data_max
-    spec_A
-    spec_b
-end
-Flux.@functor Compute_bound
-
-function (f::Compute_bound)(x)
-    z = zeros(size(x))
-    result = batched_mul(max.(x, z), f.batch_data_min) .+ batched_mul(min.(x, z), f.batch_data_max) #.+ bound.lower_bias
-    result = batched_mul(f.spec_A, result) .- f.spec_b
-    return result
-end
-
-function process_bound(prop_method, batch_bound, start_bound, batch_out_spec)
-    input_lower_A = start_bound.lower_A_x #start_bound.lower_A_x[1] stores the input lower A(Identity Matrix)
-    input_upper_A = start_bound.upper_A_x #start_bound.upper_A_x[1] stores the input upper A(Identity Matrix)
-    optimize_lower_A_function = batch_bound.lower_A_x
-    optimize_upper_A_function = batch_bound.upper_A_x
-    compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max, batch_out_spec.spec_A, batch_out_spec.spec_b)
-    Flux.trainable(compute_bound::Compute_bound) = ()
-    push!(optimize_lower_A_function, compute_bound)
-    push!(optimize_upper_A_function, compute_bound)
-    optimize_lower_A_function = Chain(optimize_lower_A_function)
-    optimize_upper_A_function = Chain(optimize_upper_A_function)
-    loss(x) = sum(x)
-    optimizer = Flux.Optimiser(Flux.ADAM(0.1))
-    lower_grads = Flux.gradient(optimize_lower_A_function) do m
-        result = m(input_lower_A)
-        my_loss(result)
-    end
-    upper_grads = Flux.gradient(optimize_upper_A_function) do m
-        result = m(input_upper_A)
-        my_loss(result)
-    end
-    Flux.Optimise.update!(optimizer, Flux.params(lower_loss), lower_grads[1])
-    Flux.Optimise.update!(optimizer, Flux.params(upper_loss), upper_grads[1])
-end
-    
 
 #= function init_slope()
     for node in Model
