@@ -1,4 +1,4 @@
-#= #= using .Flux
+using .Flux
 
 # Network -> Flux
 
@@ -15,10 +15,10 @@ else
     layer(d::Dense) = Layer(d.weight, d.bias, activation(d.σ))
 end
 
-# network(c::Chain) = Network([layer.(c.layers)...])
+network(c::Chain) = Network([layer.(c.layers)...])
 
-# Problem(c::Chain, input::AbstractPolytope, output::AbstractPolytope) =
-#   Problem(network(c), input, output)
+Problem(c::Chain, input::AbstractPolytope, output::AbstractPolytope) =
+Problem(network(c), input, output)
 
 # Flux -> Network
 
@@ -29,5 +29,4 @@ _flux(f::GeneralAct) = f.f
 _flux(m::Layer) = Dense(m.weights, m.bias, _flux(m.activation))
 _flux(m::Network) = Chain(_flux.(m.layers)...)
 
-Flux.Chain(m::Network) = _flux(m) =#
- =#
+Flux.Chain(m::Network) = _flux(m)

@@ -100,7 +100,7 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     batch_info[:batch_size] = length(batch_input)
     linear_spec = get_linear_spec(batch_output)
     batch_info[:spec_number] = size(linear_spec.A)[end]
-
+    init_A_bias(prop_method, batch_input, batch_info)
     batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return get_linear_spec(batch_output), batch_info
 end
