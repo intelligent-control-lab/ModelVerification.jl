@@ -224,6 +224,7 @@ function clamp_mutiply_bias(last_A, bias_pos, bias_neg)
     A_pos = clamp.(last_A, 0, Inf)
     A_neg = clamp.(last_A, -Inf, 0) 
     if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
+        bias_pos = 
         new_bias_pos = zeros((size(A_pos)[1], size(A_pos)[end]))#spec_dim x batch dim
         @einsum new_bias_pos[s,b] = A_pos[s,r,b] * bias_pos[r,b]
     end
@@ -252,7 +253,7 @@ function multiply_bias(last_A, upper_slope, bias_pos, bias_neg)
         # Special case for LSTM, the bias term is 1-dimension. 
         New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
     else
-        New_bias = [0.0]#clamp_mutiply_bias(last_A, bias_pos, bias_neg)
+        New_bias = clamp_mutiply_bias(last_A, bias_pos, bias_neg)
         return New_bias
     end
 end
@@ -300,21 +301,25 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     upper_mask = (upper .<= 0)
     unstable_mask = (upper .> 0) .& (lower .< 0)
     
+    lower_A = bound.lower_A_x
+    upper_A = bound.upper_A_x
     if prop_method.bound_lower
         Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, upper_bias, lower_bias)
-    else 
-        Alpha_Lower_Layer = nothing
+        push!(lower_A, Alpha_Lower_Layer)
+    #else 
+    #    Alpha_Lower_Layer = nothing
     end
 
     if prop_method.bound_upper
         Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
-    else
-        Alpha_Upper_Layer = nothing
+        push!(upper_A, Alpha_Upper_Layer)
+    #else
+    #    Alpha_Upper_Layer = nothing
     end
-    lower_A = bound.lower_A_x
-    upper_A = bound.upper_A_x
-    push!(lower_A, Alpha_Lower_Layer)
-    push!(upper_A, Alpha_Upper_Layer)
+    #lower_A = bound.lower_A_x
+    #upper_A = bound.upper_A_x
+    #push!(lower_A, Alpha_Lower_Layer)
+    #push!(upper_A, Alpha_Upper_Layer)
     push!(batch_info[:Alpha_Lower_Layer_node], node)
     New_bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
     return New_bound

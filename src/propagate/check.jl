@@ -98,7 +98,9 @@ function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractAr
             center_res[i] <= 0 && (results[i] = BasicResult(:violated))
             spec_l[i] > 0 && (results[i] = BasicResult(:holds))
         end
-    else # holds if forall x such that max spec ai x - bi <= 0
+    end
+
+    if prop_method.bound_upper# holds if forall x such that max spec ai x - bi <= 0
         for i in 1:batch_size
             spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
             center_res[i] > 0 && (results[i] = BasicResult(:violated))

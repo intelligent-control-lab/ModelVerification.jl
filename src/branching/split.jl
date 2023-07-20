@@ -1,7 +1,7 @@
 @with_kw struct Bisect <: SplitMethod
     num_split::Int64     = 1
 end
-
+  
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output)
     split_method.num_split <= 0 && return [(input, output)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)

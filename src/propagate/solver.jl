@@ -47,6 +47,7 @@ end
 function init_start_node_bound(prop_method::AlphaCrown, batch_input, model_info)
     @assert length(model_info.start_nodes) == 1
     batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
+    batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return batch_info
 end
 
@@ -101,7 +102,6 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     linear_spec = get_linear_spec(batch_output)
     batch_info[:spec_number] = size(linear_spec.A)[end]
     init_A_bias(prop_method, batch_input, batch_info)
-    batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input)
     return get_linear_spec(batch_output), batch_info
 end
 
