@@ -28,6 +28,7 @@ using OpenCV
 using Flux
 using DataStructures
 using Einsum
+using Zygote
 
 abstract type Solver end
 

@@ -41,7 +41,5 @@ function get_linear_spec(batch_out_set::AbstractVector)
     # display(out_spec_A)
     # println("out_spec_b")
     # display(out_spec_b)
-    # println("is_complement")
-    # println(is_complement)
     return LinearSpec(out_spec_A, out_spec_b, is_complement)
 end

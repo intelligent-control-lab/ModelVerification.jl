@@ -20,6 +20,18 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
 end
 
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    model_info, is_complement = add_spec_layer(model_info, problem.output) #append spec layer
+    return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), is_complement)
+end
+
+function add_spec_layer(model_info, batch_out)
+    linear_spec = get_linear_spec(batch_out)
+
+    return model_info, linear_spec.is_complement
+end
+
 function onnx_parse(onnx_model_path)
     @assert !isnothing(onnx_model_path) 
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
@@ -45,7 +57,7 @@ function onnx_parse(onnx_model_path)
         elseif length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "relu" 
             activation_number += 1
             node_name = "relu" * "_" * string(activation_number) #activate == "relu_5" doesn't mean this node is 5th relu node, but means this node is 5th activation node
-            node_layer[node_name] = + NNlib.relu
+            node_layer[node_name] = NNlib.relu
             push!(activation_nodes, node_name)
         else
             node_layer[node_name] = NaiveNASflux.layer(vertex)

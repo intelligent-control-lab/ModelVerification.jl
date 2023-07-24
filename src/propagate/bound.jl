@@ -64,7 +64,7 @@ function init_bound(prop_method::StarSet, input::Hyperrectangle)
     I = Matrix{T}(LinearAlgebra.I(n))
     A = [I; .-I]
     b = [ones(T, n); ones(T, n)] # -1 to 1
-    return Star(T.(cen), T.(gen), HPolyhedron(A, b))
+    return Star(T.(cen), T.(gen), HPolyhedron(A, b))  
 end
 
 
@@ -136,14 +136,14 @@ function compute_bound(bound::CrownBound)
 end
 
 
-function compute_bound(bound::AlphaCrownBound)
+#= function compute_bound(bound::AlphaCrownBound)
     z = zeros(size(bound.lower_A_x))
     lower_A_x = Chain(bound.lower_A_x)(bound.lower_A_x[1]) #bound.lower_A_x[1] stores the input lower A(Identity Matrix)
     upper_A_x = Chain(bound.upper_A_x)(bound.upper_A_x[1]) #bound.upper_A_x[1] stores the input upper A(Identity Matrix)
     l = batched_mul(max.(lower_A_x, z), bound.batch_data_min) .+ batched_mul(min.(lower_A_x, z), bound.batch_data_max) #.+ bound.lower_bias
     u = batched_mul(max.(upper_A_x, z), bound.batch_data_max) .+ batched_mul(min.(upper_A_x, z), bound.batch_data_min) #.+ bound.upper_bias
     return l, u
-end 
+end  =#
 
 
 #= function init_slope()

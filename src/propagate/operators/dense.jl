@@ -76,10 +76,11 @@ function dense_bound_oneside(last_A, weight, bias, batch_info)
         New_bias = []
         bias = reshape(bias, (size(bias)..., 1))
         bias = repeat(bias, 1, batch_info[:batch_size]) 
+        println()
         #New_bias = NNlib.batched_mul(last_A, bias)
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_mul(x[1], bias)]) 
+        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_mul(x[1], bias) .+ x[2]]) 
     else
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), 0.0]) 
+        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), x[2]]) 
     end
     return last_A
 end
@@ -96,7 +97,6 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::Al
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         weight = layer.weight
         bias = bias_lb
-        
         if prop_method.bound_lower
             lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info)
         else

@@ -99,8 +99,6 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     
     batch_info[:Alpha_Lower_Layer_node] = []#store the order of the node which has AlphaLayer
     batch_info[:batch_size] = length(batch_input)
-    linear_spec = get_linear_spec(batch_output)
-    batch_info[:spec_number] = size(linear_spec.A)[end]
     init_A_bias(prop_method, batch_input, batch_info)
     return get_linear_spec(batch_output), batch_info
 end

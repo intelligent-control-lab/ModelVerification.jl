@@ -161,7 +161,7 @@ function addbound(prop_method::AlphaCrown, node, batch_bound, batch_info)
     upper_A_W = batch_info[node][:bound].upper_A_W
     lower_bias = batch_info[node][:bound].lower_bias
     upper_bias = batch_info[node][:bound].upper_bias
-    new_bound = AlphaCrownBound(batch_Low, batch_Up, new_node_lA, new_node_uA, lower_A_W, upper_A_W, lower_bias, upper_bias)
+    new_bound = AlphaCrownBound(new_node_lA, new_node_uA, lower_A_W, upper_A_W, lower_bias, upper_bias)
     push!(batch_info[node], :bound => new_bound)
 end
 

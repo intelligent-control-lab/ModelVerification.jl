@@ -224,16 +224,17 @@ function clamp_mutiply_bias(last_A, bias_pos, bias_neg)
     A_pos = clamp.(last_A, 0, Inf)
     A_neg = clamp.(last_A, -Inf, 0) 
     if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
-        bias_pos = 
         new_bias_pos = zeros((size(A_pos)[1], size(A_pos)[end]))#spec_dim x batch dim
-        @einsum new_bias_pos[s,b] = A_pos[s,r,b] * bias_pos[r,b]
+        new_bias_pos_buffer = Zygote.Buffer(new_bias_pos)
+        @einsum new_bias_pos_buffer[s,b] = A_pos[s,r,b] * bias_pos[r,b]
     end
 
     if bias_neg !== nothing #new_bias_neg = torch.einsum('...sb,...sb->sb', A_neg, bias_neg)
         new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
-        @einsum new_bias_neg[s,b] = A_neg[s,r,b] * bias_neg[r,b]
+        new_bias_neg_buffer = Zygote.Buffer(new_bias_neg)
+        @einsum new_bias_neg_buffer[s,b] = A_neg[s,r,b] * bias_neg[r,b]
     end
-    New_bias = new_bias_pos .+ new_bias_neg
+    New_bias = copy(new_bias_pos_buffer) .+ copy(new_bias_neg_buffer)
     return New_bias
 end 
 
@@ -279,7 +280,12 @@ function (f::AlphaLayer)(x)
     if isnothing(Last_A)
         return [New_A, nothing]
     end
-    New_bias = multiply_bias(Last_A, f.upper_slope, f.upper_bias, f.lower_bias)
+
+    if f.lower 
+        New_bias = multiply_bias(Last_A, f.upper_slope, f.lower_bias, f.upper_bias) .+ x[2]
+    else
+        New_bias = multiply_bias(Last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+    end
 
     return [New_A, New_bias]
 end
@@ -292,10 +298,11 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
         lower = batch_info[node][:pre_lower]
         upper = batch_info[node][:pre_upper]
     end
-    lower_bias = [0.0]
+
     alpha_lower = batch_info[node][:alpha_lower]
     alpha_upper = batch_info[node][:alpha_upper]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
+    lower_bias = zeros(size(upper_bias))
 
     lower_mask = (lower .>= 0)
     upper_mask = (upper .<= 0)
@@ -303,23 +310,17 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     
     lower_A = bound.lower_A_x
     upper_A = bound.upper_A_x
+    
     if prop_method.bound_lower
         Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, upper_bias, lower_bias)
         push!(lower_A, Alpha_Lower_Layer)
-    #else 
-    #    Alpha_Lower_Layer = nothing
     end
 
     if prop_method.bound_upper
         Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
         push!(upper_A, Alpha_Upper_Layer)
-    #else
-    #    Alpha_Upper_Layer = nothing
     end
-    #lower_A = bound.lower_A_x
-    #upper_A = bound.upper_A_x
-    #push!(lower_A, Alpha_Lower_Layer)
-    #push!(upper_A, Alpha_Upper_Layer)
+
     push!(batch_info[:Alpha_Lower_Layer_node], node)
     New_bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
     return New_bound
