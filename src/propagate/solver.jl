@@ -82,7 +82,7 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     
-    batch_info[:init_lower_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
+    batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
     batch_info[:init_upper_A_b] = [out_specs.A, .-out_specs.b]
 
     # After conversion, we only need to decide if lower bound of spec_A y-spec_b > 0 or if upper bound of spec_A y - spec_b < 0

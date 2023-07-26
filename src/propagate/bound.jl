@@ -207,7 +207,7 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
     # maximize lower(A * x - b) or minimize upper(A * x - b)
     loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
     
-    bound_model = optimize_bound(bound_model, batch_info[:init_lower_A_b], loss_func, prop_method.optimizer, prop_method.trian_iteration)
+    bound_model = optimize_bound(bound_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.trian_iteration)
     
     for (index, params) in enumerate(Flux.params(bound_model))
         relu_node = batch_info[:Alpha_Lower_Layer_node][index]
@@ -217,10 +217,10 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
         println(params)
     end
 
-    println("batch_info[:init_lower_A_b]")
-    println(batch_info[:init_lower_A_b])
+    println("batch_info[:spec_A_b]")
+    println(batch_info[:spec_A_b])
 
-    spec_l, spec_u = bound_model(batch_info[:init_lower_A_b])
+    spec_l, spec_u = bound_model(batch_info[:spec_A_b])
     
     n = size(batch_out_spec.A, 2)
     batch_size = size(batch_out_spec.A, 3)
