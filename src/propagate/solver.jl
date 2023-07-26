@@ -23,7 +23,7 @@ mutable struct AlphaCrown <: BackwardProp
     bound_lower::Bool
     bound_upper::Bool
     optimizer
-    trian_iteration::Int
+    train_iteration::Int
 end
 
 mutable struct BetaCrown <: BackwardProp 
@@ -79,7 +79,6 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     out_specs = get_linear_spec(batch_output)
     prop_method.bound_lower = out_specs.is_complement ? true : false
     prop_method.bound_upper = out_specs.is_complement ? false : true
-    
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation

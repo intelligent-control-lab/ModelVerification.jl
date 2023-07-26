@@ -170,8 +170,9 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
-    lower_d = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    push!(batch_info[node], :alpha_shape => size(lower_d))
+    #lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    lower_slope = zeros(size(upper_slope))
+    push!(batch_info[node], :alpha_shape => size(lower_slope))
     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
     #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
 
@@ -180,7 +181,7 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
     #end
     #alpha_lower is for lower bound, alpha_upper is for upper bound
-    alpha_lower = alpha_upper = lower_d .* unstable_mask
+    alpha_lower = alpha_upper = lower_slope .* unstable_mask
     batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
     batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
     batch_info[node][:added_alpha] = false #whether add ahpha into A's params
@@ -269,22 +270,21 @@ function bound_oneside(last_A, slope_pos, slope_neg)
 end
 
 function (f::AlphaLayer)(x)
-    Last_A = x[1]
+    last_A = x[1]
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
     if f.lower 
-        New_A = bound_oneside(Last_A, lower_slope, f.upper_slope)
+        New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
     else
-        New_A = bound_oneside(Last_A, f.upper_slope, lower_slope)
+        New_A = bound_oneside(last_A, f.upper_slope, lower_slope)
     end
-
-    if isnothing(Last_A)
+    if isnothing(last_A)
         return [New_A, nothing]
     end
 
     if f.lower 
-        New_bias = multiply_bias(Last_A, f.upper_slope, f.lower_bias, f.upper_bias) .+ x[2]
+        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
     else
-        New_bias = multiply_bias(Last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
     end
 
     return [New_A, New_bias]

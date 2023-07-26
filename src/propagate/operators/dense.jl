@@ -71,7 +71,7 @@ function dense_bound_oneside(last_A, weight, bias, batch_size)
     weight = reshape(weight, (size(weight)..., 1)) 
     weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
     #New_A = NNlib.batched_mul(last_A, weight) 
-
+    
     if !isnothing(bias)
         New_bias = []
         bias = reshape(bias, (size(bias)..., 1))
