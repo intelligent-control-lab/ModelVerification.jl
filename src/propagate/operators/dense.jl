@@ -63,20 +63,20 @@ function _preprocess(node, batch_info, bias = nothing)
     return bias
 end
 
-function dense_bound_oneside(last_A, weight, bias, batch_info)
+function dense_bound_oneside(last_A, weight, bias, batch_size)
     if isnothing(last_A)
         #return nothing, 0
         return nothing, nothing
     end
     weight = reshape(weight, (size(weight)..., 1)) 
-    weight = repeat(weight, 1, 1, batch_info[:batch_size]) #add batch dim in weight
+    weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
     #New_A = NNlib.batched_mul(last_A, weight) 
 
     if !isnothing(bias)
         New_bias = []
         bias = reshape(bias, (size(bias)..., 1))
-        bias = repeat(bias, 1, batch_info[:batch_size]) 
-        println()
+        bias = repeat(bias, 1, batch_size) 
+        # println()
         #New_bias = NNlib.batched_mul(last_A, bias)
         push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_mul(x[1], bias) .+ x[2]]) 
     else
@@ -90,7 +90,7 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::Al
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
-    lA_y = uA_y = lA_bias = uA_bias = nothing
+    lA_W = uA_W = lA_bias = uA_bias = nothing
 
     #lower_A = bound.lower_A_x
     #upper_A = bound.upper_A_x
@@ -98,16 +98,16 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::Al
         weight = layer.weight
         bias = bias_lb
         if prop_method.bound_lower
-            lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info)
+            lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info[:batch_size])
         else
             lA_x = nothing
         end
         if prop_method.bound_upper
-            uA_x = dense_bound_oneside(bound.upper_A_x, weight, bias, batch_info)
+            uA_x = dense_bound_oneside(bound.upper_A_x, weight, bias, batch_info[:batch_size])
         else
             uA_x = nothing
         end
-        New_bound = AlphaCrownBound(lA_x, uA_x, lA_y, uA_y, bound.batch_data_min, bound.batch_data_max)
+        New_bound = AlphaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max)
         return New_bound
     end
 end
