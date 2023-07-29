@@ -167,8 +167,10 @@ Flux.@functor Compute_bound ()
 
 function (f::Compute_bound)(x)
     z = zeros(size(x[1]))
-    l = batched_mul(max.(x[1], z), f.batch_data_min) .+ batched_mul(min.(x[1], z), f.batch_data_max) .+ x[2]
-    u = batched_mul(max.(x[1], z), f.batch_data_max) .+ batched_mul(min.(x[1], z), f.batch_data_min) .+ x[2]
+    l = batched_vec(max.(x[1], z), f.batch_data_min) + batched_vec(min.(x[1], z), f.batch_data_max) .+ x[2]
+    u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
+    #println("batch_data_min, A, b, l")
+    #println(size(f.batch_data_min), size(x[1]), size(x[2]), size(l))
     return l, u
 end 
 
@@ -200,10 +202,11 @@ end
 
 function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, batch_info)
     #println("batch_bound.batch_data_min max")
-    #println(batch_bound.batch_data_min, batch_bound.batch_data_max)
+    #println(size(batch_bound.batch_data_min), size(batch_bound.batch_data_max))
     compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
 
-    bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound))
+    bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
+    bound_model = fmap(cu, bound_model)
     # maximize lower(A * x - b) or minimize upper(A * x - b)
     loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
     
@@ -221,7 +224,7 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
     
     n = size(batch_out_spec.A, 2)
     batch_size = size(batch_out_spec.A, 3)
-    out_l, out_u = bound_model(init_A_b(n, batch_size)) # out_dim x batch_dim
+    #out_l, out_u = bound_model(init_A_b(n, batch_size)) # out_dim x batch_dim
     # spec_A: spec_dim x out_dim x batch_dim
     # spec_l: spec_dim x batch_dim
 
@@ -229,12 +232,12 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
     # println(prop_method.bound_lower)
     # println("prop_method.bound_upper")
     # println(prop_method.bound_upper)
-    println("out_l, out_u")
-    println(out_l, out_u)
+    #println("out_l, out_u")
+    #println(size(out_l), size(out_u))
     #println("spec_l, spec_u")
     #println(spec_l, spec_u)
     #println("spec_A, spec_b")
-    #println(batch_out_spec.A, batch_out_spec.b)
+    #println(size(batch_out_spec.A), size(batch_out_spec.b))
     return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 

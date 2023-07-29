@@ -26,6 +26,7 @@ using ONNXNaiveNASflux, NaiveNASflux, .NaiveNASlib
 using LinearAlgebra
 using OpenCV
 using Flux
+using CUDA
 using DataStructures
 using Einsum
 using Zygote

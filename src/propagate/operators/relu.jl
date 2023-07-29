@@ -107,14 +107,12 @@ end
 function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
-
     # If the lower bound of the lower bound is positive,
     # No change to the linear bounds.
     
     # If the upper bound of the upper bound is negative, set
     # both linear bounds to 0
     l, u = compute_bound(bound) # reach_dim x batch
-
     inact_mask = u .<= 0 # reach_dim x batch
     inact_mask_ext = broadcast_mid_dim(inact_mask, output_Low) # reach_dim x input_dim x batch
     output_Low[inact_mask_ext] .= 0
@@ -170,9 +168,8 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
-    #lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    lower_slope = zeros(size(upper_slope))
-    push!(batch_info[node], :alpha_shape => size(lower_slope))
+    lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    #lower_slope = zeros(size(upper_slope))
     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
     #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
 
@@ -181,10 +178,10 @@ function init_alpha(layer::typeof(relu), node, batch_info)
     #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
     #end
     #alpha_lower is for lower bound, alpha_upper is for upper bound
-    alpha_lower = alpha_upper = lower_slope .* unstable_mask
+    alpha_lower = lower_slope .* unstable_mask
+    alpha_upper = lower_slope .* unstable_mask
     batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
     batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
-    batch_info[node][:added_alpha] = false #whether add ahpha into A's params
 end    
 
 
@@ -212,6 +209,8 @@ function relu_upper_bound(lower, upper)
 end
 
 function clamp_mutiply_A(last_A, slope_pos, slope_neg) 
+    #last_A : spec_dim x reach_dim x batch_dim
+    #slope_pos : reach_dim x batch_dim
     A_pos = clamp.(last_A, 0, Inf)
     A_neg = clamp.(last_A, -Inf, 0)
     slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
@@ -222,18 +221,20 @@ end
 
 
 function clamp_mutiply_bias(last_A, bias_pos, bias_neg) 
+    #last_A : spec_dim x reach_dim x batch_dim
+    #bias_pos : reach_dim x batch_dim
     A_pos = clamp.(last_A, 0, Inf)
     A_neg = clamp.(last_A, -Inf, 0) 
     if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
-        new_bias_pos = zeros((size(A_pos)[1], size(A_pos)[end]))#spec_dim x batch dim
+        CUDA.@allowscalar new_bias_pos = fmap(cu, zeros((size(A_pos)[1], size(A_pos)[end])))#spec_dim x batch dim
         new_bias_pos_buffer = Zygote.Buffer(new_bias_pos)
-        @einsum new_bias_pos_buffer[s,b] = A_pos[s,r,b] * bias_pos[r,b]
+        CUDA.@allowscalar @einsum new_bias_pos_buffer[s,b] = A_pos[s,r,b] * bias_pos[r,b]
     end
 
     if bias_neg !== nothing #new_bias_neg = torch.einsum('...sb,...sb->sb', A_neg, bias_neg)
-        new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
+        CUDA.@allowscalar new_bias_neg = fmap(cu, zeros((size(A_neg)[1], size(A_neg)[end])))#spec_dim x batch dim
         new_bias_neg_buffer = Zygote.Buffer(new_bias_neg)
-        @einsum new_bias_neg_buffer[s,b] = A_neg[s,r,b] * bias_neg[r,b]
+        CUDA.@allowscalar @einsum new_bias_neg_buffer[s,b] = A_neg[s,r,b] * bias_neg[r,b]
     end
     New_bias = copy(new_bias_pos_buffer) .+ copy(new_bias_neg_buffer)
     return New_bias
@@ -263,7 +264,7 @@ end
 #bound oneside of the relu, like upper or lower
 function bound_oneside(last_A, slope_pos, slope_neg)
     if isnothing(last_A)
-        return nothing, nothing
+        return nothing
     end
     New_A = multiply_by_A_signs(last_A, slope_pos, slope_neg)
     return New_A
@@ -271,18 +272,19 @@ end
 
 function (f::AlphaLayer)(x)
     last_A = x[1]
+    if isnothing(last_A)
+        return [New_A, nothing]
+    end
+
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
     if f.lower 
         New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
     else
         New_A = bound_oneside(last_A, f.upper_slope, lower_slope)
     end
-    if isnothing(last_A)
-        return [New_A, nothing]
-    end
 
     if f.lower 
-        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+        New_bias = multiply_bias(last_A, f.upper_slope, f.lower_bias, f.upper_bias) .+ x[2]
     else
         New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
     end
@@ -292,8 +294,11 @@ end
 
 function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
     node = batch_info[:current_node]
+    println(node)
     if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
-        lower, upper = compute_bound(batch_info[node][:pre_bound])
+        lower, upper = fmap(cu, compute_bound(batch_info[node][:pre_bound]))
+        batch_info[node][:pre_lower] = lower
+        batch_info[node][:pre_upper] = upper
     else
         lower = batch_info[node][:pre_lower]
         upper = batch_info[node][:pre_upper]
@@ -302,7 +307,7 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     alpha_lower = batch_info[node][:alpha_lower]
     alpha_upper = batch_info[node][:alpha_upper]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
-    lower_bias = zeros(size(upper_bias))
+    lower_bias = fmap(cu, zeros(size(upper_bias)))
 
     lower_mask = (lower .>= 0)
     upper_mask = (upper .<= 0)
@@ -312,12 +317,12 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     upper_A = bound.upper_A_x
     
     if prop_method.bound_lower
-        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, upper_bias, lower_bias)
+        Alpha_Lower_Layer = fmap(cu, AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias))
         push!(lower_A, Alpha_Lower_Layer)
     end
 
     if prop_method.bound_upper
-        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        Alpha_Upper_Layer = fmap(cu, AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias))
         push!(upper_A, Alpha_Upper_Layer)
     end
 

@@ -65,22 +65,17 @@ end
 
 function dense_bound_oneside(last_A, weight, bias, batch_size)
     if isnothing(last_A)
-        #return nothing, 0
-        return nothing, nothing
+        return [nothing, x[2]]
     end
-    weight = reshape(weight, (size(weight)..., 1)) 
-    weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
-    #New_A = NNlib.batched_mul(last_A, weight) 
+    #weight = reshape(weight, (size(weight)..., 1)) 
+    #weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
     
     if !isnothing(bias)
-        New_bias = []
-        bias = reshape(bias, (size(bias)..., 1))
-        bias = repeat(bias, 1, batch_size) 
-        # println()
-        #New_bias = NNlib.batched_mul(last_A, bias)
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_mul(x[1], bias) .+ x[2]]) 
+        #bias = reshape(bias, (size(bias)..., 1))
+        #bias = repeat(bias, 1, batch_size) 
+        push!(last_A, fmap(cu, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_vec(x[1], bias) .+ x[2]]))
     else
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), x[2]]) 
+        push!(last_A, fmap(cu, x -> [NNlib.batched_mul(x[1], weight), x[2]]))
     end
     return last_A
 end
@@ -90,8 +85,8 @@ function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::Al
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
-    lA_W = uA_W = lA_bias = uA_bias = nothing
-
+    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing
+    
     #lower_A = bound.lower_A_x
     #upper_A = bound.upper_A_x
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))

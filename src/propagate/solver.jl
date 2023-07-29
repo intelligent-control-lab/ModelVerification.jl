@@ -81,8 +81,8 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     prop_method.bound_upper = out_specs.is_complement ? false : true
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     
-    batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
-    batch_info[:init_upper_A_b] = [out_specs.A, .-out_specs.b]
+    batch_info[:spec_A_b] = fmap(cu, [out_specs.A, .-out_specs.b]) # spec_A x < spec_b  ->  A x + b < 0, need negation
+    batch_info[:init_upper_A_b] = fmap(cu, [out_specs.A, .-out_specs.b])
 
     # After conversion, we only need to decide if lower bound of spec_A y-spec_b > 0 or if upper bound of spec_A y - spec_b < 0
     # The new out is spec_A*y-b, whose dimension is spec_dim x batch_size.
@@ -96,7 +96,7 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
-            batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
+            batch_info[node][:pre_bound] = fmap(cu, pre_batch_info[prev_node][:bound])
         end
     end
     

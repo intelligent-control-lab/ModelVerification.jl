@@ -59,11 +59,9 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     out_center = model(center)
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
-    
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
     spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
     center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
-    
     if batch_out_spec.is_complement 
         # A x < b descript the unsafe set, violated if exist x such that max spec ai x - bi <= 0    
         for i in 1:batch_size
@@ -83,14 +81,12 @@ end
 function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
     # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
     spec_l, spec_u = bound.spec_l, bound.spec_u
-
     batch_size = length(batch_input)
-    
     center = (bound.batch_data_min[1:end,:] + bound.batch_data_max[1:end,:])./2 # out_dim x batch_size
+    model = fmap(cu, model)
     out_center = model(center)
-    center_res = batched_mul(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
+    center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
-
     results = [BasicResult(:unknown) for _ in 1:batch_size]
 
     # complement out spec: violated if exist y such that Ay-b < 0. Need to make sure lower bound of Ay-b > 0 to hold, spec_l > 0
