@@ -59,6 +59,23 @@ function init_bound(prop_method::ImageStarZono, ch::ImageConvexHull)
     return ImageZonoBound(cen, gen)
 end
 
+function concretize_bound(bound::Zonotope)
+    l, u = low(bound), high(bound)
+    return l, u
+end
+
+function concretize_bound(bound::ImageZonoBound)
+    cen = reshape(bound.center, :)
+    gen = reshape(bound.generators, :, size(bound.generators,4))
+    flat_reach = Zonotope(cen, gen)
+    l,u = low(flat_reach), high(flat_reach)
+    l = reshape(l, size(bound.center))
+    u = reshape(u, size(bound.center))
+    return l, u
+end
+
+center(bound::ImageZonoBound) = bound.center
+
 function init_bound(prop_method::StarSet, input::Hyperrectangle) 
     isa(input, Star) && return input
     cen = LazySets.center(input) 
@@ -219,9 +236,6 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
 
     spec_l, spec_u = bound_model(batch_info[:spec_A_b])
     
-    n = size(batch_out_spec.A, 2)
-    batch_size = size(batch_out_spec.A, 3)
-    out_l, out_u = bound_model(init_A_b(n, batch_size)) # out_dim x batch_dim
     # spec_A: spec_dim x out_dim x batch_dim
     # spec_l: spec_dim x batch_dim
 
@@ -229,8 +243,11 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
     # println(prop_method.bound_lower)
     # println("prop_method.bound_upper")
     # println(prop_method.bound_upper)
-    println("out_l, out_u")
-    println(out_l, out_u)
+    # n = size(batch_out_spec.A, 2)
+    # batch_size = size(batch_out_spec.A, 3)
+    # out_l, out_u = bound_model(init_A_b(n, batch_size)) # out_dim x batch_dim
+    # println("out_l, out_u")
+    # println(out_l, out_u)
     #println("spec_l, spec_u")
     #println(spec_l, spec_u)
     #println("spec_A, spec_b")

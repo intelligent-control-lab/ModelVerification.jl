@@ -43,3 +43,11 @@ function get_linear_spec(batch_out_set::AbstractVector)
     # display(out_spec_b)
     return LinearSpec(out_spec_A, out_spec_b, is_complement)
 end
+
+function classification_spec(n, target)
+    A = Matrix{Float64}(I, n, n)
+    A[:, target] .= -1
+    A = [A[1:target-1, :]; A[target+1:end, :]]
+    b = zeros(n-1)
+    return HPolyhedron(A, b)
+end

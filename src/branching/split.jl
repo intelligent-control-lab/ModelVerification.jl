@@ -1,7 +1,7 @@
 @with_kw struct Bisect <: SplitMethod
     num_split::Int64     = 1
 end
-  
+
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output)
     split_method.num_split <= 0 && return [(input, output)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)
@@ -18,8 +18,18 @@ end
 
 
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
-    input.A
-    
+    println("splitting")
+    @assert length(input.b) % 2 == 0
+    n = length(input.b) ÷ 2
+    T = eltype(input.A)
+    I = Matrix{T}(LinearAlgebra.I(n))
+    @assert all(input.A .≈ [I; .-I])
+    u, l = input.b[1:n], .-input.b[n+1:end]
+    max_radius, max_idx = findmax(u - l)
+    bound1, bound2 = ImageStarBound(input.center, input.generators, input.A, input.b), ImageStarBound(input.center, input.generators, input.A, input.b)
+    bound1.b[max_idx] = l[max_idx] + max_radius/2 # set new upper bound
+    bound2.b[max_idx + n] = -(l[max_idx] + max_radius/2) # set new lower bound
+    return [(bound1, output), (bound2, output)]
 end
 
 

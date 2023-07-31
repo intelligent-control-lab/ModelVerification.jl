@@ -27,6 +27,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
 end
 
 function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+    # https://arxiv.org/pdf/2004.05511.pdf
     cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
     n_con = length(constraints_list(bound.P))
@@ -46,7 +47,14 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
     
     slope = u ./ (u-l)
+    inactive_mask = u .< 0
+
+    cen[inactive_mask] .= 0
+    gen[inactive_mask, :] .= 0
+
+    active_mask = l .> 0
     unstable_mask = (u .> 0) .& (l .< 0) # hwc
+
     slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # n_beta
     n_beta = sum(unstable_mask)
     indices = findall(unstable_mask)
@@ -219,7 +227,6 @@ function clamp_mutiply_A(last_A, slope_pos, slope_neg)
     New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
     return New_A
 end 
-
 
 function clamp_mutiply_bias(last_A, bias_pos, bias_neg) 
     A_pos = clamp.(last_A, 0, Inf)

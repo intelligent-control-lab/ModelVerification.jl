@@ -54,7 +54,7 @@ abstract type PropMethod end
 
 include("spec/spec.jl")
 
-export ImageConvexHull, InputSpec, OutputSpec
+export ImageConvexHull, InputSpec, OutputSpec, classification_spec
 
 
 include("utils/activation.jl")
@@ -120,5 +120,9 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
 end
 
 export verify
+
+include("utils/visualization.jl")
+export visualize
+
 
 end
