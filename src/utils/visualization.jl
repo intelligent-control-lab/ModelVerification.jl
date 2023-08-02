@@ -34,7 +34,7 @@ function visualize_propagate(prop_method::PropMethod, model_info, batch_info; sa
         batch_info[node][:out] = batch_out
         
         println("saving visualized bound: ", save_path * string(i) * "_" * node * ".png")
-        l, u = concretize_bound(batch_bound[1])
+        l, u = compute_bound(batch_bound[1])
         
         img = ndims(batch_out) == 4 ? batch_out[:,:,1,1] : reshape(batch_out, :,1)
         p_center = heatmap(img)

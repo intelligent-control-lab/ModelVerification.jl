@@ -1,4 +1,4 @@
-function propagate_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
 end  
@@ -36,8 +36,9 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
         node = batch_info[:current_node]
         batch_index = batch_info[:batch_index]
-        l, u = compute_bound(batch_info[node][:pre_bound])
-        l, u = l[:,batch_index], u[:,batch_index]
+        l, u = compute_bound(batch_info[node][:pre_bound][batch_index])
+        l = reshape(l, size(cen))
+        u = reshape(u, size(cen))
     else
         box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)

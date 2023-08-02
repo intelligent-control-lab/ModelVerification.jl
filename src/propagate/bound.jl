@@ -52,19 +52,33 @@ function init_bound(prop_method::ImageStar, ch::ImageConvexHull)
     return ImageStarBound(T.(cen), T.(gen), A, b)
 end
 
-function init_bound(prop_method::ImageStarZono, ch::ImageConvexHull) 
+function init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
     imgs = ch.imgs
     cen = cat([imgs[1] .+ sum([0.5 .* (img .- imgs[1]) for img in imgs[2:end]])]..., dims=4)
     gen = cat([0.5 .* (img .- imgs[1]) for img in imgs[2:end]]..., dims=4)
     return ImageZonoBound(cen, gen)
 end
 
-function concretize_bound(bound::Zonotope)
+function assert_zono_star(bound::ImageStarBound)
+    @assert length(bound.b) % 2 == 0
+    n = length(bound.b) ÷ 2
+    T = eltype(bound.A)
+    I = Matrix{T}(LinearAlgebra.I(n))
+    @assert all(bound.A .≈ [I; .-I])
+    @assert all(bound.b == [ones(T, n); ones(T, n)]) # -1 to 1
+end
+function init_bound(prop_method::ImageZono, bound::ImageStarBound)
+    assert_zono_star(bound)
+    return ImageZonoBound(bound.center, bound.generators)
+end
+
+
+function compute_bound(bound::Zonotope)
     l, u = low(bound), high(bound)
     return l, u
 end
 
-function concretize_bound(bound::ImageZonoBound)
+function compute_bound(bound::ImageZonoBound)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = Zonotope(cen, gen)
@@ -75,6 +89,7 @@ function concretize_bound(bound::ImageZonoBound)
 end
 
 center(bound::ImageZonoBound) = bound.center
+center(bound::ImageStarBound) = bound.center
 
 function init_bound(prop_method::StarSet, input::Hyperrectangle) 
     isa(input, Star) && return input

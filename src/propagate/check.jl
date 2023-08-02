@@ -16,19 +16,27 @@ end
 
 function check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
     box_reach = box_approximation(reach)
+    println(low(reach))
+    println(high(reach))
     x_coe = sample(HPolyhedron(input.A, input.b))
     x_coe = reshape(x_coe, 1, 1, 1, length(x_coe))
     vec = dropdims(sum(input.generators .* x_coe, dims=4), dims=4)
     x = input.center + vec # input.center may not be inside of the inputset
     # display(heatmap(reshape(x, (28,28))))
     # println(x)
+    # println("reach")
+    # println(reach)
+    # println("output")
+    # println(output)
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
     ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
     ∈(y, output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
 end
 
-function check_inclusion(prop_method::ImageStarZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+    println(low(reach))
+    println(high(reach))
     box_reach = box_approximation(reach)
     x = input.center
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size

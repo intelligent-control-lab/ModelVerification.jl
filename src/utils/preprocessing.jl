@@ -15,7 +15,7 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, problem
 end
 
-function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Union{ImageStar, ImageZono}, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
 end
@@ -92,3 +92,4 @@ function onnx_parse(onnx_model_path)
     return model_info
 
 end
+ 

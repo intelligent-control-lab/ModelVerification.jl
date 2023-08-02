@@ -10,7 +10,7 @@ function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::Image
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-function propagate_linear(prop_method::ImageStarZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
+function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros

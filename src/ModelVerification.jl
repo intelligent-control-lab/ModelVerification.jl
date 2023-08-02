@@ -98,7 +98,7 @@ include("propagate/operators/util.jl")
 
 export Ai2, Ai2h, Ai2z, Box
 export StarSet
-export ImageStar, ImageStarZono
+export ImageStar, ImageZono
 export Crown, AlphaCrown, BetaCrown
 
 const TOL = Ref(sqrt(eps()))

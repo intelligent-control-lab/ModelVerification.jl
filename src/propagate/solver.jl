@@ -31,9 +31,12 @@ mutable struct BetaCrown <: BackwardProp
     bound_upper::Bool
 end
 
-struct ImageStar{T<:Union{Star, Zonotope}} <: ForwardProp end
-ImageStar() = ImageStar{Star}()
-const ImageStarZono = ImageStar{Zonotope}
+struct ImageStar <: ForwardProp 
+    pre_bound_method::Union{ForwardProp, Nothing}
+end
+ImageStar() = ImageStar(nothing)
+
+struct ImageZono <: ForwardProp end
 
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1
@@ -54,9 +57,10 @@ function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, ba
     return batch_output, batch_info
 end
 
-function prepare_method(prop_method::StarSet, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+function prepare_method(prop_method::Union{StarSet, ImageStar}, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+        batch_input = init_batch_bound(prop_method.pre_bound_method, batch_input, batch_output)
         pre_batch_info = init_propagation(prop_method.pre_bound_method, batch_input, batch_output, model_info)
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
