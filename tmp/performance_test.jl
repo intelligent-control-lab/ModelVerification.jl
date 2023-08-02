@@ -7,7 +7,9 @@ using ONNX
 using Flux
 using DataFrames
 using ONNXNaiveNASflux 
+using CUDA
 include("vnnlib_parser.jl")
+
 
 function onnx_to_nnet(onnx_file)
     pushfirst!(PyVector(pyimport("sys")."path"), dirname(dirname(@__FILE__)))
@@ -49,7 +51,7 @@ function verify_an_instance(onnx_file, spec_file, timeout)
             b = Y_con[2]
             Yc = HPolytope(A, b)
             Y = Complement(Yc)
-            search_method = BFS(max_iter=10, batch_size=512)
+            search_method = BFS(max_iter=1e5, batch_size=512)
             split_method = Bisect(1)
             prop_method = AlphaCrown(Crown(true, true), true, false, Flux.Optimiser(Flux.ADAM(0.1)), 10)#Crown(true, true)
             problem = Problem(new_onnx_file, X, Y)

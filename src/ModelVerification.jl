@@ -55,7 +55,7 @@ abstract type PropMethod end
 
 include("spec/spec.jl")
 
-export ImageConvexHull, InputSpec, OutputSpec
+export ImageConvexHull, InputSpec, OutputSpec 
 
 
 include("utils/activation.jl")

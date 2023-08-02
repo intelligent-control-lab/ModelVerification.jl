@@ -94,6 +94,10 @@ struct AlphaCrownBound <: Bound
     batch_data_max
 end
 
+function init_bound(prop_method::BetaCrown, input) 
+    return (input, Dict())
+end
+
 struct ConcretizeCrownBound <: Bound
     spec_l
     spec_u
@@ -107,19 +111,19 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, batch_
     n = dim(batch_input[1])
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
-    batch_Low = repeat([I Z], outer=(1, 1, batch_size))
-    batch_Up = repeat([I Z], outer=(1, 1, batch_size))
-    batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
-    batch_data_min = [batch_data_min; ones(batch_size)'] # the last dimension is for bias
-    batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
-    batch_data_max = [batch_data_max; ones(batch_size)'] # the last dimension is for bias
+    batch_Low = fmap(cu, repeat([I Z], outer=(1, 1, batch_size)))
+    batch_Up = fmap(cu, repeat([I Z], outer=(1, 1, batch_size)))
+    batch_data_min = fmap(cu, cat([low(h) for h in batch_input]..., dims=2))
+    batch_data_min = fmap(cu, [batch_data_min; ones(batch_size)']) # the last dimension is for bias
+    batch_data_max = fmap(cu, cat([high(h) for h in batch_input]..., dims=2))
+    batch_data_max = fmap(cu, [batch_data_max; ones(batch_size)']) # the last dimension is for bias
     bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
     return bound
 end
 
 function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
-    batch_data_min = cat([low(h) for h in batch_input]..., dims=2)
-    batch_data_max = cat([high(h) for h in batch_input]..., dims=2)
+    batch_data_min = fmap(cu, cat([low(h) for h in batch_input]..., dims=2))
+    batch_data_max = fmap(cu, cat([high(h) for h in batch_input]..., dims=2))
 
     bound = AlphaCrownBound([], [], nothing, nothing, batch_data_min, batch_data_max)
     return bound
@@ -151,7 +155,7 @@ function compute_bound(bound::CrownBound)
     # data_min_batch: input_dim x batch
     # l: reach_dim x batch
     # batched_vec is a mutant of batched_mul that accepts batched vector as input.
-    z = zeros(size(bound.batch_Low))
+    z =   fmap(cu, zeros(size(bound.batch_Low)))
     l =   batched_vec(max.(bound.batch_Low, z), bound.batch_data_min) + batched_vec(min.(bound.batch_Low, z), bound.batch_data_max)
     u =   batched_vec(max.(bound.batch_Up, z), bound.batch_data_max) + batched_vec(min.(bound.batch_Up, z), bound.batch_data_min)
     # @assert all(l.<=u) "lower bound larger than upper bound"
@@ -166,11 +170,9 @@ end
 Flux.@functor Compute_bound ()
 
 function (f::Compute_bound)(x)
-    z = zeros(size(x[1]))
+    z = fmap(cu, zeros(size(x[1])))
     l = batched_vec(max.(x[1], z), f.batch_data_min) + batched_vec(min.(x[1], z), f.batch_data_max) .+ x[2]
     u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
-    #println("batch_data_min, A, b, l")
-    #println(size(f.batch_data_min), size(x[1]), size(x[2]), size(l))
     return l, u
 end 
 
@@ -201,8 +203,28 @@ function init_A_b(n, batch_size)
 end
 
 function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, batch_info)
-    #println("batch_bound.batch_data_min max")
-    #println(size(batch_bound.batch_data_min), size(batch_bound.batch_data_max))
+    println("batch_bound.batch_data_min max")
+    println(size(batch_bound.batch_data_min), size(batch_bound.batch_data_max))
+    compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
+
+    bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
+    bound_model = fmap(cu, bound_model)
+    # maximize lower(A * x - b) or minimize upper(A * x - b)
+    loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
+    
+    bound_model = optimize_bound(bound_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    
+    for (index, params) in enumerate(Flux.params(bound_model))
+        relu_node = batch_info[:Alpha_Lower_Layer_node][index]
+        batch_info[relu_node][prop_method.bound_lower ? :alpha_lower : :alpha_upper] = params
+    end
+    spec_l, spec_u = bound_model(batch_info[:spec_A_b])
+    return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
+end
+
+function process_bound(prop_method::BetaCrown, batch_bound, batch_out_spec, batch_info)
+    println("batch_bound.batch_data_min max")
+    println(size(batch_bound.batch_data_min), size(batch_bound.batch_data_max))
     compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
 
     bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
@@ -217,13 +239,12 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
         batch_info[relu_node][prop_method.bound_lower ? :alpha_lower : :alpha_upper] = params
     end
 
-    #println("batch_info[:spec_A_b]")
-    #println(batch_info[:spec_A_b])
+    println("batch_info[:spec_A_b]")
+    println(size(batch_info[:spec_A_b]))
 
     spec_l, spec_u = bound_model(batch_info[:spec_A_b])
-    
-    n = size(batch_out_spec.A, 2)
-    batch_size = size(batch_out_spec.A, 3)
+    #n = size(batch_out_spec.A, 2)
+    #batch_size = size(batch_out_spec.A, 3)
     #out_l, out_u = bound_model(init_A_b(n, batch_size)) # out_dim x batch_dim
     # spec_A: spec_dim x out_dim x batch_dim
     # spec_l: spec_dim x batch_dim
@@ -240,7 +261,6 @@ function process_bound(prop_method::AlphaCrown, batch_bound, batch_out_spec, bat
     #println(size(batch_out_spec.A), size(batch_out_spec.b))
     return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
-
 
 function set_used_nodes(final_node, batch_info, Model) #finish verifying
     push!(Model, "last_final_node" => nothing)
