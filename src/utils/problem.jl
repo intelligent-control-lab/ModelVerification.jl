@@ -42,10 +42,9 @@ function build_flux_model(onnx_model_path)
     return (model)
 end
 
+get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))
 function build_onnx_model(path, model::Chain, input::InputSpec)
-    input_shape = get_size(input)
-    input_shape = (input_shape..., 1)
-    ONNXNaiveNASflux.save(path, model, input_shape)
+    ONNXNaiveNASflux.save(path, model, get_shape(input))
     return path
 end
 
