@@ -11,6 +11,12 @@ has_two_reach_node(prop_method::BackwardProp, model_info, node) = (length(model_
 father_nodes(prop_method::ForwardProp, model_info, node) = model_info.node_nexts[node]
 father_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_prevs[node]
 
+children_nodes(prop_method::ForwardProp, model_info, node) = model_info.node_prevs[node]
+children_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_nexts[node]
+
+all_nexts_in(prop_method::ForwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_nexts[output_node]))
+all_nexts_in(prop_method::BackwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_prevs[output_node]))
+
 function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
 

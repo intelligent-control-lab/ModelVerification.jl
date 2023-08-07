@@ -73,16 +73,16 @@ function init_bound(prop_method::ImageZono, bound::ImageStarBound)
 end
 
 
-function compute_bound(bound::Zonotope)
-    l, u = low(bound), high(bound)
-    return l, u
-end
+# function compute_bound(bound::Zonotope)
+#     l, u = low(bound), high(bound)
+#     return l, u
+# end
 
 function compute_bound(bound::ImageZonoBound)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = Zonotope(cen, gen)
-    l,u = low(flat_reach), high(flat_reach)
+    l, u = compute_bound(flat_reach)
     l = reshape(l, size(bound.center))
     u = reshape(u, size(bound.center))
     return l, u

@@ -40,12 +40,12 @@ function onnx_parse(onnx_model_path)
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
         
         node_name = NaiveNASflux.name(vertex)
-        println(node_name)
+        # println(node_name)
         if length(inputs(vertex)) == 0 # the start node has no input nodes
             push!(start_nodes, node_name)
         end
-        println("NaiveNASflux.layer(vertex)")
-        println(NaiveNASflux.layer(vertex))
+        # println("NaiveNASflux.layer(vertex)")
+        # println(NaiveNASflux.layer(vertex))
         if length(string(NaiveNASflux.name(vertex))) >= 7 && string(NaiveNASflux.name(vertex))[1:7] == "Flatten" 
             node_layer[node_name] = Flux.flatten
         elseif length(string(NaiveNASflux.name(vertex))) >= 3 && string(NaiveNASflux.name(vertex))[1:3] == "add" 
@@ -103,14 +103,14 @@ function onnx_parse(onnx_model_path)
         if length(outputs(vertex)) == 0  #the final node has no output nodes
             push!(final_nodes, node_name) 
         end
-        println(node_name)
-        println("prevs: ", node_prevs[node_name])
-        println("nexts: ", node_nexts[node_name])
-        println("====")
+        # println(node_name)
+        # println("prevs: ", node_prevs[node_name])
+        # println("nexts: ", node_nexts[node_name])
+        # println("====")
     end
     model_info = Model(start_nodes, final_nodes, all_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
-    println("model_info.start_nodes")
-    println(model_info.start_nodes)
+    # println("model_info.start_nodes")
+    # println(model_info.start_nodes)
     return model_info
 
 end

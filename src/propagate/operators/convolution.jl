@@ -1,14 +1,30 @@
 
-
+function propagate_by_small_batch(f, x; sm_batch=500)
+    y = nothing
+    batch_size = size(x)[end]
+    n_dim = length(size(x))
+    for i in 1:sm_batch:batch_size
+        j = min(i+sm_batch-1, batch_size)
+        b = f(x[(Colon() for _ in 1:n_dim-1)..., i:j])
+        y = isnothing(y) ? b : cat(y, b, dims=n_dim)
+    end
+    return y
+end
 function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
     # println("layer.bias")
-    
-    cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
+    cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     # copy a Conv set bias to zeros
     gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    
     new_center = cen_Conv(bound.center)
+    # new_center = cen_Conv(bound.center |> gpu) |> cpu
+    
+    println("size(bound.generators): ", size(bound.generators))
     new_generators = gen_Conv(bound.generators)
+    # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
+    # new_generators = gen_Conv(bound.generators |> gpu) |> cpu
+    # new_generators = new_generators |> cpu
     return ImageZonoBound(new_center, new_generators)
 end
 
@@ -23,12 +39,14 @@ function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarB
 end
 
 
-
 function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
-    cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
+    cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
+    # new_center = cen_Conv(bound.center |> gpu) |> cpu
+    println("size(bound.generators): ", size(bound.generators))
     new_generators = gen_Conv(bound.generators)
+    # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
     return ImageZonoBound(new_center, new_generators)
 end
 
@@ -40,7 +58,6 @@ function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::I
     new_generators = gen_Conv(bound.generators)
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
-
 
 
 function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
@@ -79,7 +96,7 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     lower = center - deviation
     return [lower, upper, nothing]
 end
-  
+
 
 function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups

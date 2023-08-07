@@ -15,9 +15,16 @@ function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::Image
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
     gen_BN = @set gen_BN.μ = zeros(eltype(cen_BN.μ), size(cen_BN.μ)) # copy a BN set μ to zeros
-
+    
+    # cen_BN = cen_BN |> gpu
+    # gen_BN = gen_BN |> gpu
+    # new_center = cen_BN(bound.center |> gpu) |> cpu
+    # new_generators = gen_BN(bound.generators |> gpu) |> cpu
+    
     new_center = cen_BN(bound.center)
     new_generators = gen_BN(bound.generators)
+    # new_generators = propagate_by_small_batch(gen_BN |> gpu, bound.generators |> gpu, sm_batch=10) |> cpu
+    
     return ImageZonoBound(new_center, new_generators)
 end 
 
