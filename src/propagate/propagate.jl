@@ -10,6 +10,8 @@ has_two_reach_node(prop_method::BackwardProp, model_info, node) = (length(model_
 
 father_nodes(prop_method::ForwardProp, model_info, node) = model_info.node_nexts[node]
 father_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_prevs[node]
+output_node(prop_method::ForwardProp, model_info) = model_info.final_nodes[1]
+output_node(prop_method::BackwardProp, model_info) = model_info.node_nexts[model_info.start_nodes[1]][1]
 
 function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
@@ -19,13 +21,10 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     queue = Queue{Any}()
     enqueue_nodes!(prop_method, queue, model_info)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
+    batch_bound = nothing
     while !isempty(queue)
         node = dequeue!(queue)
         batch_info[:current_node] = node
-
-        # if isa(prop_method, AlphaCrown)
-        #     println(node)
-        # end
        
         for output_node in father_nodes(prop_method, model_info, node)
             visit_cnt[output_node] += 1
@@ -41,8 +40,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         end
         batch_info[node][:bound] = batch_bound
     end
-
-    batch_bound = batch_info[model_info.final_nodes[1]][:bound]
+    batch_bound = batch_info[output_node(prop_method, model_info)][:bound]
     return batch_bound, batch_info
 end
 

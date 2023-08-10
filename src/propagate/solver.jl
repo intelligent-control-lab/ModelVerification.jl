@@ -14,11 +14,13 @@ end
 StarSet() = StarSet(nothing)
 
 struct Crown <: ForwardProp 
+    use_gpu
     bound_lower::Bool
     bound_upper::Bool
 end
 
 mutable struct AlphaCrown <: BackwardProp 
+    use_gpu::Bool
     pre_bound_method::Union{ForwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
@@ -27,6 +29,8 @@ mutable struct AlphaCrown <: BackwardProp
 end
 
 mutable struct BetaCrown <: BackwardProp 
+    use_gpu::Bool
+    split_neuron_number::Int
     pre_bound_method::Union{ForwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
@@ -74,17 +78,24 @@ end
 
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
-    return get_linear_spec(batch_output), batch_info
+    out_specs = get_linear_spec(batch_output)
+    if prop_method.use_gpu
+        out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
+    end
+    return out_specs, batch_info
 end
 
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
+    if prop_method.use_gpu
+        out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
+    end
     prop_method.bound_lower = out_specs.is_complement ? true : false
     prop_method.bound_upper = out_specs.is_complement ? false : true
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     
-    batch_info[:spec_A_b] = fmap(cu, [out_specs.A, .-out_specs.b]) # spec_A x < spec_b  ->  A x + b < 0, need negation
-    batch_info[:init_upper_A_b] = fmap(cu, [out_specs.A, .-out_specs.b])
+    batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
+    batch_info[:init_upper_A_b] = [out_specs.A, .-out_specs.b]
 
     # After conversion, we only need to decide if lower bound of spec_A y-spec_b > 0 or if upper bound of spec_A y - spec_b < 0
     # The new out is spec_A*y-b, whose dimension is spec_dim x batch_size.
@@ -98,13 +109,13 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
-            batch_info[node][:pre_bound] = fmap(cu, pre_batch_info[prev_node][:bound])
+            batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
         end
     end
     
     #initialize alpha 
     for node in model_info.activation_nodes
-        init_alpha(model_info.node_layer[node], node, batch_info)
+        batch_info = init_alpha(model_info.node_layer[node], node, batch_info)
     end
 
     for node in model_info.all_nodes
@@ -121,15 +132,18 @@ end
 
 
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
-    batch_input = fmap(cu, batch_input)
-    batch_output = fmap(cu, batch_input)
+    #batch_input : (input, S_dict)
     out_specs = get_linear_spec(batch_output)
-    prop_method.bound_lower = out_specs.is_complement ? true : false
-    prop_method.bound_upper = out_specs.is_complement ? false : true
+    if prop_method.use_gpu
+        out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
+    end
+    #prop_method.bound_lower = out_specs.is_complement ? true : false
+    #prop_method.bound_upper = out_specs.is_complement ? false : true
+    prop_method.bound_lower = true
+    prop_method.bound_upper = true
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
-    
-    batch_info[:spec_A_b] = fmap(cu, [out_specs.A, .-out_specs.b]) # spec_A x < spec_b  ->  A x + b < 0, need negation
-    batch_info[:init_upper_A_b] = fmap(cu, [out_specs.A, .-out_specs.b])
+    batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
+    batch_info[:init_upper_A_b] = [out_specs.A, .-out_specs.b]
 
     # After conversion, we only need to decide if lower bound of spec_A y-spec_b > 0 or if upper bound of spec_A y - spec_b < 0
     # The new out is spec_A*y-b, whose dimension is spec_dim x batch_size.
@@ -138,16 +152,18 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     # out_specs = LinearSpec(ones((1, spec_dim, batch_size)), zeros(1, batch_size), out_specs.is_complement)
 
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info)
+        Crown_input = [input[1] for input in batch_input]
+        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, Crown_input, batch_output, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
-            batch_info[node][:pre_bound] = fmap(cu, pre_batch_info[prev_node][:bound])
+            batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
         end
     end
     
     batch_info[:batch_size] = length(batch_input)
+    batch_info[:split_neuron_number] = prop_method.split_neuron_number
     for node in model_info.all_nodes
         batch_info[node][:beta] = 1
         batch_info[node][:max_split_number] = 1
@@ -156,14 +172,14 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     end
     #initialize alpha & beta
     for node in model_info.activation_nodes
-        init_alpha(model_info.node_layer[node], node, batch_info)
-        init_beta(model_info.node_layer[node], node, batch_info)
+        batch_info = init_alpha(model_info.node_layer[node], node, batch_info)
+        batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
     end
     n = size(out_specs.A, 2)
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
     batch_info[:Beta_Lower_Layer_node] = []#store the order of the node which has AlphaBetaLayer
     return out_specs, batch_info
-end
+end 
 
 
 function preprocess(C)

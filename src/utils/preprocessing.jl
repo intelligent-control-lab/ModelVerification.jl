@@ -15,9 +15,31 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, problem
 end
 
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    if prop_method.use_gpu
+        return model_info, Problem(problem.onnx_model_path, fmap(cu, problem.Flux_model), fmap(cu, prop_method, problem.input), fmap(cu, problem.output))
+    else
+        return model_info, problem
+    end
+end
+
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    if prop_method.use_gpu
+        return model_info, Problem(problem.onnx_model_path, fmap(cu, problem.Flux_model), fmap(cu, problem.input), fmap(cu, problem.output))
+    else
+        return model_info, problem
+    end
+end
+
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
-    return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
+    if prop_method.use_gpu
+        return model_info, Problem(problem.onnx_model_path, fmap(cu, problem.Flux_model), fmap(cu, init_bound(prop_method, problem.input)), fmap(cu, problem.output))
+    else
+        return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
+    end
 end
 
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
