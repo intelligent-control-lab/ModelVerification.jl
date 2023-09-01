@@ -103,7 +103,7 @@ The `counter_example` is a point in the input set that, after the NN, lies outsi
 """
 struct CounterExampleResult <: Result
     status::Symbol
-    counter_example::Vector{Any}
+    counter_example
     CounterExampleResult(s, ce) = new(validate_status(s), ce)
 end
 
