@@ -15,10 +15,10 @@ else
     layer(d::Dense) = Layer(d.weight, d.bias, activation(d.σ))
 end
 
-# network(c::Chain) = Network([layer.(c.layers)...])
+network(c::Chain) = Network([layer.(c.layers)...])
 
-# Problem(c::Chain, input::AbstractPolytope, output::AbstractPolytope) =
-#   Problem(network(c), input, output)
+Problem(c::Chain, input::AbstractPolytope, output::AbstractPolytope) =
+Problem(network(c), input, output)
 
 # Flux -> Network
 

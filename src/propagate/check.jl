@@ -14,12 +14,33 @@ function check_inclusion(prop_method::ForwardProp, model, input, bound::ImageSta
     return ReachabilityResult(:holds, bound)
 end
 
-function check_inclusion(prop_method::ImageStar, model, input::Union{ImageZonoBound, ImageStarBound}, reach::LazySet, output::LazySet)
+function check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
     box_reach = box_approximation(reach)
-    println(volume(box_reach))
+    println(low(reach))
+    println(high(reach))
+    x_coe = sample(HPolyhedron(input.A, input.b))
+    x_coe = reshape(x_coe, 1, 1, 1, length(x_coe))
+    vec = dropdims(sum(input.generators .* x_coe, dims=4), dims=4)
+    x = input.center + vec # input.center may not be inside of the inputset
+    # display(heatmap(reshape(x, (28,28))))
+    # println(x)
+    # println("reach")
+    # println(reach)
+    # println("output")
+    # println(output)
+    y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
     ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
+    ∈(y, output) && return CounterExampleResult(:unknown)
+    return CounterExampleResult(:violated, x)
+end
+
+function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+    println(low(reach))
+    println(high(reach))
+    box_reach = box_approximation(reach)
     x = input.center
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
+    ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
     ∈(y, output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
 end
@@ -77,6 +98,38 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
         end
     end
     
+    return results
+end
+
+function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
+    # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
+    spec_l, spec_u = bound.spec_l, bound.spec_u
+
+    batch_size = length(batch_input)
+    
+    center = (bound.batch_data_min[1:end,:] + bound.batch_data_max[1:end,:])./2 # out_dim x batch_size
+    out_center = model(center)
+    center_res = batched_mul(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
+    center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
+
+    results = [BasicResult(:unknown) for _ in 1:batch_size]
+
+    # complement out spec: violated if exist y such that Ay-b < 0. Need to make sure lower bound of Ay-b > 0 to hold, spec_l > 0
+    if batch_out_spec.is_complement
+        @assert prop_method.bound_lower 
+        spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
+        for i in 1:batch_size
+            center_res[i] <= 0 && (results[i] = BasicResult(:violated))
+            spec_l[i] > 0 && (results[i] = BasicResult(:holds))
+        end
+    else # polytope out spec: holds if all y such that Ay-b < 0. Need to make sure upper bound of Ay-b < 0 to hold.
+        @assert prop_method.bound_upper
+        spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
+        for i in 1:batch_size
+            spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
+            center_res[i] > 0 && (results[i] = BasicResult(:violated))
+        end
+    end
     return results
 end
 

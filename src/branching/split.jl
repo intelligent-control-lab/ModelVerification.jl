@@ -2,18 +2,39 @@
     num_split::Int64     = 1
 end
 
-function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, info)
-    split_method.num_split <= 0 && return [(input, output, info)]
+function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output)
+    split_method.num_split <= 0 && return [(input, output)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)
     max_radius, max_idx = findmax(radius)
     input1, input2 = split_interval(input, max_idx)
-    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, info)
-    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, info)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output)
     return [subtree1; subtree2]
 end
 
-function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, info)
-    return split_branch(split_method, model, box_approximation(input), output, info)
+function split_branch(split_method::Bisect, model::Chain, input::LazySet, output)
+    return split_branch(split_method, model, box_approximation(input), output)
+end
+
+
+function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
+    println("splitting")
+    @assert length(input.b) % 2 == 0
+    n = length(input.b) ÷ 2
+    T = eltype(input.A)
+    I = Matrix{T}(LinearAlgebra.I(n))
+    @assert all(input.A .≈ [I; .-I])
+    u, l = input.b[1:n], .-input.b[n+1:end]
+    max_radius, max_idx = findmax(u - l)
+    bound1, bound2 = ImageStarBound(input.center, input.generators, input.A, input.b), ImageStarBound(input.center, input.generators, input.A, input.b)
+    bound1.b[max_idx] = l[max_idx] + max_radius/2 # set new upper bound
+    bound2.b[max_idx + n] = -(l[max_idx] + max_radius/2) # set new lower bound
+    return [(bound1, output), (bound2, output)]
+end
+
+
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
+    return [input, nothing] #TODO: find a way to split ImageZonoBound
 end
 
 

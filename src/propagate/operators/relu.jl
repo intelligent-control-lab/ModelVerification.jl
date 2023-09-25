@@ -1,45 +1,119 @@
-
-function forward_act(prop_method::Union{Ai2z, ImageStarZono}, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
-    return reach, info
+    return reach
 end  
 
-function forward_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = convex_hull(UnionSetArray(forward_partition(layer, reach)))
-    return reach, info
+    return reach
 end
 
-function forward_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, info)
+function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = rectify(reach)
-    return reach, info
+    return reach
 end  
+function compute_bound(Z::Zonotope)
+    radius = dropdims(sum(abs.(LazySets.genmat(Z)), dims=2), dims=2)
+    return LazySets.center(Z) - radius, LazySets.center(Z) + radius
+end
 
-function forward_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, info)
+function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Zonotope}) where {N}
+    Z = LazySets.set(r)
+    c = copy(LazySets.center(Z))
+    G = copy(LazySets.genmat(Z))
+    n, m = size(G)
+
+    # stats = @timed l, u = low(Z), high(Z)
+    l, u = compute_bound(Z)
+    println("non0 ele cnt: ", sum((u - l) .> 1e-8))
+    # println("low high time: ", stats.time)
+    # println(l)
+    # mask_activate = l .> 0
+    mask_inactivate = u .< 0
+    mask_unstable = (l .< 0) .& (u .> 0)
+    c[mask_inactivate] .= zero(N)
+    G[mask_inactivate,:] .= zero(N)
+    
+    λ = u[mask_unstable] ./ (u[mask_unstable] .- l[mask_unstable]) # n_unstable
+    μ = λ .* l[mask_unstable] ./ -2 # n_unstable
+    
+    c[mask_unstable] = c[mask_unstable] .* λ .+ μ
+    G[mask_unstable,:] = G[mask_unstable,:] .* λ
+
+    q = sum(mask_unstable)
+    if q >= 1
+        Gnew = zeros(N, n, q)
+        indices = findall(mask_unstable)
+        Gnew[CartesianIndex.(indices, 1:q)] .= μ
+        Gout = hcat(G, Gnew)
+    else 
+        Gout = G
+    end
+    
+    return Zonotope(c, LazySets.remove_zero_columns(Gout))
+end
+
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
-    flat_reach = overapproximate(Rectification(Zonotope(cen, gen)), Zonotope)
-    new_cen = reshape(center(flat_reach), size(bound.center))
+    # println("size gen: ", size(bound.generators,4))
+    flat_reach = Zonotope(cen, gen)
+    println("before order: ", float(order(flat_reach)))
+    stats = @timed flat_reach = fast_overapproximate(Rectification(flat_reach), Zonotope)
+    println("overapproximate time: ", stats.time)
+    # flat_reach = overapproximate(Rectification(flat_reach), Zonotope)
+    # diff = LazySets.center(fast_reach) - LazySets.center(flat_reach)
+    # println(diff[1:10])
+    # println(findall(diff != 0))
+    # @assert all(LazySets.center(fast_reach) ≈ LazySets.center(flat_reach))
+    # @assert LazySets.genmat(fast_reach) == LazySets.genmat(flat_reach)
+    # flat_reach = box_approximation(Rectification(flat_reach))
+    println("after order: ", float(order(flat_reach)))
+    flat_reach = remove_redundant_generators(flat_reach)
+    println("after reducing order: ", float(order(flat_reach)))
+    # if size(genmat(flat_reach),2) > 100
+    #     flat_reach = remove_redundant_generators(flat_reach)
+    #     println("after reducing order: ", float(order(flat_reach)))
+    # end
+    new_cen = reshape(LazySets.center(flat_reach), size(bound.center))
     sz = size(bound.generators)
     # println("before size: ", sz)
     new_gen = reshape(genmat(flat_reach), sz[1], sz[2], sz[3], :)
     # println("after size: ", size(new_gen))
     new_bound = ImageZonoBound(new_cen, new_gen)
-    return new_bound, info
+    return new_bound
 end
 
-function forward_act(prop_method, layer::typeof(relu), bound::Star, info)
-    cen = center(bound) # h * w * c * 1
+function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+    # https://arxiv.org/pdf/2004.05511.pdf
+    cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
     n_con = length(constraints_list(bound.P))
     n_alpha = size(gen, 2)
-    box = overapproximate(bound, Hyperrectangle)
-    l, u = low(box), high(box)
+    l, u = nothing, nothing
+    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+        node = batch_info[:current_node]
+        batch_index = batch_info[:batch_index]
+        l, u = compute_bound(batch_info[node][:pre_bound][batch_index])
+        l = reshape(l, size(cen))
+        u = reshape(u, size(cen))
+    else
+        box = overapproximate(bound, Hyperrectangle)
+        l, u = low(box), high(box)
+    end
     
     bA = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
     
     slope = u ./ (u-l)
+    inactive_mask = u .< 0
+
+    cen[inactive_mask] .= 0
+    gen[inactive_mask, :] .= 0
+
+    active_mask = l .> 0
     unstable_mask = (u .> 0) .& (l .< 0) # hwc
+
     slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # n_beta
     n_beta = sum(unstable_mask)
     indices = findall(unstable_mask)
@@ -70,7 +144,7 @@ function forward_act(prop_method, layer::typeof(relu), bound::Star, info)
 
     T = eltype(cen)
     new_bound = Star(T.(cen), T.([gen beta_gen]), HPolyhedron(T.(A),T.(b)))
-    return new_bound, info
+    return new_bound
 end  
 
 function ImageStar_to_Star(bound::ImageStarBound)
@@ -81,7 +155,7 @@ function ImageStar_to_Star(bound::ImageStarBound)
 end
 
 function Star_to_ImageStar(bound::Star, sz)
-    new_cen = reshape(center(bound), sz[1], sz[2], sz[3], 1)
+    new_cen = reshape(LazySets.center(bound), sz[1], sz[2], sz[3], 1)
     new_gen = reshape(basis(bound), sz[1], sz[2], sz[3], :) # h x w x c x (n_alpha + n_beta)
     A = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     b = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
@@ -89,15 +163,15 @@ function Star_to_ImageStar(bound::Star, sz)
     return ImageStarBound(T.(new_cen), T.(new_gen), T.(A), T.(b))
 end
 
-function forward_act(prop_method, layer::typeof(relu), bound::ImageStarBound, info)
+function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     sz = size(bound.generators)
     flat_bound = ImageStar_to_Star(bound)
-    new_flat_bound, info = forward_act(prop_method, layer, flat_bound, info)
+    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
     new_bound = Star_to_ImageStar(new_flat_bound, sz)
-    return new_bound, info
+    return new_bound
 end
 
-function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::ForwardProp, layer::typeof(relu), bound::CrownBound, batch_info)
     
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
 
@@ -138,10 +212,8 @@ function forward_act_batch(prop_method, layer::typeof(relu), bound::CrownBound, 
     @assert !any(isnan, output_Up) "relu up contains NaN"
     
     new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound, batch_info
+    return new_bound
 end
-
-
 
 function forward_partition(layer::typeof(relu), reach)
     N = dim(reach)
@@ -156,4 +228,166 @@ function forward_partition(layer::typeof(relu), reach)
     end
     return output
 end
+
+
+#initalize relu's alpha_lower and alpha_upper
+function init_alpha(layer::typeof(relu), node, batch_info)
+    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
+    #batch_size = size(relu_input_lower)[end]
+    unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
+    alpha_indices = findall(unstable_mask) 
+    upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
+    #lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    lower_slope = zeros(size(upper_slope))
+    push!(batch_info[node], :alpha_shape => size(lower_slope))
+    #minimum_sparsity = batch_info[node]["minimum_sparsity"]
+    #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
+
+    #fully alpha
+    @assert ndims(relu_input_lower) == 2 || ndims(relu_input_lower) == 4 "pre_layer of relu should be dense or conv"
+    #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
+    #end
+    #alpha_lower is for lower bound, alpha_upper is for upper bound
+    alpha_lower = alpha_upper = lower_slope .* unstable_mask
+    batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
+    batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
+    batch_info[node][:added_alpha] = false #whether add ahpha into A's params
+end    
+
+
+struct AlphaLayer
+    node
+    alpha
+    lower
+    unstable_mask
+    lower_mask 
+    upper_slope
+    lower_bias
+    upper_bias
+end
+Flux.@functor AlphaLayer (alpha,) #only alpha need to be trained
+
+
+#Upper bound slope and intercept according to CROWN relaxation.
+function relu_upper_bound(lower, upper)
+    lower_r = clamp.(lower, -Inf, 0)
+    upper_r = clamp.(upper, 0, Inf)
+    upper_r .= max.(upper_r, lower_r .+ 1e-8)
+    upper_slope = upper_r ./ (upper_r .- lower_r) #the slope of the relu upper bound
+    upper_bias = - lower_r .* upper_slope #the bias of the relu upper bound
+    return upper_slope, upper_bias
+end
+
+function clamp_mutiply_A(last_A, slope_pos, slope_neg) 
+    A_pos = clamp.(last_A, 0, Inf)
+    A_neg = clamp.(last_A, -Inf, 0)
+    slope_pos = repeat(reshape(slope_pos,(1, size(slope_pos)...)), size(A_pos)[1], 1, 1) #add spec dim for slope_pos
+    slope_neg = repeat(reshape(slope_neg,(1, size(slope_neg)...)), size(A_neg)[1], 1, 1) #add spec dim for slope_pos
+    New_A = slope_pos .* A_pos .+ slope_neg .* A_neg 
+    return New_A
+end 
+
+function clamp_mutiply_bias(last_A, bias_pos, bias_neg) 
+    A_pos = clamp.(last_A, 0, Inf)
+    A_neg = clamp.(last_A, -Inf, 0) 
+    if bias_pos !== nothing #new_bias_pos = torch.einsum('s...b,s...b->sb', A_pos, bias_pos)
+        new_bias_pos = zeros((size(A_pos)[1], size(A_pos)[end]))#spec_dim x batch dim
+        new_bias_pos_buffer = Zygote.Buffer(new_bias_pos)
+        @einsum new_bias_pos_buffer[s,b] = A_pos[s,r,b] * bias_pos[r,b]
+    end
+
+    if bias_neg !== nothing #new_bias_neg = torch.einsum('...sb,...sb->sb', A_neg, bias_neg)
+        new_bias_neg = zeros((size(A_neg)[1], size(A_neg)[end]))#spec_dim x batch dim
+        new_bias_neg_buffer = Zygote.Buffer(new_bias_neg)
+        @einsum new_bias_neg_buffer[s,b] = A_neg[s,r,b] * bias_neg[r,b]
+    end
+    New_bias = copy(new_bias_pos_buffer) .+ copy(new_bias_neg_buffer)
+    return New_bias
+end 
+
+#using last_A for getting New_A
+function multiply_by_A_signs(last_A, slope_pos, slope_neg)
+    if ndims(slope_pos) == 1
+        # Special case for LSTM, the bias term is 1-dimension. 
+        New_A = clamp.(last_A, 0, Inf) .* slope_pos .+ clamp.(last_A, -Inf, 0) .* slope_neg
+    else
+        New_A = clamp_mutiply_A(last_A, slope_pos, slope_neg)
+        return New_A
+    end
+end
+
+function multiply_bias(last_A, upper_slope, bias_pos, bias_neg)
+    if ndims(upper_slope) == 1
+        # Special case for LSTM, the bias term is 1-dimension. 
+        New_bias = clamp.(last_A, 0, Inf) .* bias_pos .+ clamp.(last_A, -Inf, 0) .* bias_neg
+    else
+        New_bias = clamp_mutiply_bias(last_A, bias_pos, bias_neg)
+        return New_bias
+    end
+end
+
+#bound oneside of the relu, like upper or lower
+function bound_oneside(last_A, slope_pos, slope_neg)
+    if isnothing(last_A)
+        return nothing, nothing
+    end
+    New_A = multiply_by_A_signs(last_A, slope_pos, slope_neg)
+    return New_A
+end
+
+function (f::AlphaLayer)(x)
+    last_A = x[1]
+    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
+    if f.lower 
+        New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
+    else
+        New_A = bound_oneside(last_A, f.upper_slope, lower_slope)
+    end
+    if isnothing(last_A)
+        return [New_A, nothing]
+    end
+
+    if f.lower 
+        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+    else
+        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+    end
+
+    return [New_A, New_bias]
+end
+
+function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
+    node = batch_info[:current_node]
+    if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
+        lower, upper = compute_bound(batch_info[node][:pre_bound])
+    else
+        lower = batch_info[node][:pre_lower]
+        upper = batch_info[node][:pre_upper]
+    end
+
+    alpha_lower = batch_info[node][:alpha_lower]
+    alpha_upper = batch_info[node][:alpha_upper]
+    upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
+    lower_bias = zeros(size(upper_bias))
+
+    lower_mask = (lower .>= 0)
+    upper_mask = (upper .<= 0)
+    unstable_mask = (upper .> 0) .& (lower .< 0)
     
+    lower_A = bound.lower_A_x
+    upper_A = bound.upper_A_x
+    
+    if prop_method.bound_lower
+        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, upper_bias, lower_bias)
+        push!(lower_A, Alpha_Lower_Layer)
+    end
+
+    if prop_method.bound_upper
+        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        push!(upper_A, Alpha_Upper_Layer)
+    end
+
+    push!(batch_info[:Alpha_Lower_Layer_node], node)
+    New_bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
+    return New_bound
+end

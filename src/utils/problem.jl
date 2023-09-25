@@ -1,3 +1,52 @@
+function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
+    function get_chain(vertex)
+        m = Any[]
+        curr_vertex = vertex
+        while length(NaiveNASflux.inputs(curr_vertex)) == 1
+            # println("curr vertex ", name(curr_vertex))
+            push!(m, NaiveNASflux.layer(curr_vertex))
+            curr_vertex = NaiveNASflux.outputs(curr_vertex)[1]
+        end
+        return Chain(m...), curr_vertex
+    end
+    outs = NaiveNASflux.outputs(comp_vertices[index_more_than_one_outputs])
+    @assert length(outs) == 2
+    chain1, vertex_more_than_one_inputs = get_chain(outs[1])
+    chain2, _ = get_chain(outs[2])
+    inner_iter = findfirst(v -> NaiveNASflux.name(v) == NaiveNASflux.name(vertex_more_than_one_inputs), comp_vertices)
+    if length(chain1) == 0
+        return SkipConnection(chain2, (+)), inner_iter
+    elseif length(chain2) == 0
+        return SkipConnection(chain1, (+)), inner_iter
+    else
+        return Parallel(+; α = chain1, β = chain2), inner_iter
+    end
+end
+
+function build_flux_model(onnx_model_path)
+    comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
+    model_vec = Any[]
+    inner_iter = 0
+    for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
+        if length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "data"
+            continue
+        end 
+        push!(model_vec, NaiveNASflux.layer(vertex))
+        if length(NaiveNASflux.outputs(vertex)) > 1
+            parallel_chain, inner_iter = get_parallel_chains(ONNXNaiveNASflux.vertices(comp_graph), index)
+            push!(model_vec, parallel_chain)
+        end
+    end
+    model = Chain(model_vec...)
+    Flux.testmode!(model)
+    return (model)
+end
+
+get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))
+function build_onnx_model(path, model::Chain, input::InputSpec)
+    ONNXNaiveNASflux.save(path, model, get_shape(input))
+    return path
+end
 
 """
     Problem{P, Q}(network::Network, input::P, output::Q)
@@ -8,12 +57,15 @@ The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
 """
 struct Problem{P, Q}
-    model::Chain
+    onnx_model_path::String
+    Flux_model::Chain
     input::P
     output::Q
 end
-
-
+Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
+    Problem(path, build_flux_model(path), input_data, output_data)
+Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_mdoel input
+    Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data) 
 
 """
     Result
@@ -51,7 +103,7 @@ The `counter_example` is a point in the input set that, after the NN, lies outsi
 """
 struct CounterExampleResult <: Result
     status::Symbol
-    counter_example::Vector{Float64}
+    counter_example
     CounterExampleResult(s, ce) = new(validate_status(s), ce)
 end
 

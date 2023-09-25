@@ -45,3 +45,13 @@ function broadcast_mid_dim(m::AbstractArray{T1,2}, target::AbstractArray{T2,3}) 
     m = repeat(m, 1, size(target, 2), 1)
     return m
 end
+
+struct Join{T, F}
+    combine::F
+    paths::T
+  end
+  
+# allow Join(op, m1, m2, ...) as a constructor
+Join(combine, paths...) = Join(combine, paths)
+Flux.@functor Join
+(m::Join)(x) = m.combine(map(f -> f(x), m.paths)...)
