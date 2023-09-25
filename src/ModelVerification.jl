@@ -26,7 +26,9 @@ using ONNXNaiveNASflux, NaiveNASflux, .NaiveNASlib
 using LinearAlgebra
 using OpenCV
 using Flux
+using CUDA
 using DataStructures
+using Statistics
 using Einsum
 using Zygote
 
@@ -111,7 +113,7 @@ include("branching/util.jl")
 
 include("utils/preprocessing.jl")
 
-export BFS, Bisect, BFSBisect
+export BFS, Bisect, BFSBisect, BaBSR
 
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
 function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)

@@ -65,7 +65,7 @@ end
 Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
 Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_mdoel input
-    Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data) 
+    Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data)
 
 """
     Result
