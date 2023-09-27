@@ -43,6 +43,7 @@ function build_flux_model(onnx_model_path)
 end
 
 get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))
+get_shape(input::Hyperrectangle) = (size(LazySets.center(input))..., 1)
 function build_onnx_model(path, model::Chain, input::InputSpec)
     ONNXNaiveNASflux.save(path, model, get_shape(input))
     return path

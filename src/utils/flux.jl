@@ -17,9 +17,6 @@ end
 
 network(c::Chain) = Network([layer.(c.layers)...])
 
-Problem(c::Chain, input::AbstractPolytope, output::AbstractPolytope) =
-Problem(network(c), input, output)
-
 # Flux -> Network
 
 _flux(::ReLU) = relu
