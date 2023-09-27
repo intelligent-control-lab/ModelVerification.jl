@@ -20,7 +20,7 @@ function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoB
     new_center = cen_Conv(bound.center)
     # new_center = cen_Conv(bound.center |> gpu) |> cpu
     
-    println("size(bound.generators): ", size(bound.generators))
+    # println("size(bound.generators): ", size(bound.generators))
     new_generators = gen_Conv(bound.generators)
     # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
     # new_generators = gen_Conv(bound.generators |> gpu) |> cpu

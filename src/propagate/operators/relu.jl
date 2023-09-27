@@ -25,7 +25,7 @@ function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Z
 
     # stats = @timed l, u = low(Z), high(Z)
     l, u = compute_bound(Z)
-    println("non0 ele cnt: ", sum((u - l) .> 1e-8))
+    # println("non0 ele cnt: ", sum((u - l) .> 1e-8))
     # println("low high time: ", stats.time)
     # println(l)
     # mask_activate = l .> 0
@@ -58,9 +58,9 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     gen = reshape(bound.generators, :, size(bound.generators,4))
     # println("size gen: ", size(bound.generators,4))
     flat_reach = Zonotope(cen, gen)
-    println("before order: ", float(order(flat_reach)))
+    # println("before order: ", float(order(flat_reach)))
     stats = @timed flat_reach = fast_overapproximate(Rectification(flat_reach), Zonotope)
-    println("overapproximate time: ", stats.time)
+    # println("overapproximate time: ", stats.time)
     # flat_reach = overapproximate(Rectification(flat_reach), Zonotope)
     # diff = LazySets.center(fast_reach) - LazySets.center(flat_reach)
     # println(diff[1:10])
@@ -68,9 +68,9 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     # @assert all(LazySets.center(fast_reach) ≈ LazySets.center(flat_reach))
     # @assert LazySets.genmat(fast_reach) == LazySets.genmat(flat_reach)
     # flat_reach = box_approximation(Rectification(flat_reach))
-    println("after order: ", float(order(flat_reach)))
+    # println("after order: ", float(order(flat_reach)))
     flat_reach = remove_redundant_generators(flat_reach)
-    println("after reducing order: ", float(order(flat_reach)))
+    # println("after reducing order: ", float(order(flat_reach)))
     # if size(genmat(flat_reach),2) > 100
     #     flat_reach = remove_redundant_generators(flat_reach)
     #     println("after reducing order: ", float(order(flat_reach)))

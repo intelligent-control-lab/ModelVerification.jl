@@ -160,13 +160,6 @@ function forward_skip_batch(prop_method::ForwardProp, layer, batch_reach1::Abstr
     return map(first, batch_reach_info), map(last, batch_reach_info)
 end
 
-function is_activation(l)
-    for f in NNlib.ACTIVATIONS
-        isa(l, typeof(@eval NNlib.$(f))) && return true
-    end
-    return false
-end
-
 function forward_layer(prop_method, layer, batch_bound, batch_info)
     if is_activation(layer)
         batch_bound, batch_info = forward_act_batch(prop_method, layer, batch_bound, batch_info)

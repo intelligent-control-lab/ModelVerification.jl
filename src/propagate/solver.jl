@@ -2,49 +2,56 @@ abstract type ForwardProp <: PropMethod end
 abstract type BackwardProp <: PropMethod end
 abstract type AdversarialAttack <: PropMethod end
 
-struct Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: ForwardProp end
+abstract type SequentialForwardProp <: ForwardProp end
+abstract type SequentialBackwardProp <: BackwardProp end
+
+abstract type BatchForwardProp <: ForwardProp end
+abstract type BatchBackwardProp <: BackwardProp end
+
+struct Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: SequentialForwardProp end
 Ai2() = Ai2{Zonotope}()
 const Ai2h = Ai2{HPolytope}
 const Ai2z = Ai2{Zonotope}
 const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}  
 
-struct StarSet <: ForwardProp
-    pre_bound_method::Union{ForwardProp, Nothing}
+struct StarSet <: SequentialForwardProp
+    pre_bound_method::Union{SequentialForwardProp, Nothing}
 end
 StarSet() = StarSet(nothing)
 
-struct Crown <: ForwardProp 
+struct ImageStar <: SequentialForwardProp 
+    pre_bound_method::Union{SequentialForwardProp, Nothing}
+end
+ImageStar() = ImageStar(nothing)
+
+struct ImageZono <: SequentialForwardProp end
+
+
+struct Crown <: BatchForwardProp 
     use_gpu
     bound_lower::Bool
     bound_upper::Bool
 end
 
-mutable struct AlphaCrown <: BackwardProp 
+mutable struct AlphaCrown <: BatchBackwardProp 
     use_gpu::Bool
-    pre_bound_method::Union{ForwardProp, Nothing}
+    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
     optimizer
     train_iteration::Int
 end
 
-mutable struct BetaCrown <: BackwardProp 
+mutable struct BetaCrown <: BatchBackwardProp 
     use_gpu::Bool
     split_neuron_number::Int
-    pre_bound_method::Union{ForwardProp, Nothing}
+    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing}
     bound_lower::Bool
     bound_upper::Bool
     optimizer
     train_iteration::Int
 end
-
-struct ImageStar <: ForwardProp 
-    pre_bound_method::Union{ForwardProp, Nothing}
-end
-ImageStar() = ImageStar(nothing)
-
-struct ImageZono <: ForwardProp end
 
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1
@@ -68,7 +75,7 @@ end
 function prepare_method(prop_method::Union{StarSet, ImageStar}, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        batch_input = init_batch_bound(prop_method.pre_bound_method, batch_input, batch_output)
+        # batch_input = init_batch_bound(prop_method.pre_bound_method, batch_input, batch_output)
         pre_batch_info = init_propagation(prop_method.pre_bound_method, batch_input, batch_output, model_info)
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
@@ -194,7 +201,7 @@ function preprocess(C)
     return batch_size, output_dim, output_shape
 end
 
-function init_A_b(n, batch_size)
+function init_A_b(n, batch_size) # A x < b
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
     A = repeat(I, outer=(1, 1, batch_size))

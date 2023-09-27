@@ -2,11 +2,11 @@
 function check_inclusion(prop_method::ForwardProp, model, input, bound::ImageZonoBound, output)
     z = Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
     box_reach = box_approximation(z)
-    println("Image Zono reach")
+    # println("Image Zono reach")
     # println(z)
     # println("bound")
     # println(bound)
-    println(volume(box_reach))
+    # println(volume(box_reach))
     return ReachabilityResult(:holds, box_reach)
 end
 
@@ -16,8 +16,8 @@ end
 
 function check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
     box_reach = box_approximation(reach)
-    println(low(reach))
-    println(high(reach))
+    # println(low(reach))
+    # println(high(reach))
     x_coe = sample(HPolyhedron(input.A, input.b))
     x_coe = reshape(x_coe, 1, 1, 1, length(x_coe))
     vec = dropdims(sum(input.generators .* x_coe, dims=4), dims=4)
@@ -35,8 +35,8 @@ function check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, r
 end
 
 function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
-    println(low(reach))
-    println(high(reach))
+    # println(low(reach))
+    # println(high(reach))
     box_reach = box_approximation(reach)
     x = input.center
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
@@ -79,14 +79,21 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     spec_u = batched_vec(pos_A, u) + batched_vec(neg_A, l) .- batch_out_spec.b # spec_dim x batch_size
     spec_l = batched_vec(pos_A, l) + batched_vec(neg_A, u) .- batch_out_spec.b # spec_dim x batch_size
     CUDA.@allowscalar center = (bound.batch_data_min[1:end-1,:] + bound.batch_data_max[1:end-1,:])./2 # out_dim x batch_size
+    # println("typeof(center)")
+    # println(typeof(center))
+    # println("typeof(model)")
+    # println(typeof(model))
+    model = model |> gpu
     out_center = model(center)
+    # println("typeof(out_center)")
+    # println(typeof(out_center))
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
     spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
-    println("spec")
-    println(spec_l)
-    println(spec_u)
+    # println("spec")
+    # println(spec_l)
+    # println(spec_u)
     center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
     if batch_out_spec.is_complement 
         # A x < b descript the unsafe set, violated if exist x such that max spec ai x - bi <= 0    

@@ -175,17 +175,6 @@ function vecmask_convert_to_original_size(index, original)
     return original_size_matrix
 end
 
-
-function relu_upper_bound(lower, upper)
-    lower_r = clamp.(lower, -Inf, 0)
-    upper_r = clamp.(upper, 0, Inf)
-    upper_r .= max.(upper_r, lower_r .+ 1e-8)
-    upper_slope = upper_r ./ (upper_r .- lower_r) #the slope of the relu upper bound
-    upper_bias = - lower_r .* upper_slope #the bias of the relu upper bound
-    return upper_slope, upper_bias
-end
-
-
 function branching_scores_kfsb(model_info, batch_info, input)
     score = []
     for node in model_info.activation_nodes

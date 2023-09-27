@@ -302,9 +302,9 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
         #println(params)
     end
     spec_l, spec_u = bound_model(batch_info[:spec_A_b])
-    println("spec_l, spec_u")
-    println(spec_l)
-    println(spec_u)
+    # println("spec_l, spec_u")
+    # println(spec_l)
+    # println(spec_u)
     return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 
