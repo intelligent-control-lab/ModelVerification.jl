@@ -6,6 +6,10 @@ function visualize_propagate(prop_method::PropMethod, model_info, batch_info, sa
 
     # dfs start from model.input_nodes
     #BFS
+    dir = dirname(save_path)
+    if !isdir(dir)
+        mkdir(dir)
+    end
 
     queue = Queue{Any}()
     enqueue_nodes!(prop_method, queue, model_info)
@@ -99,14 +103,14 @@ end
 function compute_out_skip(prop_method::ForwardProp, model_info, batch_info, node)
     input_node1 = model_info.node_prevs[node][1]
     input_node2 = model_info.node_prevs[node][2]
-    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
-    batch_out2 = haskey(batch_info[input_node2], :out) ? batch_info[input_node2][:out] : center(batch_info[input_node2][:bound][1])
+    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : LazySets.center(batch_info[input_node1][:bound][1])
+    batch_out2 = haskey(batch_info[input_node2], :out) ? batch_info[input_node2][:out] : LazySets.center(batch_info[input_node2][:bound][1])
     return model_info.node_layer[node](batch_out1, batch_out2)
 end
 
 function compute_out_layer(prop_method::ForwardProp, model_info, batch_info, node)
     input_node1 = model_info.node_prevs[node][1]
-    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
+    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : LazySets.center(batch_info[input_node1][:bound][1])
     return model_info.node_layer[node](batch_out1)
 end
 

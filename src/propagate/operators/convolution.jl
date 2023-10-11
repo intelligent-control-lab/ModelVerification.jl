@@ -44,7 +44,7 @@ function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::I
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
     # new_center = cen_Conv(bound.center |> gpu) |> cpu
-    println("size(bound.generators): ", size(bound.generators))
+    # println("size(bound.generators): ", size(bound.generators))
     new_generators = gen_Conv(bound.generators)
     # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
     return ImageZonoBound(new_center, new_generators)

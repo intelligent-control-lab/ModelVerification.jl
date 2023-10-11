@@ -74,10 +74,25 @@ function init_bound(prop_method::ImageZono, bound::ImageStarBound)
 end
 
 
-# function compute_bound(bound::Zonotope)
-#     l, u = low(bound), high(bound)
-#     return l, u
-# end
+function compute_bound(bound::Zonotope)
+    radius = dropdims(sum(abs.(LazySets.genmat(bound)), dims=2), dims=2)
+    return LazySets.center(bound) - radius, LazySets.center(bound) + radius
+end
+
+function compute_bound(bound::Star)
+    box = overapproximate(bound, Hyperrectangle)
+    return low(box), high(box)
+end
+
+function compute_bound(bound::ImageStarBound)
+    cen = reshape(bound.center, :)
+    gen = reshape(bound.generators, :, size(bound.generators,4))
+    flat_reach = ImageStar_to_Star(bound)
+    l, u = compute_bound(flat_reach)
+    l = reshape(l, size(bound.center))
+    u = reshape(u, size(bound.center))
+    return l, u
+end
 
 function compute_bound(bound::ImageZonoBound)
     cen = reshape(bound.center, :)
@@ -387,8 +402,8 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     println("spec")
     println(lower_spec_l)
     println(upper_spec_u)
-    prop_method.bound_lower = out_specs.is_complement ? true : false
-    prop_method.bound_upper = out_specs.is_complement ? false : true
+    prop_method.bound_lower = batch_out_spec.is_complement ? true : false
+    prop_method.bound_upper = batch_out_spec.is_complement ? false : true
     if prop_method.bound_lower
         #batch_info = get_pre_relu_A(init, prop_method.use_gpu, true, model_info, batch_info)
         batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, true, model_info, batch_info)

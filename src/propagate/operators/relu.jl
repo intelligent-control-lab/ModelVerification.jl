@@ -12,10 +12,6 @@ function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPol
     reach = rectify(reach)
     return reach
 end  
-function compute_bound(Z::Zonotope)
-    radius = dropdims(sum(abs.(LazySets.genmat(Z)), dims=2), dims=2)
-    return LazySets.center(Z) - radius, LazySets.center(Z) + radius
-end
 
 function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Zonotope}) where {N}
     Z = LazySets.set(r)

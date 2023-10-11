@@ -59,7 +59,6 @@ function onnx_parse(onnx_model_path)
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
         
         node_name = NaiveNASflux.name(vertex)
-        # println(node_name)
         if length(inputs(vertex)) == 0 # the start node has no input nodes
             push!(start_nodes, node_name)
         end
