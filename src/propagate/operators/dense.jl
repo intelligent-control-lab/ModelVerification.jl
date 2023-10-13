@@ -48,13 +48,6 @@ function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractA
     return batch_reach
 end  
 
-# function propagate_linear(prop_method::Neurify, layer::Dense, batch_reach::LinearBound)
-#     output_Low, output_Up = batch_interval_map(layer.weights, batch_reach.Low, batch_reach.Up)
-#     output_Low[:, end, :] += layer.bias
-#     output_Up[:, end, :] += layer.bias
-#     output_batch_reach = LinearBound(output_Low, output_Up, batch_reach.domain)
-#     return output_batch_reach
-# end
 
 function _preprocess(node, batch_info, bias = nothing)
     if !isnothing(bias)

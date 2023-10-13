@@ -84,10 +84,15 @@ export
 # export solve
 
 # TODO: consider creating sub-modules for each of these.
-include("propagate/solver.jl")
-include("propagate/bound.jl")
+include("solvers/solver.jl")
+include("solvers/polytope.jl")
+include("solvers/image-star.jl")
+include("solvers/image-zono.jl")
+include("solvers/crown.jl")
+include("solvers/alpha-crown.jl")
+include("solvers/beta-crown.jl")
+
 include("propagate/propagate.jl")
-include("propagate/check.jl")
 include("propagate/operators/dense.jl")
 include("propagate/operators/relu.jl")
 include("propagate/operators/normalise.jl")
