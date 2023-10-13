@@ -168,13 +168,16 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, 
 end
 
 function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::CrownBound, batch_info)
+    to = get_timer("Shared")
+    
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
+
     # If the lower bound of the lower bound is positive,
     # No change to the linear bounds.
     
     # If the upper bound of the upper bound is negative, set
     # both linear bounds to 0
-    l, u = compute_bound(bound) # reach_dim x batch
+    @timeit to "compute_bound"  l, u = compute_bound(bound) # reach_dim x batch
     inact_mask = u .<= 0 # reach_dim x batch
     inact_mask_ext = broadcast_mid_dim(inact_mask, output_Low) # reach_dim x input_dim x batch
     output_Low[inact_mask_ext] .= 0
@@ -187,12 +190,14 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::Cro
     unstable_mask = (u .> 0) .& (l .< 0) # reach_dim x batch
     unstable_mask_ext = broadcast_mid_dim(unstable_mask, output_Low) # reach_dim x input_dim+1 x batch
     slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # selected_reach_dim * selected_batch
+
     slope_mtx = prop_method.use_gpu ? fmap(cu, ones(size(u))) : ones(size(u))
     if prop_method.use_gpu
         CUDA.@allowscalar slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
     else
         slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask])
     end
+
     broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
     # broad_slop = reshape(slope, )
     output_Up .*= broad_slope
@@ -610,6 +615,8 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     lower = batch_info[node][:pre_lower]
     upper = batch_info[node][:pre_upper]
     #end
+    println("lower: ", lower)
+    println("upper: ", upper)
 
     alpha_lower = batch_info[node][:alpha_lower]
     alpha_upper = batch_info[node][:alpha_upper]
@@ -645,6 +652,10 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     end
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
+
+    println("lower_A: ", lower_A)
+    println("upper_A: ", upper_A)
+
     return New_bound
 end
  

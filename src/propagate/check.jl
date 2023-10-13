@@ -83,7 +83,7 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     # println(typeof(center))
     # println("typeof(model)")
     # println(typeof(model))
-    model = model |> gpu
+    model = prop_method.use_gpu ? model |> gpu : model
     out_center = model(center)
     # println("typeof(out_center)")
     # println(typeof(out_center))
@@ -163,6 +163,7 @@ function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArr
     batch_input = prop_method.use_gpu ? fmap(cu, batch_input) : batch_input
     spec_l, spec_u = bound.spec_l, bound.spec_u
     batch_size = length(batch_input)
+    
     #center = (bound.batch_data_min[1:end,:] + bound.batch_data_max[1:end,:])./2 # out_dim x batch_size
     center = (bound.batch_data_min .+ bound.batch_data_max) ./ 2 # out_dim x batch_size
     model = prop_method.use_gpu ? fmap(cu, model) : model
@@ -182,6 +183,7 @@ function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArr
     else # polytope out spec: holds if all y such that Ay-b < 0. Need to make sure upper bound of Ay-b < 0 to hold.
         @assert prop_method.bound_upper
         spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
+        println(spec_u)
         for i in 1:batch_size
             CUDA.@allowscalar spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
             CUDA.@allowscalar center_res[i] > 0 && (results[i] = BasicResult(:violated))

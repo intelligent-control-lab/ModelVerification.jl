@@ -129,10 +129,11 @@ function is_activation(l)
 end
 
 function propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
+    to = get_timer("Shared")
     if is_activation(layer)
-        batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
+        @timeit to "propagate_act_batch" batch_bound = propagate_act_batch(prop_method, layer, batch_bound, batch_info)
     else
-        batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
+        @timeit to "propagate_linear_batch" batch_bound = propagate_linear_batch(prop_method, layer, batch_bound, batch_info)
     end
     return batch_bound
 end

@@ -32,6 +32,8 @@ using Statistics
 using Einsum
 using Zygote
 
+using TimerOutputs
+
 abstract type Solver end
 
 abstract type SearchMethod end
@@ -53,6 +55,7 @@ abstract type PropMethod end
 # value(vars::Vector) = value.(vars)
 # value(val) = val
 
+# include("utils/timer.jl")
 
 include("spec/spec.jl")
 
@@ -115,10 +118,33 @@ include("utils/preprocessing.jl")
 
 export BFS, Bisect, BFSBisect, BaBSR
 
+macro timeout(seconds, expr, fail)
+    println(seconds)
+    quote
+        tsk = @task $esc(expr)
+        schedule(tsk)
+        Timer($(esc(seconds))) do timer
+            istaskdone(tsk) || Base.throwto(tsk, InterruptException())
+        end
+        try
+            fetch(tsk)
+        catch _
+            $(esc(fail))
+        end
+    end
+end
+
+to = get_timer("Shared")
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
-function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
-    model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
-    search_branches(search_method, split_method, prop_method, problem, model_info)
+function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400)
+    to = get_timer("Shared")
+    reset_timer!(to)
+    @timeit to "prepare_problem" model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
+    # println(time_out)    
+    @timeit to "search_branches" res = search_branches(search_method, split_method, prop_method, problem, model_info) 
+    BasicResult(:unknown)
+    show(to) # to is TimerOutput(), used to profiling the code
+    return res
 end
 
 export verify

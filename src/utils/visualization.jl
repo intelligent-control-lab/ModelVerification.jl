@@ -1,4 +1,4 @@
-using Plots
+using Plots: heatmap, plot, savefig
 using JLD2
 using FileIO
 function visualize_propagate(prop_method::PropMethod, model_info, batch_info, save_path; vis_center=true, save_bound=false)
