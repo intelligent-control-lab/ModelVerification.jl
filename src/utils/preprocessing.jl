@@ -15,30 +15,6 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, problem
 end
 
-
-function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
-    model_info = onnx_parse(problem.onnx_model_path)
-    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
-    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
-end
-
-function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
-    model_info = onnx_parse(problem.onnx_model_path)
-    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
-    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
-end
-
-function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
-    model_info = onnx_parse(problem.onnx_model_path)
-    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
-    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
-end
-
-function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Union{ImageStar, ImageZono}, problem::Problem)
-    model_info = onnx_parse(problem.onnx_model_path)
-    return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
-end
-
 function get_act(l)
     (hasfield(typeof(l), :σ) && string(l.σ) != "identity") && return l.σ
     (hasfield(typeof(l), :λ) && string(l.λ) != "identity") && return l.λ

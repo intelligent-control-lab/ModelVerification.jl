@@ -18,6 +18,12 @@ struct AlphaCrownBound <: Bound
 end
 
 
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
+    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
+end
+
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
@@ -130,8 +136,6 @@ function optimize_bound(model, input, loss_func, optimizer, max_iter)
     end
     return model
 end
-
-
 
 function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
     # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)

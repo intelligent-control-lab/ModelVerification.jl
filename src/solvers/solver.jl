@@ -1,6 +1,5 @@
 abstract type ForwardProp <: PropMethod end
 abstract type BackwardProp <: PropMethod end
-abstract type AdversarialAttack <: PropMethod end
 
 abstract type SequentialForwardProp <: ForwardProp end
 abstract type SequentialBackwardProp <: BackwardProp end

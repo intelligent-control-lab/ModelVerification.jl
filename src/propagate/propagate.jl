@@ -98,14 +98,6 @@ function propagate_layer_method(prop_method::BackwardProp, model_info, batch_inf
     return batch_bound
 end
 
-
-function propagate(prop_method::AdversarialAttack, model, batch_input, batch_out_spec, batch_info)
-    # output: batch x ... x ...
-    throw("unimplemented")
-    # couterexample_result, batch_info = attack(prop_method, model, batch_input, batch_out_spec, batch_info)
-    # return couterexample_result, batch_info
-end
-
 function propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
     batch_reach_info = [propagate_linear(prop_method, layer, batch_reach[i], push!(batch_info, :batch_index => i)) for i in eachindex(batch_reach)]
     return batch_reach_info#map(first, batch_reach_info)

@@ -6,6 +6,11 @@ struct ImageZonoBound{T<:Real} <: Bound
     generators::AbstractArray{T, 4}   #  h x w x c x n_gen
 end
 
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
+end
+
 function init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
     imgs = ch.imgs
     cen = cat([imgs[1] .+ sum([0.5 .* (img .- imgs[1]) for img in imgs[2:end]])]..., dims=4)

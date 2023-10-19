@@ -1,6 +1,7 @@
 module ModelVerification
 
-# using JuMP
+using JuMP
+import Ipopt
 
 # using GLPK, SCS # SCS only needed for Certify
 # using PicoSAT # needed for Planet
@@ -59,7 +60,7 @@ abstract type PropMethod end
 
 include("spec/spec.jl")
 
-export ImageConvexHull, InputSpec, OutputSpec, classification_spec
+export ImageConvexHull, InputSpec, OutputSpec, classification_spec, get_linear_spec
 
 
 include("utils/activation.jl")
@@ -105,6 +106,8 @@ include("propagate/operators/convolution.jl")
 include("propagate/operators/bivariate.jl")
 include("propagate/operators/util.jl")
 
+include("attack/pgd.jl")
+
 
 export Ai2, Ai2h, Ai2z, Box
 export StarSet
@@ -141,14 +144,16 @@ end
 
 to = get_timer("Shared")
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
-function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400)
+function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400, attack_restart=100)
     to = get_timer("Shared")
     reset_timer!(to)
+    # @timeit to "attack" res = attack(problem; restart=attack_restart)
+    # (res.status == :violated) && (return res)
     @timeit to "prepare_problem" model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
     # println(time_out)    
     @timeit to "search_branches" res = search_branches(search_method, split_method, prop_method, problem, model_info) 
-    BasicResult(:unknown)
     show(to) # to is TimerOutput(), used to profiling the code
+    println()
     return res
 end
 

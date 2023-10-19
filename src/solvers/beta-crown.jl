@@ -18,6 +18,14 @@ struct BetaCrownBound <: Bound
     batch_data_max
 end
 
+
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
+    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
+end
+
+
 function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h[1]) for h in batch_input]..., dims=2)) : cat([low(h[1]) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h[1]) for h in batch_input]..., dims=2)) : cat([high(h[1]) for h in batch_input]..., dims=2)

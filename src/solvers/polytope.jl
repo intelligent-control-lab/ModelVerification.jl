@@ -37,7 +37,6 @@ function compute_bound(bound::Star)
     return low(box), high(box)
 end
 
-
 function init_bound(prop_method::StarSet, input::Hyperrectangle) 
     isa(input, Star) && return input
     cen = LazySets.center(input) 
@@ -51,12 +50,13 @@ function init_bound(prop_method::StarSet, input::Hyperrectangle)
 end
 
 function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::LazySet)
-    x = LazySets.center(input)
     # println(reach)
     # println(⊆(reach, output))
     ⊆(reach, output) && return ReachabilityResult(:holds, [reach])
     ∈(model(x), output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
+    # to = get_timer("Shared")
+    # @timeit to "attack" return attack(model, input, output; restart=1)
 end
 
 function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::Complement)
@@ -66,4 +66,6 @@ function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach:
     isdisjoint(box_reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
     ∈(model(x), unsafe_output) && return CounterExampleResult(:violated, x)
     return CounterExampleResult(:unknown)
+    # to = get_timer("Shared")
+    # @timeit to "attack" return attack(model, input, output; restart=1)
 end

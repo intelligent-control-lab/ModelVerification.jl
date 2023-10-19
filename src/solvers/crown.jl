@@ -20,6 +20,12 @@ struct ConcretizeCrownBound <: Bound
 end
 
 
+function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
+    model_info = onnx_parse(problem.onnx_model_path)
+    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
+    return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
+end
+
 
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)

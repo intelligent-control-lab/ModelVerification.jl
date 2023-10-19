@@ -19,7 +19,12 @@ const OutputSpec = Union{LazySet, LinearSpec}
 get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
 get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
 
-
+# function get_linear_spec(set::LazySet)
+#     cons = constraints_list(set isa Complement ? Complement(set) : set)
+#     A = permutedims(hcat([Vector(con.a) for con in cons]...))
+#     b = cat([con.b for con in cons], dims=1)
+#     return A, b
+# end
 function get_linear_spec(batch_out_set::AbstractVector)
     max_spec_num = maximum([length(constraints_list(o)) for o in batch_out_set])
     out_spec_A = zeros(max_spec_num, dim(batch_out_set[1]), length(batch_out_set)) # spec_dim x out_dim x batch_size
@@ -29,11 +34,10 @@ function get_linear_spec(batch_out_set::AbstractVector)
     is_complement = batch_out_set[1] isa Complement
 
     for (i,o) in enumerate(batch_out_set)
-        cons = constraints_list(is_complement ? Complement(o) : o)
-        A = permutedims(hcat([Vector(con.a) for con in cons]...))
-        b = cat([con.b for con in cons], dims=1)
-        out_spec_A[1:length(cons), 1:size(A,2), i] = A
-        out_spec_b[1:length(cons), i] = b
+        # A, b = get_linear_spec(o)
+        A, b = tosimplehrep(o isa Complement ? Complement(o) : o)
+        out_spec_A[1:length(b), 1:size(A,2), i] = A
+        out_spec_b[1:length(b), i] = b
         # out_spec_A[1:length(cons), 1:size(A,2), i] = is_complement ? .-A : A
         # out_spec_b[1:length(cons), i] = is_complement ? .-b : b
     end
