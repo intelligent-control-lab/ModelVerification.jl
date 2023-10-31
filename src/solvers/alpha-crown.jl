@@ -1,7 +1,7 @@
 
 mutable struct AlphaCrown <: BatchBackwardProp 
     use_gpu::Bool
-    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing}
+    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing, Dict}
     bound_lower::Bool
     bound_upper::Bool
     optimizer
@@ -24,11 +24,43 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
+function get_sub_model(model_info, end_node)
+    # get the first part of the model until end_node.
+    queue = Queue{Any}()
+    enqueue!(queue, end_node)
+    sub_nodes = [end_node]
+    node_prevs = Dict(end_node => [])
+    node_nexts = Dict(end_node => [])
+    while !isempty(queue)
+        node = dequeue!(queue)
+        for input_node in model_info.node_prevs[node]
+            if !(input_node in sub_nodes)
+                push!(sub_nodes, input_node)
+                enqueue!(queue, input_node)
+                node_prevs[input_node] = []
+                node_nexts[input_node] = []
+            end
+            push!(node_prevs[node], input_node)
+            push!(node_nexts[input_node], node)
+        end
+    end
+    node_layer = filter(kv -> kv[1] in sub_nodes, model_info.node_layer)
+    start_nodes = filter(n -> n in sub_nodes, model_info.start_nodes)
+    activation_nodes = filter(n -> n in sub_nodes, model_info.activation_nodes)
+    activation_number = length(activation_nodes)
+    return Model(start_nodes, [end_node], sub_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
+end
+
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
+    return prepare_method(prop_method, batch_input, out_specs, model_info)
+end
+
+function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+    batch_size = size(out_specs.A, 3)
     prop_method.bound_lower = out_specs.is_complement ? true : false
     prop_method.bound_upper = out_specs.is_complement ? false : true
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
@@ -41,14 +73,52 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     # Therefore, we set new_spec_A: 1(new_spec_dim) x original_spec_dim x batch_size, new_spec_b: 1(new_spec_dim) x batch_size,
     # spec_dim, out_dim, batch_size = size(out_specs.A)
     # out_specs = LinearSpec(ones((1, spec_dim, batch_size)), zeros(1, batch_size), out_specs.is_complement)
+    if prop_method.pre_bound_method isa Dict
+        for node in model_info.activation_nodes
+            batch_info[node][:pre_bound] = prop_method.pre_bound_method[node]
+        end
+    elseif prop_method.pre_bound_method isa AlphaCrown  # requires recursive bounding, iterate from first layer
+        # need forward BFS to compute pre_bound of all, 
+        pre_bounds = Dict()
 
-    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, model_info)
+        for node in model_info.activation_nodes
+            @assert length(model_info.node_prevs[node]) == 1
+            prev_node = model_info.node_prevs[node][1]
+            
+            sub_model_info = get_sub_model(model_info, prev_node)
+            # println("=====")
+            # println(sub_model_info.all_nodes)
+            n_out = size(model_info.node_layer[prev_node].weight)[1]
+            # println(prev_node)
+            # println(n_out)
+            # println(batch_size)
+
+            I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+            if prop_method.use_gpu
+                I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+            end
+
+            prop_method.pre_bound_method.pre_bound_method = pre_bounds
+
+            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, sub_model_info)
+            sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
+            sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+            
+            batch_info[node][:pre_bound] = sub_batch_bound
+            pre_bounds[node] = sub_batch_bound
+
+            # println(node)
+            # println(prev_node)
+            # println(sub_batch_info[prev_node][:bound])
+        end
+    elseif !isnothing(prop_method.pre_bound_method)
+        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
             batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
+            # println("assigning", node," ", prev_node)
         end
     end
     
@@ -68,7 +138,6 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     # init_A_b(prop_method, batch_input, batch_info)
     return out_specs, batch_info
 end
-
 
 function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
@@ -120,19 +189,27 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
 end
 
 function optimize_bound(model, input, loss_func, optimizer, max_iter)
+    to = get_timer("Shared")
+    
     min_loss = Inf
-    opt_state = Flux.setup(optimizer, model)
+    @timeit to "setup" opt_state = Flux.setup(optimizer, model)
     for i in 1 : max_iter
-        losses, grads = Flux.withgradient(model) do m
+        # println(model)
+        # println(input)
+        # @assert false
+        @timeit to "forward" losses, grads = Flux.withgradient(model) do m
             result = m(input) 
+            # println(result)
+            # @assert false
             loss_func(result)
         end
+        # println(i, " ", losses)
         if losses <= min_loss
-            min_loss = min_loss
+            min_loss = losses
         else
             return model
         end
-        Flux.update!(opt_state, model, grads[1])
+        @timeit to "update" Flux.update!(opt_state, model, grads[1])
     end
     return model
 end

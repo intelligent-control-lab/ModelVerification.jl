@@ -12,6 +12,9 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
     for iter in 1:search_method.max_iter # BFS with max iteration
         length(branches) == 0 && break
         input, output = popfirst!(branches)
+        # println(iter)
+        # println(input)
+
         push!(batch_input, input)
         push!(batch_output, output)
         if length(batch_input) >= search_method.batch_size || length(branches) == 0
@@ -21,7 +24,8 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             @timeit to "propagate" batch_bound, batch_info = propagate(prop_method, model_info, batch_info)
             @timeit to "process_bound" batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec, model_info, batch_info)
             @timeit to "check_inclusion" batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
-        
+            # println("batch_bound")
+            # println(batch_bound)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i]

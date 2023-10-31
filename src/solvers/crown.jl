@@ -26,10 +26,11 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
+prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info) =
+    prepare_method(prop_method, batch_input, get_linear_spec(batch_output), model_info)
 
-function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
-    batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
-    out_specs = get_linear_spec(batch_output)
+function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+    batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
@@ -37,7 +38,7 @@ function prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_o
 end
 
 
-function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, batch_output::AbstractArray)
+function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])
@@ -75,6 +76,10 @@ function compute_bound(bound::CrownBound)
     u =   batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_min)
     # @assert all(l.<=u) "lower bound larger than upper bound"
     return l, u
+end
+
+function compute_bound(bound::ConcretizeCrownBound)
+    return bound.spec_l, bound.spec_u
 end
 
 

@@ -2,6 +2,10 @@
     num_split::Int64     = 1
 end
 
+@with_kw struct InputGradSplit <: SplitMethod
+    num_split::Int64     = 1
+end
+
 @with_kw struct BaBSR <: SplitMethod
     num_split::Int64     = 1
 end
@@ -77,30 +81,6 @@ function split_interval(dom::Hyperrectangle, i::Int64)
     return (input_split_left, input_split_right)
 end
 
-
-#= function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
-    # S_dict : {node => [idx_list, val_list, mask_list]}, such that we can do the following when propagate relu
-    # batch_info[node][beta][S_dict[node][1]] .= S_dict[node][2]
-    if i > length(split_relu_node)
-        copy_S_dict = deepcopy(S_dict)
-        for (idx, node) in enumerate(split_relu_node)
-            copy_S_dict[node][2] = vecsign_convert_to_original_size(copy_S_dict[node][1], copy_S_dict[node][2], score[idx])
-            if isnothing(copy_S_dict[node][3])
-                copy_S_dict[node][3] = vecmask_convert_to_original_size(copy_S_dict[node][1], score[idx])
-            else
-                copy_S_dict[node][3] = copy_S_dict[node][3] .* vecmask_convert_to_original_size(copy_S_dict[node][1], score[idx])
-            end
-        end
-        return [((input, copy_S_dict), output)]
-    end
-    j > length(split_neurons_index_in_node[i]) && return split_beta(S_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output)
-    S_dict[split_relu_node[i]][2][j] = 1
-    subtree1 = split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
-    S_dict[split_relu_node[i]][2][j] = -1
-    subtree2 = split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
-    return [subtree1; subtree2]
-end =#
-
 function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
     # S_dict : {node => [idx_list, val_list, mask_list, history_S]}, such that we can do the following when propagate relu
     # batch_info[node][beta][S_dict[node][1]] .= S_dict[node][2]
@@ -129,30 +109,23 @@ function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_no
     return [subtree1; subtree2]
 end
 
-#= function split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
-    score = branching_scores_kfsb(model_info, batch_info, input)
-    split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
-    if length(input[2]) == 0
-        S_dict = Dict(node => Any[nothing, nothing, nothing] for node in model_info.activation_nodes)
-    else
-        S_dict = Dict(node => Any[nothing, nothing, input[2][node][3]] for node in model_info.activation_nodes)
-    end
-
-    for (node, idx_list) in zip(split_relu_node, split_neurons_index_in_node)
-        S_dict[node][1] = idx_list
-        S_dict[node][2] = zeros(size(idx_list))
-    end 
-    return split_beta(S_dict, score, split_relu_node, 1, split_neurons_index_in_node, 1, input[1], output)#from 1st node and 1st index
-end =#
-
 function split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
+    
+    # println("input")
+    # println(input[1]) # input set
+    # println(input[2]) # previous S_dict 
+    # println("====")
+
     if length(input[2]) == 0
         S_dict = Dict(node => Any[nothing, nothing, nothing, nothing] for node in model_info.activation_nodes)
     else
         S_dict = Dict(node => Any[nothing, nothing, input[2][node][3], input[2][node][4]] for node in model_info.activation_nodes)
     end
+    # println("idx_list")
+    # println(split_relu_node)
+    # println(split_neurons_index_in_node)
 
     for (node, idx_list) in zip(split_relu_node, split_neurons_index_in_node)
         S_dict[node][1] = idx_list

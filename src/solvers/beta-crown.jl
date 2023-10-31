@@ -48,6 +48,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
     batch_info[:init_upper_A_b] = [out_specs.A, .-out_specs.b]
 
+    # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension.
+    # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension.
+
     # After conversion, we only need to decide if lower bound of spec_A y-spec_b > 0 or if upper bound of spec_A y - spec_b < 0
     # The new out is spec_A*y-b, whose dimension is spec_dim x batch_size.
     # Therefore, we set new_spec_A: 1(new_spec_dim) x original_spec_dim x batch_size, new_spec_b: 1(new_spec_dim) x batch_size,
@@ -93,23 +96,28 @@ function init_A_b(n, batch_size) # A x < b
     return [A, b]
 end
 
-
-
 function init_bound(prop_method::BetaCrown, input) 
     return (input, Dict())
 end
 
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
-    compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
+    to = get_timer("Shared")
+    @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = prop_method.use_gpu ? fmap(cu, bound_lower_model) : bound_lower_model
     bound_upper_model = prop_method.use_gpu ? fmap(cu, bound_upper_model) : bound_upper_model
-    loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
+    # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
 
-    bound_lower_model = optimize_bound(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
-    bound_upper_model = optimize_bound(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension. therefore minimize maximum(spec_A x - b)
+    # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)
+    # loss_func = prop_method.bound_lower ?  x -> -maximum(x[1]) : x -> maximum(x[2]) # maximum leads to error in flux
+    # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
+    loss_func = prop_method.bound_lower ?  x -> -sum(exp.(x[1])) : x -> sum(exp.(x[2]))
+
+    @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
 
     for (index, params) in enumerate(Flux.params(bound_lower_model))
         relu_node = batch_info[:Beta_Lower_Layer_node][ceil(Int, index / 2)]
@@ -129,18 +137,22 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     end
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
-    println("spec")
-    println(lower_spec_l)
-    println(upper_spec_u)
+    # println("spec")
+    # println(lower_spec_l)
+    # println(upper_spec_u)
+    # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension.
+    # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension.
     prop_method.bound_lower = batch_out_spec.is_complement ? true : false
     prop_method.bound_upper = batch_out_spec.is_complement ? false : true
+    # println(prop_method.bound_lower)
+    # println(prop_method.bound_upper)
     if prop_method.bound_lower
         #batch_info = get_pre_relu_A(init, prop_method.use_gpu, true, model_info, batch_info)
-        batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, true, model_info, batch_info)
+        @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, true, model_info, batch_info)
     end
     if prop_method.bound_upper
         #batch_info = get_pre_relu_A(init, prop_method.use_gpu, false, model_info, batch_info)
-        batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, false, model_info, batch_info)
+        @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, false, model_info, batch_info)
     end
     return ConcretizeCrownBound(lower_spec_l, upper_spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
@@ -167,8 +179,12 @@ end
 function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
+            # println(batch_info[node][:pre_lower_A_function])
+            # println(batch_info[node][:pre_upper_A_function])
+            # @assert false
             A_function = use_gpu ? fmap(cu, Chain(batch_info[node][:pre_lower_A_function])) : Chain(batch_info[node][:pre_lower_A_function])
             batch_info[node][:pre_lower_spec_A] = A_function(init)[1]
+            
             batch_info[node][:pre_upper_spec_A] = nothing
         end
     end

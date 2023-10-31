@@ -1,23 +1,17 @@
 enqueue_nodes!(prop_method::ForwardProp, queue, model_info) = enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
-#enqueue_nodes!(prop_method::BackwardProp, queue, model_info) = enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.final_nodes]...)...)
 enqueue_nodes!(prop_method::BackwardProp, queue, model_info) = enqueue!(queue, [s for s in model_info.final_nodes]...)
 
-all_prevs_in(prop_method::ForwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_prevs[output_node]))
-all_prevs_in(prop_method::BackwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_nexts[output_node]))
-
-has_two_reach_node(prop_method::ForwardProp, model_info, node) = (length(model_info.node_prevs[node]) == 2)
-has_two_reach_node(prop_method::BackwardProp, model_info, node) = (length(model_info.node_nexts[node]) == 2)
-
-father_nodes(prop_method::ForwardProp, model_info, node) = model_info.node_nexts[node]
-father_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_prevs[node]
 output_node(prop_method::ForwardProp, model_info) = model_info.final_nodes[1]
 output_node(prop_method::BackwardProp, model_info) = model_info.node_nexts[model_info.start_nodes[1]][1]
 
-children_nodes(prop_method::ForwardProp, model_info, node) = model_info.node_prevs[node]
-children_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_nexts[node]
+next_nodes(prop_method::ForwardProp,  model_info, node) = model_info.node_nexts[node]
+next_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_prevs[node]
+prev_nodes(prop_method::ForwardProp,  model_info, node) = model_info.node_prevs[node]
+prev_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_nexts[node]
 
-all_nexts_in(prop_method::ForwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_nexts[output_node]))
-all_nexts_in(prop_method::BackwardProp, model_info, output_node, cnt) = (cnt == length(model_info.node_prevs[output_node]))
+all_nexts_in(prop_method, model_info, output_node, cnt) = (cnt == length(next_nodes(prop_method, model_info, output_node)))
+all_prevs_in(prop_method, model_info, output_node, cnt) = (cnt == length(prev_nodes(prop_method, model_info, output_node)))
+has_two_reach_node(prop_method, model_info, node) = (length(prev_nodes(prop_method, model_info, node)) == 2)
 
 function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
@@ -32,7 +26,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         node = dequeue!(queue)
         batch_info[:current_node] = node
        
-        for output_node in father_nodes(prop_method, model_info, node)
+        for output_node in next_nodes(prop_method, model_info, node)
             visit_cnt[output_node] += 1
             if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])
                 enqueue!(queue, output_node)

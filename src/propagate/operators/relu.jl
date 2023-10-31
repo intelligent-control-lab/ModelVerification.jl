@@ -530,16 +530,17 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     lower_A = bound.lower_A_x
     upper_A = bound.upper_A_x
     
+    batch_info[node][:pre_lower_A_function] = nothing
+    batch_info[node][:pre_upper_A_function] = nothing
+
     if prop_method.bound_lower
         batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        batch_info[node][:pre_upper_A_function] = nothing
         Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
         push!(lower_A, Alpha_Lower_Layer)
     end
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        batch_info[node][:pre_lower_A_function] = nothing
         Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
         push!(upper_A, Alpha_Upper_Layer)
     end
@@ -583,26 +584,28 @@ function convert_vec_beta_to_original_size(beta, beta_S, beta_index)
 end
 
 function (f::BetaLayer)(x)
-    last_A = x[1]
-    if isnothing(last_A)
+    A = x[1]
+    b = x[2]
+    # @assert false
+    if isnothing(A)
         return [nothing, nothing]
     end
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
     if f.lower 
-        New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
+        New_A = bound_oneside(A, lower_slope, f.upper_slope)
     else
-        New_A = bound_oneside(last_A, f.upper_slope, lower_slope)
+        New_A = bound_oneside(A, f.upper_slope, lower_slope)
     end
-
 
     New_A = add_beta(New_A, f.spec_A_b, f.beta, f.beta_S, f.beta_index)
+    # New_b = nothing
 
     if f.lower 
-        New_bias = multiply_bias(last_A, f.upper_slope, f.lower_bias, f.upper_bias) .+ x[2]
+        New_b = multiply_bias(A, f.upper_slope, f.lower_bias, f.upper_bias) .+ b
     else
-        New_bias = multiply_bias(last_A, f.upper_slope, f.upper_bias, f.lower_bias) .+ x[2]
+        New_b = multiply_bias(A, f.upper_slope, f.upper_bias, f.lower_bias) .+ b
     end
-    return [New_A, New_bias]
+    return [New_A, New_b]
 end
 
 function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound::BetaCrownBound, batch_info)
@@ -615,8 +618,8 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     lower = batch_info[node][:pre_lower]
     upper = batch_info[node][:pre_upper]
     #end
-    println("lower: ", lower)
-    println("upper: ", upper)
+    # println("lower: ", lower)
+    # println("upper: ", upper)
 
     alpha_lower = batch_info[node][:alpha_lower]
     alpha_upper = batch_info[node][:alpha_upper]
@@ -637,24 +640,26 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
 
     lower_A = bound.lower_A_x
     upper_A = bound.upper_A_x
+
+    batch_info[node][:pre_upper_A_function] = nothing
+    batch_info[node][:pre_lower_A_function] = nothing
+
     if prop_method.bound_lower
         batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        batch_info[node][:pre_upper_A_function] = nothing
         Beta_Lower_Layer = BetaLayer(node, alpha_lower, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
         push!(lower_A, Beta_Lower_Layer)
     end
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        batch_info[node][:pre_lower_A_function] = nothing
         Beta_Upper_Layer = BetaLayer(node, alpha_upper, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
         push!(upper_A, Beta_Upper_Layer)
     end
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
 
-    println("lower_A: ", lower_A)
-    println("upper_A: ", upper_A)
+    # println("lower_A: ", lower_A)
+    # println("upper_A: ", upper_A)
 
     return New_bound
 end
