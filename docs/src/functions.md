@@ -6,20 +6,20 @@
 [](    Depth = 3)
 [](```)
 
-[](TODO: Since most of these function are not exported they have to be called with NeuralVerification.[])
+[](TODO: Since most of these function are not exported they have to be called with ModelVerification.[])
 [](Should consider whether we want to list unexported functions online at all.)
 
 
 ```@docs
-NeuralVerification.read_nnet
-NeuralVerification.init_layer
-NeuralVerification.compute_output
-NeuralVerification.get_activation
-NeuralVerification.get_gradient
-NeuralVerification.act_gradient
-NeuralVerification.act_gradient_bounds
-NeuralVerification.interval_map
-NeuralVerification.get_bounds
-NeuralVerification.linear_transformation
-NeuralVerification.split_interval
+ModelVerification.read_nnet
+ModelVerification.init_layer
+ModelVerification.compute_output
+ModelVerification.get_activation
+ModelVerification.get_gradient
+ModelVerification.act_gradient
+ModelVerification.act_gradient_bounds
+ModelVerification.interval_map
+ModelVerification.get_bounds
+ModelVerification.linear_transformation
+ModelVerification.split_interval
 ```
