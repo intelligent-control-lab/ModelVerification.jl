@@ -2,7 +2,7 @@ using Documenter, ModelVerification
 push!(LOAD_PATH,"../src/")
 
 makedocs(sitename = "ModelVerification.jl",
-         pages = ["index.md", "problem.md", "solvers.md", "functions.md", "existing_implementations.md"])
+         pages = ["index.md", "existing_implementations.md"])
 
 
 # deploydocs(
