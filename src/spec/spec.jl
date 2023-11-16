@@ -25,6 +25,17 @@ get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
 #     b = cat([con.b for con in cons], dims=1)
 #     return A, b
 # end
+
+"""
+    get_linear_spec(batch_out_set)
+
+Retrieves the linear specifications of the batch of output sets and returns
+a `LinearSpec` structure.
+
+# Arguments:
+- `batch_out_set::AbstractVector`: 
+
+"""
 function get_linear_spec(batch_out_set::AbstractVector)
     max_spec_num = maximum([length(constraints_list(o)) for o in batch_out_set])
     out_spec_A = zeros(max_spec_num, dim(batch_out_set[1]), length(batch_out_set)) # spec_dim x out_dim x batch_size

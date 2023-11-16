@@ -10,17 +10,18 @@ struct ImageStarBound{T<:Real} <: Bound
     b::AbstractArray{T, 1}            # n_con 
 end
 
+
 """
-init_bound(prop_method::ImageStar, batch_input) 
+    prepare_problem(search_method, split_method, prop_method, problem)
 
-Assume batch_input[1] is a list of vertex images.
-Return a zonotope. 
 
-Outputs:
-- `ImageStarBound`
+    
+# Arguments
+- `search_method::SearchMethod`:
+- `split_method::SplitMethod`:
+- `prop_method::ImageStar`:
+- `problem::Problem`:
 """
-
-
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
@@ -29,6 +30,15 @@ end
 
 prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output, model_info)
 
+"""
+    init_bound(prop_method::ImageStar, ch::ImageConvexHull) 
+
+Assume batch_input[1] is a list of vertex images.
+Return a zonotope. 
+
+Outputs:
+- `ImageStarBound`
+"""
 function init_bound(prop_method::ImageStar, ch::ImageConvexHull) 
     imgs = ch.imgs
     T = typeof(imgs[1][1,1,1])
