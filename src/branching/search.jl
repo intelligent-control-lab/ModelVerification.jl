@@ -3,6 +3,15 @@
     batch_size::Int64 = 1
 end
 
+"""
+    search_branches(search_method, split_method, prop_method, problem, model_info)
+
+(Kai)
+Essentially THE FUNCTION that does the heavy lifting...
+Think of `prop_method` as the solver. Well, it is.
+This returns the result.
+
+"""
 function search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
     branches = [(problem.input, problem.output)]
     batch_input = []

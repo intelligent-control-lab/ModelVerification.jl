@@ -1,21 +1,18 @@
-# Problem
-
+# Problem Outline
 ```@contents
 Pages=["problem.md"]
 Depth = 3
 ```
 
 ## Network
+_Details on [Network](./network.md)_
 
-### Feedforward Neural Network
+## Safety Specification
+_Details on [Safety Specification](./safety_spec.md)_
 
-### Convolutional Neural Network (CNN)
+<!-- ## Branching
+_Details on [Branching](./branching.md)_
 
-### Recurrent Neural Network (RNN)
+## Propagate
+_Details on [Propagation](./propagate.md)_ -->
 
-
-## Input-Output Specification
-
-### Safety Property
-
-### Geometric Representation

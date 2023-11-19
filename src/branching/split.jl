@@ -148,6 +148,9 @@ function vecmask_convert_to_original_size(index, original)
     return original_size_matrix
 end
 
+"""
+WHAT IS THIS???
+"""
 function branching_scores_kfsb(model_info, batch_info, input)
     score = []
     for node in model_info.activation_nodes
