@@ -44,7 +44,7 @@ This will enable development mode for the toolbox. The dependency packages will 
 
 [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) receives input as a set consisting of:
 - [Model](./network.md) to be verified,
-- A [safety property](./problem.md) encoded as input-output specifications for the neural network,
+- A [safety property](./safety_spec.md) encoded as input-output specifications for the neural network,
 - The [solver](./solvers.md) to be used for the formal verification process.
 
 The toolbox's [output](./problem.md) varies depending on the type of verification we are performing. Nonetheless, at the end of the verification process, the response of the toolbox potentially allows us to obtain provable guarantees that a given safety property holds (or does not hold) for the model tested.
@@ -58,7 +58,7 @@ For more details on how the toolbox works, please refer to the [tutorial](#tutor
 ![](./assets/MV_flow.png)
 
 ```@contents
-Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "utils.md"]
+Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
 Depth = 3
 ```
 

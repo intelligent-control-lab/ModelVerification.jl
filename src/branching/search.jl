@@ -1,3 +1,12 @@
+"""
+    BFS <: SearchMethod
+
+Breadth-first Search (BFS) 
+    
+## Fields
+- `max_iter` :
+- `batch_size` : 
+"""
 @with_kw struct BFS <: SearchMethod
     max_iter::Int64
     batch_size::Int64 = 1

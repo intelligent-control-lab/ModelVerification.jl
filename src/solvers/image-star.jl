@@ -1,8 +1,26 @@
+"""
+    ImageStar <: SequentialForwardProp
+
+ImageStar is a verification approach that can verify the robustness of CNN.
+It is defined as a set representation in literature, but this toolbox uses the 
+term as the verification method itself that uses the ImageStar set.
+`ImageStarBound` is used to represent the bounded set.
+
+## Fields
+- `pre_bound_method` : 
+
+## Reference
+[1] HD. Tran, S. Bak, W. Xiang, and T.T. Johnson, "Verification of Deep Convolutional 
+Neural Networks Using ImageStars," in _Computer Aided Verification (CAV)_, 2020.
+"""
 struct ImageStar <: SequentialForwardProp 
     pre_bound_method::Union{SequentialForwardProp, Nothing}
 end
 ImageStar() = ImageStar(nothing)
 
+"""
+    ImageStarBound{T<:Real} <: Bound
+"""
 struct ImageStarBound{T<:Real} <: Bound
     center::AbstractArray{T, 4}       # h x w x c x 1
     generators::AbstractArray{T, 4}   #  h x w x c x n_gen
@@ -13,8 +31,6 @@ end
 
 """
     prepare_problem(search_method, split_method, prop_method, problem)
-
-
     
 # Arguments
 - `search_method::SearchMethod`:
@@ -51,6 +67,9 @@ function init_bound(prop_method::ImageStar, ch::ImageConvexHull)
     return ImageStarBound(T.(cen), T.(gen), A, b)
 end
 
+"""
+    assert_zono_star(bound::ImageStarBound)
+"""
 function assert_zono_star(bound::ImageStarBound)
     @assert length(bound.b) % 2 == 0
     n = length(bound.b) ÷ 2
@@ -60,6 +79,9 @@ function assert_zono_star(bound::ImageStarBound)
     @assert all(bound.b == [ones(T, n); ones(T, n)]) # -1 to 1
 end
 
+"""
+    compute_bound(bound::ImageStarBound)
+"""
 function compute_bound(bound::ImageStarBound)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
@@ -72,6 +94,9 @@ end
 
 center(bound::ImageStarBound) = bound.center
 
+"""
+    check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
+"""
 function check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
     box_reach = box_approximation(reach)
     # println(low(reach))

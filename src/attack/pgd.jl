@@ -95,10 +95,16 @@ function APGD(model, loss, x, input; step_size = 0.001, rho=0.75, a=0.75, iters 
     return x_max
 end
 
+"""
+    project(p, rect::Hyperrectangle)
+"""
 function project(p, rect::Hyperrectangle)
     p = clamp.(p, low(rect), high(rect))
 end
 
+"""
+    project(p, polytope::LazySet)
+"""
 function project(p, polytope::LazySet)
     A, b = tosimplehrep(polytope)
     all(A*p < b) && return p
@@ -114,6 +120,10 @@ function project(p, polytope::LazySet)
     optimize!(model)
     return value.(x)
 end
+
+"""
+    attack(model, input, output; restart=100)
+"""
 function attack(model, input, output; restart=100)
     is_complement = output isa Complement
     Ay, by = tosimplehrep(is_complement ? Complement(output) : output) |> cpu
@@ -134,6 +144,10 @@ function attack(model, input, output; restart=100)
     end
     return BasicResult(:unknown)
 end
+
+"""
+    attack(problem; restart=100)
+"""
 function attack(problem; restart=100)
     is_complement = problem.output isa Complement
     Ay, by = tosimplehrep(is_complement ? Complement(problem.output) : problem.output) |> cpu
@@ -155,16 +169,25 @@ function attack(problem; restart=100)
     return BasicResult(:unknown)
 end
 
+"""
+    project(x, dir::AbstractVector, set::LazySet)
+"""
 function project(x, dir::AbstractVector, set::LazySet)
     return (x + dir) ∈ set ? (x + dir) : x
 end
 
+"""
+    project(x, dir::AbstractVector, set::Hyperrectangle)
+"""
 function project(x, dir::AbstractVector, set::Hyperrectangle)
     c = center(set)
     r = radius_hyperrectangle(set)
     return c - r * sign.(dir)
 end
 
-function project(x, dir::AbstractVector, set::LinearSpec)
+# """
+#     project(x, dir::AbstractVector, set::LinearSpec)
+# """
+# function project(x, dir::AbstractVector, set::LinearSpec)
     
-end
+# end

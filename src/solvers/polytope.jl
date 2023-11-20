@@ -73,6 +73,7 @@ StarSet() = StarSet(nothing)
     prepare_method(prop_method::StarSet, batch_input::AbstractVector, 
     batch_output::AbstractVector, model_info)
 
+Initialize the bound of the start node
 
 ## Fields
 - `prop_method`  : propagation method of type `StarSet`.

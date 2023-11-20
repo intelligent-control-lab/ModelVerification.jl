@@ -56,6 +56,12 @@ Problem definition for neural verification.
 
 The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
+
+## Fields
+- `network` : `Network` that can be constructed either using the path to an onnx
+    model or a `Flux.Chain` structure.
+- `input` : input specification defined using a LazySet.
+- `output` : output specification defined using a LazySet.
 """
 struct Problem{P, Q}
     onnx_model_path::String
@@ -70,6 +76,7 @@ Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_
 
 """
     Result
+    
 Supertype of all result types.
 
 See also: [`BasicResult`](@ref), [`CounterExampleResult`](@ref), [`AdversarialResult`](@ref), [`ReachabilityResult`](@ref)

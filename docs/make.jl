@@ -14,6 +14,7 @@ makedocs(sitename = "ModelVerification.jl",
                 "branching.md",
                 "propagate.md",
                 "solvers.md",
+                "attack.md",
                 "utils.md"
             ],
             "Python Interface" => [

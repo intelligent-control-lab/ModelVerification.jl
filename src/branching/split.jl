@@ -1,15 +1,27 @@
+"""
+    Bisect <: SplitMethod
+"""
 @with_kw struct Bisect <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    InputGradSplit <: SplitMethod
+"""
 @with_kw struct InputGradSplit <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    BaBSR <: SplitMethod
+"""
 @with_kw struct BaBSR <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
     #input = fmap(cu, input)
     #output = fmap(cu, output)
@@ -22,11 +34,16 @@ function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle,
     return [subtree1; subtree2]
 end
 
+"""
+    split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
 end
 
-
+"""
+    split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
     println("splitting")
     @assert length(input.b) % 2 == 0
@@ -42,17 +59,23 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     return [(bound1, output), (bound2, output)]
 end
 
-
+"""
+    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
     return [input, nothing] #TODO: find a way to split ImageZonoBound
 end
 
-
+"""
+    split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
     input.A
 end
 
-
+"""
+    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
     return [input, nothing] #TODO: find a way to split ImageZonoBound
 end
@@ -68,7 +91,6 @@ Inputs:
 Return:
 - `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: two sets after split
 """
-
 function split_interval(dom::Hyperrectangle, i::Int64)
     input_lower, input_upper = low(dom), high(dom)
 
@@ -81,6 +103,9 @@ function split_interval(dom::Hyperrectangle, i::Int64)
     return (input_split_left, input_split_right)
 end
 
+"""
+    split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+"""
 function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
     # S_dict : {node => [idx_list, val_list, mask_list, history_S]}, such that we can do the following when propagate relu
     # batch_info[node][beta][S_dict[node][1]] .= S_dict[node][2]
@@ -109,6 +134,9 @@ function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_no
     return [subtree1; subtree2]
 end
 
+"""
+    split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
+"""
 function split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
@@ -134,6 +162,9 @@ function split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, m
     return split_beta(S_dict, score, split_relu_node, 1, split_neurons_index_in_node, 1, input[1], output)#from 1st node and 1st index
 end
 
+"""
+    vecsign_convert_to_original_size(index, vector, original)
+"""
 function vecsign_convert_to_original_size(index, vector, original)
     original_size_matrix = zeros(size(vec(original)))
     original_size_matrix[index] .= vector
@@ -141,6 +172,9 @@ function vecsign_convert_to_original_size(index, vector, original)
     return original_size_matrix
 end
 
+"""
+    vecmask_convert_to_original_size(index, original)
+"""
 function vecmask_convert_to_original_size(index, original)
     original_size_matrix = ones(size(vec(original)))
     original_size_matrix[index] .= -1
@@ -149,7 +183,7 @@ function vecmask_convert_to_original_size(index, original)
 end
 
 """
-WHAT IS THIS???
+    branching_scores_kfsb(model_info, batch_info, input)
 """
 function branching_scores_kfsb(model_info, batch_info, input)
     score = []
@@ -230,6 +264,9 @@ function branching_scores_kfsb(model_info, batch_info, input)
     return score
 end
 
+"""
+    topk(score, k, model_info)
+"""
 function topk(score, k, model_info)
     vec_score = []
     relu_node_neurons_range = []

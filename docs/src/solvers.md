@@ -10,9 +10,20 @@ Modules=[ModelVerification]
 Pages=["solver.jl"]
 ```
 
-## Polytope-based Solver
+## Ai2
 ```@autodocs
 Modules=[ModelVerification]
 Pages=["polytope.jl"]
 ```
 
+## ImageStar
+```@autodocs
+Modules=[ModelVerification]
+Pages=["image-star.jl", "image-zono.jl"]
+```
+
+## Crown
+
+## $\alpha$-Crown
+
+## $\beta$-Crown

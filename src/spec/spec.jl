@@ -1,11 +1,19 @@
-
+"""
+    Spec
+"""
 abstract type Spec end
 
+"""
+    ImageConvexHull <: Spec
+"""
 struct ImageConvexHull <: Spec
     # spec: A x - b <= 0 is the safe set or unsafe set
     imgs::AbstractArray # list of images (h,w,c)
 end
 
+"""
+    LinearSpec <: Spec
+"""
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
     A::AbstractArray{Float64, 3} # spec_dim x out_dim x batch_size
@@ -13,7 +21,14 @@ struct LinearSpec <: Spec
     is_complement::Bool
 end
 
+"""
+    InputSpec
+"""
 const InputSpec = Union{LazySet, ImageConvexHull}
+
+"""
+    OutputSpec
+"""
 const OutputSpec = Union{LazySet, LinearSpec}
 
 get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
@@ -59,6 +74,9 @@ function get_linear_spec(batch_out_set::AbstractVector)
     return LinearSpec(out_spec_A, out_spec_b, is_complement)
 end
 
+"""
+    classification_spec(n, target)
+"""
 function classification_spec(n, target)
     A = Matrix{Float64}(I, n, n)
     A[:, target] .= -1

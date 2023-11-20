@@ -1,4 +1,6 @@
-
+"""
+    BetaCrown <: BatchBackwardProp 
+"""
 mutable struct BetaCrown <: BatchBackwardProp 
     use_gpu::Bool
     split_neuron_number::Int
@@ -9,6 +11,9 @@ mutable struct BetaCrown <: BatchBackwardProp
     train_iteration::Int
 end
 
+"""
+    BetaCrownBound <: Bound
+"""
 struct BetaCrownBound <: Bound
     lower_A_x
     upper_A_x
@@ -18,14 +23,18 @@ struct BetaCrownBound <: Bound
     batch_data_max
 end
 
-
+"""
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
+"""
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
-
+"""
+    init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
+"""
 function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h[1]) for h in batch_input]..., dims=2)) : cat([low(h[1]) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h[1]) for h in batch_input]..., dims=2)) : cat([high(h[1]) for h in batch_input]..., dims=2)
@@ -33,7 +42,9 @@ function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, ba
     return bound
 end
 
-
+"""
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+"""
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     #batch_input : (input, S_dict)
     out_specs = get_linear_spec(batch_output)
@@ -87,7 +98,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     return out_specs, batch_info
 end 
 
-
+"""
+    init_A_b(n, batch_size) # A x < b
+"""
 function init_A_b(n, batch_size) # A x < b
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
@@ -96,10 +109,16 @@ function init_A_b(n, batch_size) # A x < b
     return [A, b]
 end
 
+"""
+    init_bound(prop_method::BetaCrown, input) 
+"""
 function init_bound(prop_method::BetaCrown, input) 
     return (input, Dict())
 end
 
+"""
+    process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
+"""
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
@@ -157,7 +176,9 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     return ConcretizeCrownBound(lower_spec_l, upper_spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 
-
+"""
+    get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
+"""
 function get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
@@ -176,6 +197,9 @@ function get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     return batch_info
 end
 
+"""
+    get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
+"""
 function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
@@ -198,7 +222,9 @@ function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_in
     return batch_info
 end
 
-
+"""
+    check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
+"""
 function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
     # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
     batch_input = prop_method.use_gpu ? fmap(cu, batch_input) : batch_input

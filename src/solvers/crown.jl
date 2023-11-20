@@ -1,10 +1,15 @@
+"""
+    Crown <: BatchForwardProp 
+"""
 struct Crown <: BatchForwardProp 
     use_gpu
     bound_lower::Bool
     bound_upper::Bool
 end
 
-
+"""
+    CrownBound <: Bound
+"""
 struct CrownBound <: Bound
     batch_Low    # reach_dim x input_dim+1 x batch_size
     batch_Up     # reach_dim x input_dim+1 x batch_size
@@ -12,6 +17,9 @@ struct CrownBound <: Bound
     batch_data_max     # input_dim+1 x batch_size
 end
 
+"""
+    ConcretizeCrownBound <: Bound
+"""
 struct ConcretizeCrownBound <: Bound
     spec_l
     spec_u
@@ -19,7 +27,9 @@ struct ConcretizeCrownBound <: Bound
     batch_data_max
 end
 
-
+"""
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
+"""
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
@@ -29,6 +39,9 @@ end
 prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info) =
     prepare_method(prop_method, batch_input, get_linear_spec(batch_output), model_info)
 
+"""
+    prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+"""    
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     if prop_method.use_gpu
@@ -37,7 +50,9 @@ function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_spe
     return out_specs, batch_info
 end
 
-
+"""
+    init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
+"""
 function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
@@ -78,12 +93,16 @@ function compute_bound(bound::CrownBound)
     return l, u
 end
 
+"""
+    compute_bound(bound::ConcretizeCrownBound)
+"""
 function compute_bound(bound::ConcretizeCrownBound)
     return bound.spec_l, bound.spec_u
 end
 
-
-
+"""
+    check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
+"""
 function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
     l, u = compute_bound(bound)

@@ -1,16 +1,27 @@
-
+"""
+    ImageZono <: SequentialForwardProp
+"""
 struct ImageZono <: SequentialForwardProp end
 
+"""
+    ImageZonoBound{T<:Real} <: Bound
+"""
 struct ImageZonoBound{T<:Real} <: Bound
     center::AbstractArray{T, 4}       # h x w x c x 1
     generators::AbstractArray{T, 4}   #  h x w x c x n_gen
 end
 
+"""
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
+"""
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
 end
 
+"""
+    init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
+"""
 function init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
     imgs = ch.imgs
     cen = cat([imgs[1] .+ sum([0.5 .* (img .- imgs[1]) for img in imgs[2:end]])]..., dims=4)
@@ -18,11 +29,17 @@ function init_bound(prop_method::ImageZono, ch::ImageConvexHull)
     return ImageZonoBound(cen, gen)
 end
 
+"""
+    init_bound(prop_method::ImageZono, bound::ImageStarBound)
+"""
 function init_bound(prop_method::ImageZono, bound::ImageStarBound)
     assert_zono_star(bound)
     return ImageZonoBound(bound.center, bound.generators)
 end
 
+"""
+    compute_bound(bound::ImageZonoBound)
+"""
 function compute_bound(bound::ImageZonoBound)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
@@ -35,6 +52,9 @@ end
 
 center(bound::ImageZonoBound) = bound.center
 
+"""
+    check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+"""
 function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
     # println(low(reach))
     # println(high(reach))
