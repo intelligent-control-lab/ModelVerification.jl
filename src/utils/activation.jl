@@ -1,48 +1,61 @@
 using Interpolations
 
+"""
+    ActivationFunction
+
+Function that calculates the output of the node.
+Supported activation functions are:
+- ReLU (`ReLU`)
+- Max (`Max`)
+- Identity (`Id`)
+- Sigmoid (`Sigmoid`)
+- Tanh (`Tanh`)
+"""
 abstract type ActivationFunction end
 
 """
     ReLU <: ActivationFunction
 
-    (ReLU())(x) -> max.(x, 0)
+(ReLU())(x) -> max.(x, 0)
 """
 struct ReLU <: ActivationFunction end
 
 """
     Max <: ActivationFunction
 
-    (Max())(x) -> max(maximum(x), 0)
+(Max())(x) -> max(maximum(x), 0)
 """
 struct Max <: ActivationFunction end
 
 """
     Id <: ActivationFunction
+    
 Identity operator
 
-    (Id())(x) -> x
+(Id())(x) -> x
 """
 struct Id <: ActivationFunction end
 
 """
     Sigmoid <: ActivationFunction
 
-    (Sigmoid())(x) -> 1 ./ (1 .+ exp.(-x))
+(Sigmoid())(x) -> 1 ./ (1 .+ exp.(-x))
 """
 struct Sigmoid <: ActivationFunction end
 
 """
     Tanh <: ActivationFunction
 
-    (Tanh())(x) -> tanh.(x)
+(Tanh())(x) -> tanh.(x)
 """
 struct Tanh <: ActivationFunction end
 
 """
     GeneralAct <: ActivationFunction
+
 Wrapper type for a general activation function.
 
-### Usage
+## Usage
 ```julia
 act = GeneralAct(tanh)
 
@@ -77,7 +90,7 @@ An extrapolation condition can be set for values outside the set of knots. Defau
 
     PiecewiseLinear(knots_x, knots_y, [extrapolation = Line()])
 
-### Usage
+## Usage
 ```julia
 kx = [0.0, 1.2, 1.7, 3.1]
 ky = [0.0, 0.5, 1.0, 1.5]
@@ -96,7 +109,7 @@ act(-102)   # 0.0
 act(Inf)    # 1.5
 ```
 
-### Extrapolations
+## Extrapolations
 - Flat()
 - Line()
 - constant (supply a number as the argument)

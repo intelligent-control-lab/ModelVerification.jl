@@ -58,7 +58,7 @@ For more details on how the toolbox works, please refer to the [tutorial](#tutor
 ![](./assets/MV_flow.png)
 
 ```@contents
-Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md"]
+Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "utils.md"]
 Depth = 3
 ```
 

@@ -1,7 +1,14 @@
-# Problem Outline
 ```@contents
 Pages=["problem.md"]
 Depth = 3
+```
+
+# Problem Outline
+
+
+```@autodocs
+Modules=[ModelVerification]
+Pages=["problem.jl"]
 ```
 
 ## Network

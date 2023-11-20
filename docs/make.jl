@@ -1,5 +1,5 @@
 using Documenter, ModelVerification
-push!(LOAD_PATH,"../src/")
+# push!(LOAD_PATH,"../src/")
 
 makedocs(sitename = "ModelVerification.jl",
         #  modules = [ModelVerification],
@@ -14,6 +14,7 @@ makedocs(sitename = "ModelVerification.jl",
                 "branching.md",
                 "propagate.md",
                 "solvers.md",
+                "utils.md"
             ],
             "Python Interface" => [
                 "nnet_converter.md",

@@ -15,6 +15,11 @@ else
     layer(d::Dense) = Layer(d.weight, d.bias, activation(d.σ))
 end
 
+"""
+    network(c::Chain)
+
+Converts `Flux.Chain` to a `Network`.
+"""
 network(c::Chain) = Network([layer.(c.layers)...])
 
 # Flux -> Network
@@ -26,4 +31,9 @@ _flux(f::GeneralAct) = f.f
 _flux(m::Layer) = Dense(m.weights, m.bias, _flux(m.activation))
 _flux(m::Network) = Chain(_flux.(m.layers)...)
 
+"""
+    Flux.Chain(m::Network)
+
+Converts `Network` to a `Flux.Chain`.
+"""
 Flux.Chain(m::Network) = _flux(m)

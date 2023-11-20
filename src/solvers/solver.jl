@@ -30,6 +30,9 @@ function process_bound(prop_method::PropMethod, batch_bound, batch_out_spec, mod
     return batch_bound, batch_info
 end
 
+"""
+    init_propagation()
+"""
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1
     batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
