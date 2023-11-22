@@ -4,7 +4,7 @@
 Breadth-first Search (BFS) 
     
 ## Fields
-- `max_iter` :
+- `max_iter` : 
 - `batch_size` : 
 """
 @with_kw struct BFS <: SearchMethod
@@ -23,6 +23,11 @@ This returns the result.
 """
 function search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
     branches = [(problem.input, problem.output)]
+    
+    # println(branches)
+    
+    # return BasicResult(:unknown)
+
     batch_input = []
     batch_output = []
     to = get_timer("Shared")

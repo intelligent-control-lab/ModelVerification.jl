@@ -14,6 +14,8 @@ end
 
 """
     BaBSR <: SplitMethod
+
+Branch-and-Bound method for splitting.
 """
 @with_kw struct BaBSR <: SplitMethod
     num_split::Int64     = 1
@@ -184,6 +186,8 @@ end
 
 """
     branching_scores_kfsb(model_info, batch_info, input)
+
+"Kernel Function Split Branch"
 """
 function branching_scores_kfsb(model_info, batch_info, input)
     score = []
@@ -266,6 +270,8 @@ end
 
 """
     topk(score, k, model_info)
+
+"Top Kernel"
 """
 function topk(score, k, model_info)
     vec_score = []

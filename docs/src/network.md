@@ -5,10 +5,6 @@ Depth = 3
 
 # Network
 
-## Feedforward Neural Network
-## Convolutional Neural Network (CNN)
-## Recurrent Neural Network (RNN)
-
 ## Network
 ```@autodocs
 Modules=[ModelVerification]

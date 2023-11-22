@@ -35,6 +35,7 @@ julia > ]
 ```
 
 This will enable development mode for the toolbox. The dependency packages will also be installed. Some of the important ones are listed below. 
+- [Flux](https://fluxml.ai/Flux.jl/stable/)
 - [LazySets](https://juliareach.github.io/LazySets.jl/dev/)
 - [JuMP](https://jump.dev/JuMP.jl/stable/)
 - [Zygote](https://fluxml.ai/Zygote.jl/stable/)
@@ -51,8 +52,62 @@ The toolbox's [output](./problem.md) varies depending on the type of verificatio
 
 For more details on how the toolbox works, please refer to the [tutorial](#tutorials) below.
 
+## Quickstart
+Here is a simple example for verifying that the user-given safety property holds for a small deep neural network (DNN) with a single input node, two hidden layers with two ReLU nodes, and a single output node. We use the formal verification results obtained through the reachability analysis to get a provable answer whether the safety property holds.
+
+First, we load the relevant libraries and the [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) toolbox.
+```Julia
+using ModelVerification
+using Flux
+using LazySets
+```
+
+First, load the model.
+```Julia
+onnx_path = "models/small_nnet.onnx"
+toy_model = build_flux_model(onnx_path)
+```
+
+Suppose we want to verify that all inputs in $\mathcal{X}=[-2.5, 2.5]$ are mapped into $\mathcal{Y}=[18.5, 114.5]$. We encode this safety property using convex sets, provided by [LazySets](https://juliareach.github.io/LazySets.jl/dev/). 
+```Julia
+X = Hyperrectangle(low = [-2.5], high = [2.5]) # expected out: [18.5, 114.5]
+Y = Hyperrectangle(low = [18.5], high = [114.5]) # here we expect the property holds
+```
+
+Now, we construct a _Problem_ instance. Note that [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) converts the `.onnx` model into a [Flux](https://fluxml.ai/Flux.jl/stable/) model.
+```Julia
+problem = Problem(toy_model, X, Y)
+```
+
+Instantiate the `solver`, which in this case is [CROWN](https://arxiv.org/abs/1811.00866). We also need `search`, `split`, and `propagation` methods in addition to the `solver` and `Problem`.
+```Julia
+search_method = BFS(max_iter=100, batch_size=1)
+split_method = Bisect(1)
+
+use_gpu = false
+lower_bound = true
+upper_bound = true
+solver = Crown(use_gpu, lower_bound, upper_bound)
+```
+
+Finally, we can verify that the safety property holds for this simple example!
+```Julia
+result = verify(search_method, split_method, solver, problem)
+println(result)
+println(result.status)
+```
+
+CROWN verifies that the input-output relationship holds!
+
 ## Tutorials
-- [MV-test](https://github.com/intelligent-control-lab/MV-test/blob/main/tutorial.ipynb)
+- [Tutorials](https://github.com/intelligent-control-lab/MV-test/blob/main/tutorial.ipynb)
+    - Example 1: Verifying a toy DNN with reachability analysis
+    - Example 2: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
+    - Example 3: Verifying a CNN for robustness safety property
+<!-- - [MLP examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_mlp.ipynb)
+- [CNN examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_cnn.ipynb)
+- [MNIST examples](https://github.com/intelligent-control-lab/MV-test/blob/main/train_mnist.ipynb)
+- [ACASXU examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_ACASXU.ipynb) -->
 
 ## Toolbox Outline
 ![](./assets/MV_flow.png)

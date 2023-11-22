@@ -30,6 +30,8 @@ abstract type BatchBackwardProp <: BackwardProp end
 
 """
     Bound
+
+Abstract type representing bounds.
 """
 abstract type Bound end
 
@@ -70,6 +72,8 @@ end
 
 """
     init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
+
+
 """
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1

@@ -52,7 +52,11 @@ prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output
 Assume batch_input[1] is a list of vertex images.
 Return a zonotope. 
 
-Outputs:
+## Arguments
+- `prop_method`: `ImageStar` solver.
+- `ch`: convex hull, type `ImageConvexHull`, is used as the input specification.
+
+## Returns
 - `ImageStarBound`
 """
 function init_bound(prop_method::ImageStar, ch::ImageConvexHull) 

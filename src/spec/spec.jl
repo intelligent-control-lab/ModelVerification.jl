@@ -1,10 +1,19 @@
 """
     Spec
+
+Abstract super-type for input-output specifications.
 """
 abstract type Spec end
 
 """
     ImageConvexHull <: Spec
+
+Convex hull for images used to specify safety property for images. 
+It is the smallest convex polytope that contains all the images given in the `imgs` array.
+
+## Fields
+- `imgs` (`AbstractArray`): list of images in `AbstractArray`. 
+    Image is represented as a matrix of h x w x c.
 """
 struct ImageConvexHull <: Spec
     # spec: A x - b <= 0 is the safe set or unsafe set
@@ -13,6 +22,13 @@ end
 
 """
     LinearSpec <: Spec
+
+Safety specification defined as the set ``\\{ x: x = A x - b ≤ 0 \\}``.
+
+## Fields
+- `A` (`AbstractArray{Float64, 3}`): normal dierction of size `spec_dim x out_dim x batch_size`.
+- `b` (`AbstractArray{Float64, 2}`): constraints of size `spec_dim x batch_size`.
+- `is_complement` (`Bool`): boolean flag for whether this specification is a complement or not.
 """
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
@@ -23,33 +39,43 @@ end
 
 """
     InputSpec
+
+Input specificaiton can be of any type supported by `LazySet` or `ImageConvexHull`.
 """
 const InputSpec = Union{LazySet, ImageConvexHull}
 
 """
     OutputSpec
+
+Output specification can be of any type supported by `LazySet` or `LinearSpec`.
 """
 const OutputSpec = Union{LazySet, LinearSpec}
 
-get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
-get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
+"""
+    get_size(input_spec::LazySet)
 
-# function get_linear_spec(set::LazySet)
-#     cons = constraints_list(set isa Complement ? Complement(set) : set)
-#     A = permutedims(hcat([Vector(con.a) for con in cons]...))
-#     b = cat([con.b for con in cons], dims=1)
-#     return A, b
-# end
+Given a `LazySet`, it determines the size.
+"""
+get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
 
 """
-    get_linear_spec(batch_out_set)
+    get_size(input_spec::ImageConvexHull)
+
+Given an `ImageConvexHull`, it determines the size.
+"""
+get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
+
+"""
+    get_linear_spec(batch_out_set::AbstractVector)
 
 Retrieves the linear specifications of the batch of output sets and returns
-a `LinearSpec` structure.
+a `LinearSpec` structure. 
 
-# Arguments:
-- `batch_out_set::AbstractVector`: 
+## Arguments
+- `batch_out_set` (`AbstractVector`): batch of output sets.
 
+## Returns
+- `LinearSpec` of the batch of output sets.
 """
 function get_linear_spec(batch_out_set::AbstractVector)
     max_spec_num = maximum([length(constraints_list(o)) for o in batch_out_set])

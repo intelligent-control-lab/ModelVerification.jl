@@ -3,49 +3,29 @@
 
 `Ai2` performs over-approximated reachability analysis to compute the over-
 approximated output reachable set for a network. `T` can be `Hyperrectangle`, 
-`Zonotope`, `Star`, or `HPolytope`, and determines the amount of over-
-approximation (and hence also performance tradeoff). The original implementation 
-(from [1]) uses Zonotopes, so we consider this the "benchmark" case. The 
-`HPolytope` case is more precise, but not scalable, and the opposite is true of 
-the `Hyperrectangle` case. `Zonotope` and `Star` are more scalable and precise.
+`Zonotope`, `Star`, or `HPolytope`. Different geometric representations impact
+the verification performance due to different over-approximation size. 
+We use `Zonotope` as "benchmark" geometry, as in the original implementation[1], 
+due to improved scalability and precision (similar result can be achieved using 
+`Star`). On the other hand, using  a `HPolytope` representation potentially 
+leads to a more precise but less scalable result, and the opposite holds for 
+`Hyperrectangle`.
 
 Note that initializing `Ai2()` defaults to `Ai2{Zonotope}`.
 The following aliases also exist for convenience:
 
-```julia
+```Julia
 const Ai2h = Ai2{HPolytope}
 const Ai2z = Ai2{Zonotope}
 const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}
 ```
 
-## Problem requirement
-1. Network: any depth, ReLU activation (more activations to be supported in the future)
-2. Input: AbstractPolytope
-3. Output: AbstractPolytope
-
-## Return
-`ReachabilityResult`
-
-## Method
-Reachability analysis using split and join.
-
-## Property
-Sound but not complete.
-
-## Note
-Efficient over-approximation of intersections and unions involving zonotopes 
-relies on Theorem 3.1 of [2].
-
 ## Reference
 [1] T. Gehr, M. Mirman, D. Drashsler-Cohen, P. Tsankov, S. Chaudhuri, and 
 M. Vechev, "Ai2: Safety and Robustness Certification of Neural Networks with 
 Abstract Interpretation," in *2018 IEEE Symposium on Security and Privacy (SP)*, 
 2018.
-
-[2] Singh, G., Gehr, T., Mirman, M., Püschel, M., & Vechev, M. (2018). Fast
-and effective robustness certification. In Advances in Neural Information
-Processing Systems (pp. 10802-10813).
 """
 struct Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: SequentialForwardProp end
 
@@ -59,10 +39,11 @@ const Box = Ai2{Hyperrectangle}
 """
     StarSet
 
-Covers all Ai2 variations: Ai2h, Ai2z, Ai2s, Box.
+Covers supported Ai2 variations: Ai2h, Ai2z, Ai2s, Box.
 
 ## Fields
-- `pre_bound_method`: 
+- `pre_bound_method`: The geometric representation used to compute the 
+    over-approximation of the input bounds.
 """
 struct StarSet <: SequentialForwardProp
     pre_bound_method::Union{SequentialForwardProp, Nothing}
@@ -73,13 +54,17 @@ StarSet() = StarSet(nothing)
     prepare_method(prop_method::StarSet, batch_input::AbstractVector, 
     batch_output::AbstractVector, model_info)
 
-Initialize the bound of the start node
+Initialize the solver 
 
-## Fields
-- `prop_method`  : propagation method of type `StarSet`.
-- `batch_input`  : 
-- `batch_output` :
+## Agruments
+- `prop_method` (`StarSet`) : propagation method of type `StarSet`.
+- `batch_input` (`AbstractVector`) : batch of input s
+- `batch_output` (`AbstractVector`) : batch of outputs
 - `model_info`   :
+
+## Returns
+- `batch_output`: batch of outputs.
+- `batch_info`:
 """
 function prepare_method(prop_method::StarSet, batch_input::AbstractVector, 
                         batch_output::AbstractVector, model_info)
@@ -112,11 +97,11 @@ Computes the lower- and upper-bounds of a zonotope.
 This function is used when propagating through the layers of network.
 Radius is the sum of absolute value of the generators of the given zonotope.
 
-## Fields
-- `bound` : zonotope of which the bounds need to be computed
+## Arguments
+- `bound` (`Zonotope`) : zonotope of which the bounds need to be computed
 
 ## Returns
-Lower- and upper-bounds of the Zonotope.
+- Lower- and upper-bounds of the Zonotope.
 """
 function compute_bound(bound::Zonotope)
     radius = dropdims(sum(abs.(LazySets.genmat(bound)), dims=2), dims=2)
@@ -130,11 +115,11 @@ Computes the lower- and upper-bounds of a star set.
 This function is used when propagating through the layers of network.
 It overapproximates the given star set with a hyperrectangle.
 
-## Fields
-- `bound` : star of which the bounds need to be computed
+## Arguments
+- `bound` (`Star`) : star of which the bounds need to be computed
 
 ## Returns
-Lower- and upper-bounds of the overapproximated hyperrectangle.
+- Lower- and upper-bounds of the overapproximated hyperrectangle.
 """
 function compute_bound(bound::Star)
     box = overapproximate(bound, Hyperrectangle)
@@ -147,12 +132,12 @@ end
 Given a hyperrectangle as `input`, this function returns a star set that 
 encompasses the hyperrectangle. This helps a more precise computation of bounds.
 
-## Fields
-- `prop_method` : (not used --> need to be deprecated)
-- `input`       : hyperrectangle to be converted into a star set
+## Arguments
+- `prop_method` (`StarSet`): 
+- `input` (`Hyperrectangle`): hyperrectangle to be converted into a star set
 
 ## Returns
-Star set that encompasses the given hyperrectangle.
+- `Star` set that encompasses the given hyperrectangle.
 """
 function init_bound(prop_method::StarSet, input::Hyperrectangle) 
     isa(input, Star) && return input
@@ -176,13 +161,13 @@ checking if the reachable set `reach` is a subset of the set of valid outputs
 `output`. If not, it attempts to find a counterexample and returns the 
 appropriate `Result`.
 
-## Fields
-- `prop_method` : (need to be deprecated).
+## Arguments
+- `prop_method` (`ForwardProp`): solver being used.
 - `model` : deep neural network model that is to be verified.
-- `input` : (need to be deprecated).
-- `reach` : reachable set resulting from the propagation of `input` through the 
-            `model`.
-- `output` : set of valid outputs represented with a `LazySet`.
+- `input` (`LazySet`): input specification supported by `LazySet`.
+- `reach` (`LazySet`): reachable set resulting from the propagation of `input` 
+    through the `model`.
+- `output` (`LazySet`) : set of valid outputs represented with a `LazySet`.
 
 ## Returns
 - `ReachabilityResult(:holds, [reach])` if `reach` is a subset of `output`.
@@ -211,13 +196,13 @@ output specified by a `LazySet`. This function achieves this by checking if the
 box approximation (overapproximation with hyperrectangle) of the `reach` set is
 disjoint with the `unsafe_output`.
 
-## Fields
-- `prop_method` : 
+## Arguments
+- `prop_method` (`ForwardProp`): solver being used.
 - `model` : deep neural network model that is to be verified.
-- `input` : input specification represented using a `Lazyset`.
-- `reach` : reachable set resulting from the propagation of `input` through the 
-    `model`.
-- `output` : set of valid outputs represented with a complement set.
+- `input` (`LazySet`): input specification supported by `Lazyset`.
+- `reach` (`LazySet`): reachable set resulting from the propagation of `input` 
+    through the `model`.
+- `output` (`Complement`): set of valid outputs represented with a complement set.
 
 ## Returns
 - `ReachabilityResult(:holds, [reach])` if `box_reach` is disjoint with the

@@ -19,6 +19,7 @@ makedocs(sitename = "ModelVerification.jl",
             ],
             "Python Interface" => [
                 "nnet_converter.md",
+                "python_interface.md"
             ],
             "Benchmarks " => [
                 "benchmark.md"
