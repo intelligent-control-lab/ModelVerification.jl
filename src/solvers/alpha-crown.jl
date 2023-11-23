@@ -199,7 +199,7 @@ function optimize_bound(model, input, loss_func, optimizer, max_iter)
         # @assert false
         @timeit to "forward" losses, grads = Flux.withgradient(model) do m
             result = m(input) 
-            # println(result)
+            println(result)
             # @assert false
             loss_func(result)
         end

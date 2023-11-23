@@ -38,6 +38,7 @@ function init_bound(prop_method::ImageStar, ch::ImageConvexHull)
     I = Matrix{T}(LinearAlgebra.I(n))
     A = [I; .-I]
     b = [ones(T, n); ones(T, n)] # -1 to 1
+    
     return ImageStarBound(T.(cen), T.(gen), A, b)
 end
 

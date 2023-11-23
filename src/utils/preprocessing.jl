@@ -9,7 +9,6 @@ struct Model
     activation_number::Int
 end
 
-
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     return model_info, problem
@@ -19,6 +18,23 @@ function get_act(l)
     (hasfield(typeof(l), :σ) && string(l.σ) != "identity") && return l.σ
     (hasfield(typeof(l), :λ) && string(l.λ) != "identity") && return l.λ
     return nothing
+end
+
+function onnx_node_to_flux_layer(vertex)
+    node_name = NaiveNASflux.name(vertex)
+    if occursin("flatten", lowercase(node_name))
+        return Flux.flatten
+    elseif occursin("add", lowercase(node_name))
+        return +
+    elseif occursin("sub", lowercase(node_name))
+        return -
+    elseif occursin("relu", lowercase(node_name))
+        # activation_number += 1
+        # node_name = "relu" * "_" * string(activation_number) #activate == "relu_5" doesn't mean this node is 5th relu node, but means this node is 5th activation node
+        return NNlib.relu
+    else
+        return NaiveNASflux.layer(vertex)
+    end
 end
 
 function onnx_parse(onnx_model_path)
@@ -35,25 +51,22 @@ function onnx_parse(onnx_model_path)
     for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
         
         node_name = NaiveNASflux.name(vertex)
+        # node_name = lowercase(node_name)
+
         if length(inputs(vertex)) == 0 # the start node has no input nodes
             push!(start_nodes, node_name)
         end
-        # println("NaiveNASflux.layer(vertex)")
-        # println(NaiveNASflux.layer(vertex))
-        if length(string(NaiveNASflux.name(vertex))) >= 7 && string(NaiveNASflux.name(vertex))[1:7] == "Flatten" 
-            node_layer[node_name] = Flux.flatten
-        elseif length(string(NaiveNASflux.name(vertex))) >= 3 && string(NaiveNASflux.name(vertex))[1:3] == "add" 
-            node_layer[node_name] = +
-        elseif length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "relu" 
-            # activation_number += 1
-            # node_name = "relu" * "_" * string(activation_number) #activate == "relu_5" doesn't mean this node is 5th relu node, but means this node is 5th activation node
-            node_layer[node_name] = NNlib.relu
-            push!(activation_nodes, node_name)
-        else
-            node_layer[node_name] = NaiveNASflux.layer(vertex)
-        end
 
+        # println("NaiveNASflux.layer(vertex)")
+        # println(node_name)
+        # println(typeof(vertex))
+        
+        node_layer[node_name] = onnx_node_to_flux_layer(vertex)
+        
         push!(all_nodes, node_name)
+        if isa(node_layer[node_name], typeof(NNlib.relu))
+            push!(activation_nodes, node_name)
+        end
 
         node_nexts[node_name] = [NaiveNASflux.name(output_node) for output_node in outputs(vertex)]
 
@@ -102,6 +115,9 @@ function onnx_parse(onnx_model_path)
         # println("nexts: ", node_nexts[node_name])
         # println("====")
     end
+    # println("node_layer")
+    # println(node_layer)
+    # @assert false
     model_info = Model(start_nodes, final_nodes, all_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
     # println("model_info.start_nodes")
     # println(model_info.start_nodes)

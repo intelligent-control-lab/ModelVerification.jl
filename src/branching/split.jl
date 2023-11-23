@@ -26,6 +26,25 @@ function split_branch(split_method::Bisect, model::Chain, input::LazySet, output
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
 end
 
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+    # println("split image zono")
+    # this split only works for zonotope with one generator
+    # because in general zonotope after split is no longer zonotope
+    @assert size(input.generators,4) == 1 
+    split_method.num_split <= 0 && return [(input, output)]
+    input1, input2 = split_interval(input)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, model_info, batch_info)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
+    return [subtree1; subtree2]
+end
+
+function split_interval(input::ImageZonoBound)
+    @assert size(input.generators,4) == 1 
+    half_gen = (input.generators ./ 2)
+    input_split_left = ImageZonoBound(input.center - half_gen, half_gen)
+    input_split_right = ImageZonoBound(input.center + half_gen, half_gen)
+    return (input_split_left, input_split_right)
+end
 
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
     println("splitting")
@@ -42,20 +61,10 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     return [(bound1, output), (bound2, output)]
 end
 
-
-function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
-    return [input, nothing] #TODO: find a way to split ImageZonoBound
-end
-
-
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
     input.A
 end
 
-
-function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
-    return [input, nothing] #TODO: find a way to split ImageZonoBound
-end
 
 """
     split_interval(dom, i)

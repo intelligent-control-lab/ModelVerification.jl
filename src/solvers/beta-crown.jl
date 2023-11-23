@@ -2,7 +2,7 @@
 mutable struct BetaCrown <: BatchBackwardProp 
     use_gpu::Bool
     split_neuron_number::Int
-    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing}
+    pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing, Dict}
     bound_lower::Bool
     bound_upper::Bool
     optimizer
@@ -35,8 +35,16 @@ end
 
 
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
-    #batch_input : (input, S_dict)
     out_specs = get_linear_spec(batch_output)
+    if prop_method.use_gpu
+        out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
+    end
+    return prepare_method(prop_method, batch_input, out_specs, model_info)
+end
+
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+    #batch_input : (input, S_dict)
+    batch_size = length(batch_input)
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
@@ -57,14 +65,62 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     # spec_dim, out_dim, batch_size = size(out_specs.A)
     # out_specs = LinearSpec(ones((1, spec_dim, batch_size)), zeros(1, batch_size), out_specs.is_complement)
 
-    if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
-        Crown_input = [input[1] for input in batch_input]
-        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, Crown_input, batch_output, model_info)
+    # if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
+    #     Crown_input = [input[1] for input in batch_input]
+    #     pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, Crown_input, batch_output, model_info)
+    #     pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
+    #     for node in model_info.activation_nodes
+    #         @assert length(model_info.node_prevs[node]) == 1
+    #         prev_node = model_info.node_prevs[node][1]
+    #         batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
+    #     end
+    # end
+    if prop_method.pre_bound_method isa Dict
+        for node in model_info.activation_nodes
+            batch_info[node][:pre_bound] = prop_method.pre_bound_method[node]
+        end
+    elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
+        # need forward BFS to compute pre_bound of all, 
+        pre_bounds = Dict()
+
+        for node in model_info.activation_nodes
+            @assert length(model_info.node_prevs[node]) == 1
+            prev_node = model_info.node_prevs[node][1]
+            
+            sub_model_info = get_sub_model(model_info, prev_node)
+            # println("=====")
+            # println(sub_model_info.all_nodes)
+            n_out = size(model_info.node_layer[prev_node].weight)[1]
+            # println(prev_node)
+            # println(n_out)
+            # println(batch_size)
+
+            I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+            if prop_method.use_gpu
+                I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+            end
+
+            prop_method.pre_bound_method.pre_bound_method = pre_bounds
+
+            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, sub_model_info)
+            sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
+            sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+            
+            batch_info[node][:pre_bound] = sub_batch_bound
+            pre_bounds[node] = sub_batch_bound
+
+            # println(node)
+            # println(prev_node)
+            # println(sub_batch_info[prev_node][:bound])
+        end
+    elseif !isnothing(prop_method.pre_bound_method)
+        pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
             batch_info[node][:pre_bound] = pre_batch_info[prev_node][:bound]
+            # println("assigning", node," ", prev_node)
         end
     end
     

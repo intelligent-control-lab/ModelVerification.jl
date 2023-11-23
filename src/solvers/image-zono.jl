@@ -36,12 +36,38 @@ end
 center(bound::ImageZonoBound) = bound.center
 
 function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
-    # println(low(reach))
-    # println(high(reach))
-    box_reach = box_approximation(reach)
+    # box_reach = box_approximation(reach)
     x = input.center
     y = reshape(model(x),:) # TODO: seems ad-hoc, the original last dimension is batch_size
-    ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
+    ⊆(reach, output) && return ReachabilityResult(:holds, reach)
+    # ⊆(reach, output) && return ReachabilityResult(:holds, box_reach)
     ∈(y, output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
+end
+
+function _isdisjoint(h::Hyperrectangle, p::HPolytope)
+    A, b = tosimplehrep(p)
+    # println(low(h))
+    # println(high(h))
+    lb, ub = interval_map(A, low(h), high(h))
+    # println(lb)
+    # println(ub)
+    return any(ub .< b)
+end
+
+function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::Complement)
+    
+    unsafe_output = Complement(output)
+    box_reach = box_approximation(reach)
+    _isdisjoint(box_reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+    # isdisjoint(reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+    
+    sgn = [rand([-1, 1]) for _ in 1:size(input.generators,4)]
+    rand_gen = sum(input.generators .* reshape(sgn, 1, 1, 1, :), dims=4)
+    x = input.center .+ rand_gen
+    y = model(x)
+    ∈(vec(y), unsafe_output) && return CounterExampleResult(:violated, x)
+    return CounterExampleResult(:unknown)
+    # to = get_timer("Shared")
+    # @timeit to "attack" return attack(model, input, output; restart=1)
 end

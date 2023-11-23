@@ -5,7 +5,7 @@ import Ipopt
 
 # using GLPK, SCS # SCS only needed for Certify
 # using PicoSAT # needed for Planet
-# using Polyhedra, CDDLib
+using Polyhedra, CDDLib
 using LazySets, LazySets.Approximations
 
 using LinearAlgebra
@@ -59,8 +59,8 @@ abstract type PropMethod end
 # include("utils/timer.jl")
 
 include("spec/spec.jl")
-
-export ImageConvexHull, InputSpec, OutputSpec, classification_spec, get_linear_spec
+export ImageConvexHull, InputSpec, OutputSpec
+export get_linear_spec, get_image_linf_spec, classification_spec
 
 
 include("utils/activation.jl")
@@ -95,6 +95,7 @@ include("solvers/image-zono.jl")
 include("solvers/crown.jl")
 include("solvers/alpha-crown.jl")
 include("solvers/beta-crown.jl")
+include("solvers/exact-reach.jl")
 
 include("propagate/propagate.jl")
 include("propagate/operators/dense.jl")
@@ -109,7 +110,7 @@ include("propagate/operators/util.jl")
 include("attack/pgd.jl")
 
 
-export Ai2, Ai2h, Ai2z, Box
+export Ai2, Ai2h, Ai2z, Box, ExactReach
 export StarSet
 export ImageStar, ImageZono
 export Crown, AlphaCrown, BetaCrown
@@ -144,17 +145,18 @@ end
 
 to = get_timer("Shared")
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
-function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400, attack_restart=100)
+function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400, attack_restart=100, collect_bound=false, summary=false, pre_split=nothing)
     to = get_timer("Shared")
     reset_timer!(to)
     # @timeit to "attack" res = attack(problem; restart=attack_restart)
     # (res.status == :violated) && (return res)
     @timeit to "prepare_problem" model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
-    # println(time_out)    
-    @timeit to "search_branches" res = search_branches(search_method, split_method, prop_method, problem, model_info) 
-    show(to) # to is TimerOutput(), used to profiling the code
-    println()
-    return res
+    # println(time_out)   
+    @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
+    if summary
+        show(to) # to is TimerOutput(), used to profiling the code
+    end
+    return collect_bound ? (res, verified_bounds) : res
 end
 
 export verify

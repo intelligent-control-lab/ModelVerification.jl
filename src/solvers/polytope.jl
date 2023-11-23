@@ -5,7 +5,6 @@ const Ai2z = Ai2{Zonotope}
 const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}  
 
-
 struct StarSet <: SequentialForwardProp
     pre_bound_method::Union{SequentialForwardProp, Nothing}
 end
@@ -53,6 +52,7 @@ function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach:
     # println(reach)
     # println(⊆(reach, output))
     ⊆(reach, output) && return ReachabilityResult(:holds, [reach])
+    x = LazySets.center(input)
     ∈(model(x), output) && return CounterExampleResult(:unknown)
     return CounterExampleResult(:violated, x)
     # to = get_timer("Shared")

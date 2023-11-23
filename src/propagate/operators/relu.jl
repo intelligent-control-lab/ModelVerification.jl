@@ -3,8 +3,26 @@ function propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu),
     return reach
 end  
 
-function propagate_act(prop_method::Ai2h, layer::typeof(relu), reach::AbstractPolytope, batch_info)
-    reach = convex_hull(UnionSetArray(forward_partition(layer, reach)))
+function partition_relu(bound)
+    N = dim(bound)
+    N > 30 && @warn "Got dim(X) == $N in `forward_partition`. Expecting 2ᴺ = $(2^big(N)) output sets."
+
+    output = HPolytope{Float64}[]
+    for h in 0:(big"2"^N)-1
+        P = Diagonal(1.0.*digits(h, base = 2, pad = N))
+        orthant = HPolytope(Matrix(I - 2.0P), zeros(N))
+        S = intersection(bound, orthant)
+        if !isempty(S) && 
+            push!(output, linear_map(P, S))
+        end
+    end
+    return output
+end
+
+function propagate_act(prop_method::ExactReach, layer::typeof(relu), reach::ExactReachBound, batch_info)
+    partitioned_bound = [partition_relu(bound) for bound in reach.polys]
+    partitioned_bound = vcat(partitioned_bound...)
+    reach = ExactReachBound(partitioned_bound)
     return reach
 end
 
@@ -55,8 +73,10 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     # println("size gen: ", size(bound.generators,4))
     flat_reach = Zonotope(cen, gen)
     # println("before order: ", float(order(flat_reach)))
+    # sleep(0.1)
     stats = @timed flat_reach = fast_overapproximate(Rectification(flat_reach), Zonotope)
     # println("overapproximate time: ", stats.time)
+    # sleep(0.1)
     # flat_reach = overapproximate(Rectification(flat_reach), Zonotope)
     # diff = LazySets.center(fast_reach) - LazySets.center(flat_reach)
     # println(diff[1:10])
@@ -65,12 +85,16 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     # @assert LazySets.genmat(fast_reach) == LazySets.genmat(flat_reach)
     # flat_reach = box_approximation(Rectification(flat_reach))
     # println("after order: ", float(order(flat_reach)))
-    flat_reach = remove_redundant_generators(flat_reach)
+    # sleep(0.1)
+    # stats = @timed flat_reach = remove_redundant_generators(flat_reach)
+    # println("remove redundant time: ", stats.time)
     # println("after reducing order: ", float(order(flat_reach)))
-    # if size(genmat(flat_reach),2) > 100
-    #     flat_reach = remove_redundant_generators(flat_reach)
-    #     println("after reducing order: ", float(order(flat_reach)))
-    # end
+    # sleep(0.1)
+    if size(genmat(flat_reach),2) > 10
+        # println("before reducing order: ", float(order(flat_reach)))
+        flat_reach = remove_redundant_generators(flat_reach)
+        # println("after reducing order:  ", float(order(flat_reach)))
+    end
     new_cen = reshape(LazySets.center(flat_reach), size(bound.center))
     sz = size(bound.generators)
     # println("before size: ", sz)
@@ -87,6 +111,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     n_con = length(constraints_list(bound.P))
     n_alpha = size(gen, 2)
     l, u = nothing, nothing
+    to = get_timer("Shared")
     if hasproperty(prop_method, :pre_bound_method) && !isnothing(prop_method.pre_bound_method)
         node = batch_info[:current_node]
         batch_index = batch_info[:batch_index]
@@ -94,7 +119,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
         l = reshape(l, size(cen))
         u = reshape(u, size(cen))
     else
-        box = overapproximate(bound, Hyperrectangle)
+        @timeit to "over_approx" box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)
     end
     
@@ -160,10 +185,12 @@ function Star_to_ImageStar(bound::Star, sz)
 end
 
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
+    to = get_timer("Shared")
     sz = size(bound.generators)
-    flat_bound = ImageStar_to_Star(bound)
-    new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
-    new_bound = Star_to_ImageStar(new_flat_bound, sz)
+    println("generator size: ", sz)
+    @timeit to "ImageStar_to_Star" flat_bound = ImageStar_to_Star(bound)
+    @timeit to "propagate_star" new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
+    @timeit to "Star_to_ImageStar" new_bound = Star_to_ImageStar(new_flat_bound, sz)
     return new_bound
 end
 
@@ -262,91 +289,32 @@ function init_alpha(layer::typeof(relu), node, batch_info)
 end    
 
 #= A spec x reach x batch
-S reach x batch
-beta reach X batch
+   S        reach x batch
+beta        reach x batch
 A .+ S.* beta =#
 
 #initalize relu's beta
-#= function init_beta(layer::typeof(relu), node, batch_info, batch_input)
-    if length(batch_input[1][2]) == 0
-        batch_info[node][:beta_lower] = nothing
-        batch_info[node][:beta_upper] = nothing
-        batch_info[node][:beta_lower_index] = nothing
-        batch_info[node][:beta_upper_index] = nothing
-        batch_info[node][:beta_lower_S] = nothing
-        batch_info[node][:beta_upper_S] = nothing
-        return batch_info
-    end
-
-    split_flag = false
-    for (input, S_dict) in batch_input
-        if !isnothing(S_dict[node][2])
-            split_flag = true
-            break
-        end
-    end
-
-    if split_flag == false
-        batch_info[node][:beta_lower] = nothing
-        batch_info[node][:beta_upper] = nothing
-        batch_info[node][:beta_lower_index] = nothing
-        batch_info[node][:beta_upper_index] = nothing
-        batch_info[node][:beta_lower_S] = nothing
-        batch_info[node][:beta_upper_S] = nothing
-        return batch_info
-    end
-
-    if !isnothing(batch_input[1][2][node][2])
-        batch_info[node][:beta_lower_S] = batch_input[1][2][node][2]
-        batch_info[node][:beta_upper_S] = batch_input[1][2][node][2]
-    else
-        batch_info[node][:beta_lower_S] = zeros(size(batch_info[node][:pre_lower])[1:end-1]..., 1)
-        batch_info[node][:beta_upper_S] = zeros(size(batch_info[node][:pre_upper])[1:end-1]..., 1)
-    end
-    for (input, S_dict) in batch_input[2:end]
-        if !isnothing(S_dict[node][2])
-            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], S_dict[node][2], dims = ndims(S_dict[node][2]))
-            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], S_dict[node][2], dims = ndims(S_dict[node][2]))
-        else
-            z = zeros(size(batch_info[node][:beta_lower_S])[1:end-1]..., 1)
-            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], z, dims = ndims(z))
-            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], z, dims = ndims(z))
-        end
-    end
-    
-    #batch_info[node][:beta_lower] = zeros(batch_info[:split_neuron_number], batch_info[:batch_size])
-    #batch_info[node][:beta_upper] = zeros(batch_info[:split_neuron_number], batch_info[:batch_size])
-    batch_info[node][:beta_lower] = zeros(size(batch_info[node][:beta_lower_S]))
-    batch_info[node][:beta_upper] = zeros(size(batch_info[node][:beta_upper_S]))
-    batch_info[node][:beta_lower_index] = []
-    batch_info[node][:beta_upper_index] = []
-    for (input, S_dict) in batch_input
-        push!(batch_info[node][:beta_lower_index], S_dict[node][1])
-        push!(batch_info[node][:beta_upper_index], S_dict[node][1])
-    end
-    return batch_info
-end    =# 
 
 function init_beta(layer::typeof(relu), node, batch_info, batch_input)
-    if length(batch_input[1][2]) == 0
-        batch_info[node][:beta_lower] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_upper] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_lower_index] =  nothing
-        batch_info[node][:beta_upper_index] =  nothing
-        batch_info[node][:beta_lower_S] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_upper_S] =  zeros(size(batch_info[node][:pre_lower]))
-        return batch_info
-    end
+    println("batch_input")
+    println(batch_input)
+    println("batch_input[1]")
+    println(batch_input[1]) # (input, S_dict)
+    
+    println("batch_input[1][2]")
+    println(batch_input[1][2]) # S_dict : {node => [idx_list, val_list, mask_list, history_S]}
+    # batch_input[1]: 
 
-    split_flag = false
+    need_split = false
     for (input, S_dict) in batch_input
-        if !isnothing(S_dict[node][4]) 
-            split_flag = true
+        if haskey(S_dict, node) && !isnothing(S_dict[node][4]) 
+            need_split = true # this node has split constraints in at least one input of the batch.
             break
         end
     end
-
-    if split_flag == false
+    println(size(batch_info[node][:pre_lower]))
+    
+    if need_split == false # no split constraint for this node
         batch_info[node][:beta_lower] =  zeros(size(batch_info[node][:pre_lower]))
         batch_info[node][:beta_upper] =  zeros(size(batch_info[node][:pre_lower]))
         batch_info[node][:beta_lower_index] =  nothing
@@ -356,14 +324,15 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
         return batch_info
     end
 
-    if !isnothing(batch_input[1][2][node][4])
+    if !isnothing(batch_input[1][2][node][4]) # this node has been split before
         batch_info[node][:beta_lower_S] = batch_input[1][2][node][4]
         batch_info[node][:beta_upper_S] = batch_input[1][2][node][4]
-    else
+    else # this node has NOT been split
         batch_info[node][:beta_lower_S] = zeros(size(batch_info[node][:pre_lower])[1:end-1]..., 1)
         batch_info[node][:beta_upper_S] = zeros(size(batch_info[node][:pre_upper])[1:end-1]..., 1)
     end
-    for (input, S_dict) in batch_input[2:end]
+
+    for (input, S_dict) in batch_input[2:end] # Add new split constraints
         if !isnothing(S_dict[node][4])
             batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], S_dict[node][4], dims = ndims(S_dict[node][4]))
             batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], S_dict[node][4], dims = ndims(S_dict[node][4]))
@@ -558,6 +527,11 @@ function add_beta(A, spec_A_b, beta, beta_S, beta_index)
     #println(beta, size(beta))
     #println(beta_S, size(beta_S))
     #New_A = A .+ NNlib.batched_mul(spec_A_b[1], reshape(original_size_beta, (1, size(original_size_beta)...)))
+    println("add beta")
+    println(size(A))
+    println(size(beta))
+    println(size(beta_S))
+    println(size(beta_split))
     New_A = A .+ reshape(beta_split, (1, size(beta_split)...))#NNlib.batched_mul(spec_A_b[1], reshape(beta_split, (1, size(beta_split)...)))
     return New_A
 end
@@ -596,7 +570,7 @@ function (f::BetaLayer)(x)
     else
         New_A = bound_oneside(A, f.upper_slope, lower_slope)
     end
-
+    
     New_A = add_beta(New_A, f.spec_A_b, f.beta, f.beta_S, f.beta_index)
     # New_b = nothing
 

@@ -1,14 +1,16 @@
 using Plots
 using JLD2
 using FileIO
-function visualize_propagate(prop_method::PropMethod, model_info, batch_info, save_path; vis_center=true, save_bound=false)
+function propagate_once(prop_method::PropMethod, model_info, batch_info, save_path; vis_center=true, save_bound=false)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
     #BFS
-    dir = dirname(save_path)
-    if !isdir(dir)
-        mkdir(dir)
+    if !isnothing(save_path)
+        dir = dirname(save_path)
+        if !isdir(dir)
+            mkdir(dir)
+        end
     end
 
     queue = Queue{Any}()
@@ -21,10 +23,13 @@ function visualize_propagate(prop_method::PropMethod, model_info, batch_info, sa
 
     while !isempty(queue)
         i += 1
+        # println("before dequeue")
+        # sleep(0.1)
         node = dequeue!(queue)
         batch_info[:current_node] = node
-
-        for output_node in father_nodes(prop_method, model_info, node)
+        # println("node:", node)
+        # sleep(0.1)
+        for output_node in next_nodes(prop_method, model_info, node)
             visit_cnt[output_node] += 1
             if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])
                 enqueue!(queue, output_node)
@@ -33,18 +38,25 @@ function visualize_propagate(prop_method::PropMethod, model_info, batch_info, sa
 
         if has_two_reach_node(prop_method, model_info, node)
             batch_bound = propagate_skip_method(prop_method, model_info, batch_info, node)
-            println(node)
-            println(model_info.node_layer[node])
+            # println(node)
+            # println(model_info.node_layer[node])
             batch_out = compute_out_skip(prop_method, model_info, batch_info, node)
         else
-            stats = @timed batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
-            println("prop time:", stats.time)
-            stats = @timed batch_out = compute_out_layer(prop_method, model_info, batch_info, node)
-            println("comp time:", stats.time)
+            # println("before propagating")
+            # sleep(0.1)
+            batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
+            # println("done propagating")
+            # sleep(0.1)
+            batch_out = compute_out_layer(prop_method, model_info, batch_info, node)
+            # println("done compute out")
+            # sleep(0.1)
         end
+        # sleep(0.1)
         batch_info[node][:bound] = batch_bound
         batch_info[node][:out] = batch_out
-        
+
+        # println("done setting batch info")
+        # sleep(0.1)
         
         if !isnothing(save_path)
             println("saving visualized bound: ", save_path * string(i) * "_" * node * ".png")
@@ -77,25 +89,31 @@ function visualize_propagate(prop_method::PropMethod, model_info, batch_info, sa
                 plot(p_center, p_lu, layout=(1,2), size = (800,300))
                 savefig(save_path * string(i) * "_" * node * ".png")
             else
-                plot(p_lu)
-                savefig(save_path * string(i) * "_" * node * ".png", size = (400,300))
+                plot(p_lu, size = (400,300))
+                savefig(save_path * string(i) * "_" * node * ".png")
             end
         end
-
-        for input_node in children_nodes(prop_method, model_info, node)
+        # println("start removing input")
+        # sleep(0.1)
+        # remove passed node to save memories
+        for input_node in prev_nodes(prop_method, model_info, node)
             out_cnt[input_node] += 1
             if all_nexts_in(prop_method, model_info, input_node, out_cnt[input_node])
-                pop!(batch_info,input_node) # remove passed node to save memories
+                pop!(batch_info, input_node) 
             end
         end
+        # println("done removing input")
+        # sleep(0.1)
+        println("======")
     end
-
-    plot(SNRs, xlabel = "layer", ylabel="SNR", legend=false, yaxis=:log)
-    savefig(save_path * "_SNRs_log.png")
-
+    if !isnothing(save_path)
+        plot(SNRs, xlabel = "layer", ylabel="SNR", legend=false, yaxis=:log)
+        savefig(save_path * "_SNRs_log.png")
+    end
     # plot(SNRs)
     # savefig(save_path * "_SNRs.png")
-
+    println("all done")
+    sleep(0.1)
     return batch_info
 end
 
@@ -117,5 +135,9 @@ end
 function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem, save_path; vis_center=true, save_bound=false)
     model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
     batch_out_spec, batch_info = prepare_method(prop_method, [problem.input], [problem.output], model_info)
-    batch_info = visualize_propagate(prop_method, model_info, batch_info, save_path; vis_center=vis_center, save_bound=save_bound)
+    batch_info = propagate_once(prop_method, model_info, batch_info, save_path; vis_center=vis_center, save_bound=save_bound)
+end
+
+function center(bound::LazySet)
+    return LazySets.center(bound)
 end

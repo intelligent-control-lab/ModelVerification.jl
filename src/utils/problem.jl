@@ -1,45 +1,44 @@
-function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
-    function get_chain(vertex)
-        m = Any[]
-        curr_vertex = vertex
-        while length(NaiveNASflux.inputs(curr_vertex)) == 1
-            # println("curr vertex ", name(curr_vertex))
-            push!(m, NaiveNASflux.layer(curr_vertex))
-            curr_vertex = NaiveNASflux.outputs(curr_vertex)[1]
+function get_chain(vertex)
+    m = Any[]
+    curr_vertex = vertex
+    # println("getting chain start from:", NaiveNASflux.name(curr_vertex))
+    
+    # while the current node is not the merging node of a parallel layer
+    while length(NaiveNASflux.inputs(curr_vertex)) < 2
+        # println("push:", NaiveNASflux.name(curr_vertex))
+        push!(m, NaiveNASflux.layer(curr_vertex))
+
+        while length(NaiveNASflux.outputs(curr_vertex)) == 2
+            chain1, end_node1 = get_chain(NaiveNASflux.outputs(curr_vertex)[1])
+            chain2, end_node2 = get_chain(NaiveNASflux.outputs(curr_vertex)[2])
+            @assert end_node1 == end_node2
+            op = onnx_node_to_flux_layer(end_node1)
+            if length(chain1) == 0
+                push!(m, SkipConnection(chain2, op))
+            elseif length(chain2) == 0
+                push!(m, SkipConnection(chain1, op))
+            else
+                push!(m, Parallel(op; α = chain1, β = chain2))
+            end
+            # curr_vertex = NaiveNASflux.outputs(end_node1)[1]
+            curr_vertex = end_node1
+            # println("merging chain:", NaiveNASflux.name(curr_vertex))
         end
-        return Chain(m...), curr_vertex
+        length(NaiveNASflux.outputs(curr_vertex)) == 0 && break
+        curr_vertex = NaiveNASflux.outputs(curr_vertex)[1]
     end
-    outs = NaiveNASflux.outputs(comp_vertices[index_more_than_one_outputs])
-    @assert length(outs) == 2
-    chain1, vertex_more_than_one_inputs = get_chain(outs[1])
-    chain2, _ = get_chain(outs[2])
-    inner_iter = findfirst(v -> NaiveNASflux.name(v) == NaiveNASflux.name(vertex_more_than_one_inputs), comp_vertices)
-    if length(chain1) == 0
-        return SkipConnection(chain2, (+)), inner_iter
-    elseif length(chain2) == 0
-        return SkipConnection(chain1, (+)), inner_iter
-    else
-        return Parallel(+; α = chain1, β = chain2), inner_iter
-    end
+    return Chain(m...), curr_vertex
 end
 
 function build_flux_model(onnx_model_path)
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
     model_vec = Any[]
-    inner_iter = 0
-    for (index, vertex) in enumerate(ONNXNaiveNASflux.vertices(comp_graph))
-        if length(string(NaiveNASflux.name(vertex))) >= 4 && string(NaiveNASflux.name(vertex))[1:4] == "data"
-            continue
-        end 
-        push!(model_vec, NaiveNASflux.layer(vertex))
-        if length(NaiveNASflux.outputs(vertex)) > 1
-            parallel_chain, inner_iter = get_parallel_chains(ONNXNaiveNASflux.vertices(comp_graph), index)
-            push!(model_vec, parallel_chain)
-        end
-    end
+    start_vertex = [vertex for vertex in ONNXNaiveNASflux.vertices(comp_graph) if isa(vertex, NaiveNASflux.InputShapeVertex)]
+    @assert length(start_vertex) == 1
+    @assert length(NaiveNASflux.outputs(start_vertex[1])) == 1
+    model_vec, end_node = get_chain(NaiveNASflux.outputs(start_vertex[1])[1])
     model = Chain(model_vec...)
-    Flux.testmode!(model)
-    return (model)
+    return model
 end
 
 get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))

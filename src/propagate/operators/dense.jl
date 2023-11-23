@@ -4,6 +4,27 @@ function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet
     return reach
 end
 
+function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactReachBound, batch_info)
+    bounds = []
+    cnt = 0
+    for bound in reach.polys
+        cnt += 1
+        println("cnt: ", cnt)
+        println(layer)
+        println(bound)
+        sleep(0.1)
+        nb = affine_map(layer, bound)
+        println("after affine")
+        sleep(0.1)
+        push!(bounds, nb)
+    end
+    println("after for")
+    sleep(0.1)
+    reach = ExactReachBound(bounds)
+    # reach = ExactReachBound([affine_map(layer, bound) for bound in reach.polys])
+    return reach
+end
+
 # Ai2 Box
 function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
     isa(reach, AbstractPolytope) || throw("Ai2 only support AbstractPolytope type branches.")
@@ -32,21 +53,21 @@ function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBo
     return new_bound
 end
 
-# Ai2z, Ai2h
-function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
-    all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
-    batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
-    batch_reach = affine_map(layer, batch_reach)
-    return batch_reach
-end
+# # Ai2z, Ai2h
+# function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
+#     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
+#     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
+#     batch_reach = affine_map(layer, batch_reach)
+#     return batch_reach
+# end
 
-# Ai2 Box
-function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
-    all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
-    batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
-    batch_reach = approximate_affine_map(layer, batch_reach)
-    return batch_reach
-end  
+# # Ai2 Box
+# function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
+#     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
+#     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
+#     batch_reach = approximate_affine_map(layer, batch_reach)
+#     return batch_reach
+# end  
 
 
 function _preprocess(node, batch_info, bias = nothing)

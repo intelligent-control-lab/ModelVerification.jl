@@ -17,7 +17,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
 
     # dfs start from model.input_nodes
-    #BFS
+    # BFS
     queue = Queue{Any}()
     enqueue_nodes!(prop_method, queue, model_info)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
@@ -25,7 +25,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     while !isempty(queue)
         node = dequeue!(queue)
         batch_info[:current_node] = node
-       
+        # sleep(0.1)
         for output_node in next_nodes(prop_method, model_info, node)
             visit_cnt[output_node] += 1
             if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])
@@ -72,7 +72,8 @@ end
 
 function propagate_layer_method(prop_method::ForwardProp, model_info, batch_info, node)
     input_node = model_info.node_prevs[node][1]
-    batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node][:bound], batch_info)
+    to = get_timer("Shared")
+    @timeit to string(nameof(typeof(model_info.node_layer[node]))) batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[input_node][:bound], batch_info)
     return batch_bound
 end
 

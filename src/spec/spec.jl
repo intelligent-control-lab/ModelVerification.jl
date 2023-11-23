@@ -6,6 +6,18 @@ struct ImageConvexHull <: Spec
     imgs::AbstractArray # list of images (h,w,c)
 end
 
+struct ImageLinfBall <: Spec
+    lb::AbstractArray # (h,w,c)
+    ub::AbstractArray # (h,w,c)
+end
+
+function get_image_linf_spec(lb, ub, img_size)
+    h = Hyperrectangle(low = lb, high = ub)
+    cen = reshape(center(h), (img_size...,1))
+    gen = reshape(genmat(h), (img_size...,length(lb)))
+    return ImageZonoBound(cen, gen)
+end
+
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
     A::AbstractArray{Float64, 3} # spec_dim x out_dim x batch_size
