@@ -299,15 +299,16 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
     println("batch_input")
     println(batch_input)
     println("batch_input[1]")
-    println(batch_input[1]) # (input, S_dict)
+    println(batch_input[1]) # (input, relu_con_dict)
     
-    println("batch_input[1][2]")
-    println(batch_input[1][2]) # S_dict : {node => [idx_list, val_list, mask_list, history_S]}
+    println("batch_input[1].all_relu_cons")
+    println(batch_input[1].all_relu_cons) # relu_con_dict : {node => [idx_list, val_list, mask_list, history_S]}
     # batch_input[1]: 
 
     need_split = false
-    for (input, S_dict) in batch_input
-        if haskey(S_dict, node) && !isnothing(S_dict[node][4]) 
+    for input in batch_input
+        relu_con_dict = input.all_relu_cons
+        if haskey(relu_con_dict, node) && !isnothing(relu_con_dict[node].history_split) 
             need_split = true # this node has split constraints in at least one input of the batch.
             break
         end
@@ -324,18 +325,20 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
         return batch_info
     end
 
-    if !isnothing(batch_input[1][2][node][4]) # this node has been split before
-        batch_info[node][:beta_lower_S] = batch_input[1][2][node][4]
-        batch_info[node][:beta_upper_S] = batch_input[1][2][node][4]
+    if !isnothing(batch_input[1].all_relu_cons[node].history_split) # this node has been split before
+        batch_info[node][:beta_lower_S] = batch_input[1].all_relu_cons[node].history_split
+        batch_info[node][:beta_upper_S] = batch_input[1].all_relu_cons[node].history_split
     else # this node has NOT been split
         batch_info[node][:beta_lower_S] = zeros(size(batch_info[node][:pre_lower])[1:end-1]..., 1)
         batch_info[node][:beta_upper_S] = zeros(size(batch_info[node][:pre_upper])[1:end-1]..., 1)
     end
 
-    for (input, S_dict) in batch_input[2:end] # Add new split constraints
-        if !isnothing(S_dict[node][4])
-            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], S_dict[node][4], dims = ndims(S_dict[node][4]))
-            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], S_dict[node][4], dims = ndims(S_dict[node][4]))
+    # for (input, relu_con_dict) in batch_input[2:end] # Add new split constraints
+    for input in batch_input[2:end]
+        relu_con_dict = input.all_relu_cons
+        if !isnothing(relu_con_dict[node].history_split)
+            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], relu_con_dict[node].history_split, dims = ndims(relu_con_dict[node].history_split))
+            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], relu_con_dict[node].history_split, dims = ndims(relu_con_dict[node].history_split))
         else
             z = zeros(size(batch_info[node][:beta_lower_S])[1:end-1]..., 1)
             batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], z, dims = ndims(z))
@@ -344,9 +347,10 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
     end
     batch_info[node][:beta_lower_index] = []
     batch_info[node][:beta_upper_index] = []
-    for (input, S_dict) in batch_input
-        push!(batch_info[node][:beta_lower_index], S_dict[node][1])
-        push!(batch_info[node][:beta_upper_index], S_dict[node][1])
+    for input in batch_input
+        relu_con_dict = input.all_relu_cons
+        push!(batch_info[node][:beta_lower_index], relu_con_dict[node].idx_list)
+        push!(batch_info[node][:beta_upper_index], relu_con_dict[node].idx_list)
     end
     batch_info[node][:beta_lower] = zeros(size(batch_info[node][:beta_lower_S]))
     batch_info[node][:beta_upper] = zeros(size(batch_info[node][:beta_upper_S]))

@@ -6,6 +6,19 @@ struct ImageConvexHull <: Spec
     imgs::AbstractArray # list of images (h,w,c)
 end
 
+mutable struct ReLUConstraints
+    idx_list
+    val_list
+    mask_list
+    history_split
+end
+
+mutable struct ReLUConstrainedDomain <: Spec
+    # S_dict : {node => [idx_list, val_list, mask_list, history_S]}, such that we can do the following when propagate relu
+    domain
+    all_relu_cons::Dict{String, ReLUConstraints}
+end
+
 struct ImageLinfBall <: Spec
     lb::AbstractArray # (h,w,c)
     ub::AbstractArray # (h,w,c)

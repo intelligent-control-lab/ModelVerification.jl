@@ -27,8 +27,8 @@ end
 
 
 function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
-    batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h[1]) for h in batch_input]..., dims=2)) : cat([low(h[1]) for h in batch_input]..., dims=2)
-    batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h[1]) for h in batch_input]..., dims=2)) : cat([high(h[1]) for h in batch_input]..., dims=2)
+    batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h.domain) for h in batch_input]..., dims=2)) : cat([low(h.domain) for h in batch_input]..., dims=2)
+    batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h.domain) for h in batch_input]..., dims=2)) : cat([high(h.domain) for h in batch_input]..., dims=2)
     bound = BetaCrownBound([], [], nothing, nothing, batch_data_min, batch_data_max)
     return bound
 end
@@ -153,7 +153,7 @@ function init_A_b(n, batch_size) # A x < b
 end
 
 function init_bound(prop_method::BetaCrown, input) 
-    return (input, Dict())
+    return ReLUConstrainedDomain(input, Dict())
 end
 
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
