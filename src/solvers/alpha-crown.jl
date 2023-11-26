@@ -139,6 +139,7 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ou
     return out_specs, batch_info
 end
 
+
 function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)
@@ -199,10 +200,11 @@ function optimize_bound(model, input, loss_func, optimizer, max_iter)
         # @assert false
         @timeit to "forward" losses, grads = Flux.withgradient(model) do m
             result = m(input) 
-            # println(result)
+            println("result: ", result)
             # @assert false
             loss_func(result)
         end
+        println(" losses: ", losses, " opt_state: ", opt_state)
         # println(i, " ", losses)
         if losses <= min_loss
             min_loss = losses

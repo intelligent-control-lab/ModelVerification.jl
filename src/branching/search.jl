@@ -29,8 +29,8 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
         input, output = popfirst!(branches)
         # println(input)
         
-        println(iter, "/", length(branches))
-        sleep(0.01)
+        # println(iter, "/", length(branches))
+        # sleep(0.01)
 
         push!(batch_input, input)
         push!(batch_output, output)
@@ -48,8 +48,8 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             @timeit to "process_bound" batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec, model_info, batch_info)
             # println(typeof(batch_out_spec[1]))
             @timeit to "check_inclusion" batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
-            # println("batch_bound")
-            # println(batch_bound)
+            println("batch_bound")
+            println(batch_bound)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && collect_bound && (push!(verified_bound, batch_bound[i]))
                 batch_result[i].status == :holds && continue

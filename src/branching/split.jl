@@ -91,29 +91,38 @@ function split_interval(dom::Hyperrectangle, i::Int64)
 end
 
 function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
-    # relu_con_dict : {node => [idx_list, val_list, mask_list, history_split]}, such that we can do the following when propagate relu
+    # relu_con_dict : {node => [idx_list, val_list, not_splitted_mask, history_split]}, such that we can do the following when propagate relu
     # batch_info[node][beta][relu_con_dict[node].idx_list] .= relu_con_dict[node].val_list
     if i > length(split_relu_node)
         copy_relu_con_dict = deepcopy(relu_con_dict)
         for (idx, node) in enumerate(split_relu_node)
-            copy_relu_con_dict[node].val_list = vecsign_convert_to_original_size(copy_relu_con_dict[node].idx_list, copy_relu_con_dict[node].val_list, score[idx])
-            if isnothing(copy_relu_con_dict[node].mask_list)
-                copy_relu_con_dict[node].mask_list = vecmask_convert_to_original_size(copy_relu_con_dict[node].idx_list, score[idx])
+            # println("idx")
+            # println(idx)
+            # println("node")
+            # println(node)
+            copy_relu_con_dict[node].val_list = vecsign_convert_to_original_size(copy_relu_con_dict[node].idx_list, copy_relu_con_dict[node].val_list, score[node])
+            if isnothing(copy_relu_con_dict[node].not_splitted_mask)
+                copy_relu_con_dict[node].not_splitted_mask = vecmask_convert_to_original_size(copy_relu_con_dict[node].idx_list, score[node])
             else
-                copy_relu_con_dict[node].mask_list = copy_relu_con_dict[node].mask_list .* vecmask_convert_to_original_size(copy_relu_con_dict[node].idx_list, score[idx])
+                copy_relu_con_dict[node].not_splitted_mask = copy_relu_con_dict[node].not_splitted_mask .* vecmask_convert_to_original_size(copy_relu_con_dict[node].idx_list, score[node])
             end
             if isnothing(copy_relu_con_dict[node].history_split)
                 copy_relu_con_dict[node].history_split = copy_relu_con_dict[node].val_list
             else
                 copy_relu_con_dict[node].history_split .+= copy_relu_con_dict[node].val_list 
             end
+            # println("split node")
+            # println(node)
+            # println(length(relu_con_dict[node].val_list))
+            # println(length(copy_relu_con_dict[node].val_list))
+            # println(length(copy_relu_con_dict[node].history_split))
         end
         return [(ReLUConstrainedDomain(input, copy_relu_con_dict), output)]
     end
     j > length(split_neurons_index_in_node[i]) && return split_beta(relu_con_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output)
-    relu_con_dict[split_relu_node[i]].val_list[j] = 1
+    relu_con_dict[split_relu_node[i]].val_list[j] = 1 # make relu > 0
     subtree1 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
-    relu_con_dict[split_relu_node[i]].val_list[j] = -1
+    relu_con_dict[split_relu_node[i]].val_list[j] = -1 # make relu < 0
     subtree2 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
     return [subtree1; subtree2]
 end
@@ -122,20 +131,19 @@ function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedD
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
     
+    # println("------------")
     # println("input")
     # println(input[1]) # input set
     # println(input.all_relu_cons) # previous relu_con_dict 
-    # println("====")
-
+    
     if length(input.all_relu_cons) == 0
         relu_con_dict = Dict(node => ReLUConstraints(nothing, nothing, nothing, nothing) for node in model_info.activation_nodes)
     else
-        relu_con_dict = Dict(node => ReLUConstraints(nothing, nothing, input.all_relu_cons[node].mask_list, input.all_relu_cons[node].history_splitplit) for node in model_info.activation_nodes)
+        relu_con_dict = Dict(node => ReLUConstraints(nothing, nothing, input.all_relu_cons[node].not_splitted_mask, input.all_relu_cons[node].history_split) for node in model_info.activation_nodes)
     end
     # println("idx_list")
     # println(split_relu_node)
     # println(split_neurons_index_in_node)
-
     for (node, idx_list) in zip(split_relu_node, split_neurons_index_in_node)
         relu_con_dict[node].idx_list = idx_list
         relu_con_dict[node].val_list = zeros(size(idx_list))
@@ -158,7 +166,7 @@ function vecmask_convert_to_original_size(index, original)
 end
 
 function branching_scores_kfsb(model_info, batch_info, input)
-    score = []
+    score = Dict{String, AbstractArray}()
     for node in model_info.activation_nodes
         if !isnothing(batch_info[node][:pre_lower_spec_A])
             #A = batch_info[node][:pre_lower_A]
@@ -225,15 +233,18 @@ function branching_scores_kfsb(model_info, batch_info, input)
         score_candidate = dropdims(mean((abs.(score_candidate) .* unstable_mask), dims = 1), dims = 1)
         score_candidate = mean(score_candidate, dims = ndims(score_candidate))
         #input.all_relu_cons is pre_relu_con_dict
-        if length(input.all_relu_cons) == 0 || isnothing(input.all_relu_cons[node].mask_list)  #all relu node haven't splited || current relu node haven't splited
+        if length(input.all_relu_cons) == 0 || isnothing(input.all_relu_cons[node].not_splitted_mask)  #all relu node haven't splited || current relu node haven't splited
             splited_neurons_mask = fmap(cu, ones(size(score_candidate)))
         else
-            splited_neurons_mask = fmap(cu, input.all_relu_cons[node].mask_list)
+            splited_neurons_mask = fmap(cu, input.all_relu_cons[node].not_splitted_mask)
         end
         score_candidate = splited_neurons_mask .* score_candidate #ensure that the neurons splitted in pre iter of propagation will not be split again
-        push!(score, score_candidate)
-        batch_info[node][:score_index] = length(score)
+        # push!(score, score_candidate)
+        score[node] = score_candidate
+        # batch_info[node][:score_index] = length(score)
     end
+    # println("score")
+    # println(score)
     return score
 end
 
@@ -243,7 +254,8 @@ function topk(score, k, model_info)
     split_relu_node = []
     split_neurons_index_in_node = []
     current_neuron_index = 1
-    for matrix in score # matrix store neurons
+    for node in sort(collect(keys(score))) # matrix store neurons
+        matrix = score[node]
         vec_matrix = vec(matrix)# all neurons need to be flattened into a vector 
         CUDA.@allowscalar vec_score = vcat(vec_score, vec_matrix)
         push!(relu_node_neurons_range, [current_neuron_index, current_neuron_index + length(vec_matrix) - 1])

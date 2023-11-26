@@ -133,8 +133,15 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         batch_info[node][:bias_ptb] = false
     end
     #initialize alpha & beta
+    # println("model_info.activation_nodes")
+    # println(model_info.activation_nodes)
+    # @assert false
     for node in model_info.activation_nodes
-        batch_info = init_alpha(model_info.node_layer[node], node, batch_info)
+        # println("=====")
+        # println("node")
+        # println(node)
+        # println(model_info.node_layer[node])
+        batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
     end
     n = size(out_specs.A, 2)
@@ -144,18 +151,120 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
 end 
 
 
+function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
+    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
+    batch_info[node][:pre_lower] = relu_input_lower
+    batch_info[node][:pre_upper] = relu_input_upper
+
+    for input in batch_input
+        relu_con_dict = input.all_relu_cons
+        if haskey(relu_con_dict,node) && !isnothing(relu_con_dict[node].history_split)
+            # println("a")
+            # println(a)
+            # println("batch_info[node][:pre_lower]")
+            # println(batch_info[node][:pre_lower])
+            batch_info[node][:pre_lower][relu_con_dict[node].history_split .== 1] .= 0 # enforce relu > 0
+            batch_info[node][:pre_upper][relu_con_dict[node].history_split .== -1] .= 0 # enforce relu < 0
+        end
+    end
+
+    #batch_size = size(relu_input_lower)[end]
+    unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
+    alpha_indices = findall(unstable_mask) 
+    upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
+    lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    #lower_slope = zeros(size(upper_slope))
+    #minimum_sparsity = batch_info[node]["minimum_sparsity"]
+    #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
+
+    #fully alpha
+    @assert ndims(relu_input_lower) == 2 || ndims(relu_input_lower) == 4 "pre_layer of relu should be dense or conv"
+    #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
+    #end
+    #alpha_lower is for lower bound, alpha_upper is for upper bound
+    alpha_lower = lower_slope .* unstable_mask
+    alpha_upper = lower_slope .* unstable_mask
+    batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
+    batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
+    return batch_info
+end   
+
+#initalize relu's beta
+
+function init_beta(layer::typeof(relu), node, batch_info, batch_input)
+
+    input_dim = size(batch_info[node][:pre_lower])[1:end-1]
+    batch_size = size(batch_info[node][:pre_lower])[end] # TODO: need to be replaced for batched input
+    # println("node")
+    # println(node)
+    # println("input_dim")
+    # println(input_dim)
+    # println("batch_size")
+    # println(batch_size)
+    # @assert false
+    batch_info[node][:beta_lower] =  zeros(input_dim..., batch_size)
+    batch_info[node][:beta_upper] =  zeros(input_dim..., batch_size)
+    batch_info[node][:beta_lower_index] =  []
+    batch_info[node][:beta_upper_index] =  []
+    batch_info[node][:beta_lower_S] =  zeros(input_dim..., batch_size)
+    batch_info[node][:beta_upper_S] =  zeros(input_dim..., batch_size)
+    
+    for (i,input) in enumerate(batch_input)
+        relu_con_dict = input.all_relu_cons
+        if haskey(relu_con_dict,node) && !isnothing(relu_con_dict[node].history_split)
+            # println("node")
+            # println(node)
+            # println(relu_con_dict[node].history_split)
+            # sleep(0.1)
+            # @assert false
+            batch_info[node][:beta_lower_S][:,i] = relu_con_dict[node].history_split
+            batch_info[node][:beta_upper_S][:,i] = relu_con_dict[node].history_split
+        end
+    end
+    
+    for input in batch_input
+        relu_con_dict = input.all_relu_cons
+        if haskey(relu_con_dict,node)
+            push!(batch_info[node][:beta_lower_index], relu_con_dict[node].idx_list)
+            push!(batch_info[node][:beta_upper_index], relu_con_dict[node].idx_list)
+        end
+    end
+    
+    return batch_info
+end
+
+
 function init_A_b(n, batch_size) # A x < b
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
     A = repeat(I, outer=(1, 1, batch_size))
-    b = repeat(Z, outer=(1, 1, batch_size))
+    b = repeat(Z, outer=(1, batch_size))
     return [A, b]
 end
 
 function init_bound(prop_method::BetaCrown, input) 
     return ReLUConstrainedDomain(input, Dict())
 end
-
+function print_beta_layers(layers, x)
+    layers = layers |> gpu
+    x = x |> gpu
+    println("--- printing beta layers ---")
+    for layer in layers
+        x = layer(x)
+        if isa(layer, BetaLayer)
+            println("relu: is_lower ", layer.lower)
+            println("u_slope: ", layer.upper_slope)
+            lower_slope = clamp.(layer.alpha, 0, 1) .* layer.unstable_mask .+ layer.active_mask 
+            println("alpha: ", layer.alpha)
+            println("unstable_mask: ", layer.unstable_mask)
+            println("l_slope: ", lower_slope)
+        else
+            println("dense")
+        end
+        println(x)
+    end
+    println("--- --- ---")
+end
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
@@ -170,10 +279,46 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)
     # loss_func = prop_method.bound_lower ?  x -> -maximum(x[1]) : x -> maximum(x[2]) # maximum leads to error in flux
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
-    loss_func = prop_method.bound_lower ?  x -> -sum(exp.(x[1])) : x -> sum(exp.(x[2]))
+    loss_func = prop_method.bound_lower ?  x -> -sum(exp.(x[1])) : x -> sum(exp.(x[2]))\/
 
-    @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
-    @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    # @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    # @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+
+    @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+    @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+
+
+    println("=======================")
+    println("bound_lower_model")
+    print_beta_layers(bound_lower_model, batch_info[:init_A_b])
+    if isa(bound_lower_model[2], BetaLayer)
+        println(bound_lower_model[2])
+        bound_lower_model[2].alpha .= [0,0] |> gpu
+        println(bound_lower_model[2])
+        @timeit to "forward" losses, grads = Flux.withgradient(bound_lower_model) do m
+            result = m(batch_info[:init_A_b] |> gpu) 
+            loss = loss_func(result)
+            println("result: ", result)
+            println("loss: ", loss)
+        end
+        # println(bound_lower_model[2])
+        # @assert false
+    end
+    println("manual set")
+    print_beta_layers(bound_lower_model, batch_info[:init_A_b])
+    lower_l, lower_u = bound_lower_model(batch_info[:init_A_b] |> gpu)
+    # @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, 1)
+    println("lower bound")
+    println(lower_l, " ", lower_u)
+    println("-----------------------")
+    println("bound_upper_model")
+    print_beta_layers(bound_upper_model, batch_info[:init_A_b])
+    upper_l, upper_u = bound_upper_model(batch_info[:init_A_b] |> gpu)
+    println("upper bound")
+    println(upper_l, " ", upper_u)
+    println("=======================")
+    
+
 
     for (index, params) in enumerate(Flux.params(bound_lower_model))
         relu_node = batch_info[:Beta_Lower_Layer_node][ceil(Int, index / 2)]
@@ -191,16 +336,31 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
             batch_info[relu_node][:beta_upper] = params
         end
     end
+    # println("size(batch_info[:spec_A_b][1])...")
+    # println("batch_info[:init_A_b]")
+    # println(batch_info[:init_A_b])
+    # println(size(batch_info[:init_A_b]))
+    # println(batch_info[:spec_A_b])
+    
+    
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
     # println("spec")
+    # println("batch_bound.lower_A_x")
+    # println(batch_bound.lower_A_x)
+    # println("batch_bound.upper_A_x")
+    # println(batch_bound.upper_A_x)
+    # println("lower_spec_l")
     # println(lower_spec_l)
+    # println("upper_spec_u")
     # println(upper_spec_u)
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension.
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension.
     prop_method.bound_lower = batch_out_spec.is_complement ? true : false
     prop_method.bound_upper = batch_out_spec.is_complement ? false : true
+    # println("prop_method.bound_lower")
     # println(prop_method.bound_lower)
+    # println("prop_method.bound_upper")
     # println(prop_method.bound_upper)
     if prop_method.bound_lower
         #batch_info = get_pre_relu_A(init, prop_method.use_gpu, true, model_info, batch_info)

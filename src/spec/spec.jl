@@ -9,12 +9,12 @@ end
 mutable struct ReLUConstraints
     idx_list
     val_list
-    mask_list
+    not_splitted_mask
     history_split
 end
 
 mutable struct ReLUConstrainedDomain <: Spec
-    # S_dict : {node => [idx_list, val_list, mask_list, history_S]}, such that we can do the following when propagate relu
+    # S_dict : {node => [idx_list, val_list, not_splitted_mask, history_S]}, such that we can do the following when propagate relu
     domain
     all_relu_cons::Dict{String, ReLUConstraints}
 end

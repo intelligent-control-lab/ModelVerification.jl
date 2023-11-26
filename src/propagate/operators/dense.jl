@@ -126,7 +126,8 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-
+    # println("=== in dense ===")
+    # println("bound.lower_A_x: ", bound.lower_A_x)
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         weight = layer.weight
         bias = bias_lb
@@ -140,6 +141,8 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
         else
             uA_x = nothing
         end
+        # println("lA_x: ", lA_x)
+        # println("uA_x: ", uA_x)
         New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max)
         return New_bound
     end

@@ -263,113 +263,27 @@ end
 
 
 #initalize relu's alpha_lower and alpha_upper
-function init_alpha(layer::typeof(relu), node, batch_info)
-    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
-    batch_info[node][:pre_lower] = relu_input_lower
-    batch_info[node][:pre_upper] = relu_input_upper
-    #batch_size = size(relu_input_lower)[end]
-    unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
-    alpha_indices = findall(unstable_mask) 
-    upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
-    lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    #lower_slope = zeros(size(upper_slope))
-    #minimum_sparsity = batch_info[node]["minimum_sparsity"]
-    #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
-
-    #fully alpha
-    @assert ndims(relu_input_lower) == 2 || ndims(relu_input_lower) == 4 "pre_layer of relu should be dense or conv"
-    #if(ndims(relu_input_lower) == 2) #pre_layer of relu is dense 
-    #end
-    #alpha_lower is for lower bound, alpha_upper is for upper bound
-    alpha_lower = lower_slope .* unstable_mask
-    alpha_upper = lower_slope .* unstable_mask
-    batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
-    batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
-    return batch_info
-end    
+ 
 
 #= A spec x reach x batch
    S        reach x batch
 beta        reach x batch
 A .+ S.* beta =#
 
-#initalize relu's beta
 
-function init_beta(layer::typeof(relu), node, batch_info, batch_input)
-    println("batch_input")
-    println(batch_input)
-    println("batch_input[1]")
-    println(batch_input[1]) # (input, relu_con_dict)
-    
-    println("batch_input[1].all_relu_cons")
-    println(batch_input[1].all_relu_cons) # relu_con_dict : {node => [idx_list, val_list, mask_list, history_S]}
-    # batch_input[1]: 
-
-    need_split = false
-    for input in batch_input
-        relu_con_dict = input.all_relu_cons
-        if haskey(relu_con_dict, node) && !isnothing(relu_con_dict[node].history_split) 
-            need_split = true # this node has split constraints in at least one input of the batch.
-            break
-        end
-    end
-    println(size(batch_info[node][:pre_lower]))
-    
-    if need_split == false # no split constraint for this node
-        batch_info[node][:beta_lower] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_upper] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_lower_index] =  nothing
-        batch_info[node][:beta_upper_index] =  nothing
-        batch_info[node][:beta_lower_S] =  zeros(size(batch_info[node][:pre_lower]))
-        batch_info[node][:beta_upper_S] =  zeros(size(batch_info[node][:pre_lower]))
-        return batch_info
-    end
-
-    if !isnothing(batch_input[1].all_relu_cons[node].history_split) # this node has been split before
-        batch_info[node][:beta_lower_S] = batch_input[1].all_relu_cons[node].history_split
-        batch_info[node][:beta_upper_S] = batch_input[1].all_relu_cons[node].history_split
-    else # this node has NOT been split
-        batch_info[node][:beta_lower_S] = zeros(size(batch_info[node][:pre_lower])[1:end-1]..., 1)
-        batch_info[node][:beta_upper_S] = zeros(size(batch_info[node][:pre_upper])[1:end-1]..., 1)
-    end
-
-    # for (input, relu_con_dict) in batch_input[2:end] # Add new split constraints
-    for input in batch_input[2:end]
-        relu_con_dict = input.all_relu_cons
-        if !isnothing(relu_con_dict[node].history_split)
-            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], relu_con_dict[node].history_split, dims = ndims(relu_con_dict[node].history_split))
-            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], relu_con_dict[node].history_split, dims = ndims(relu_con_dict[node].history_split))
-        else
-            z = zeros(size(batch_info[node][:beta_lower_S])[1:end-1]..., 1)
-            batch_info[node][:beta_lower_S] = cat(batch_info[node][:beta_lower_S], z, dims = ndims(z))
-            batch_info[node][:beta_upper_S] = cat(batch_info[node][:beta_upper_S], z, dims = ndims(z))
-        end
-    end
-    batch_info[node][:beta_lower_index] = []
-    batch_info[node][:beta_upper_index] = []
-    for input in batch_input
-        relu_con_dict = input.all_relu_cons
-        push!(batch_info[node][:beta_lower_index], relu_con_dict[node].idx_list)
-        push!(batch_info[node][:beta_upper_index], relu_con_dict[node].idx_list)
-    end
-    batch_info[node][:beta_lower] = zeros(size(batch_info[node][:beta_lower_S]))
-    batch_info[node][:beta_upper] = zeros(size(batch_info[node][:beta_upper_S]))
-    return batch_info
-end   
-
-struct AlphaLayer
+mutable struct AlphaLayer
     node
     alpha
     lower
     unstable_mask
-    lower_mask 
+    active_mask 
     upper_slope
     lower_bias
     upper_bias
 end
 Flux.@functor AlphaLayer (alpha,) #only alpha need to be trained
 
-struct BetaLayer
+mutable struct BetaLayer
     node
     alpha
     beta
@@ -378,7 +292,7 @@ struct BetaLayer
     spec_A_b
     lower
     unstable_mask
-    lower_mask 
+    active_mask 
     upper_slope
     lower_bias
     upper_bias
@@ -465,7 +379,7 @@ function (f::AlphaLayer)(x)
         return [New_A, nothing]
     end
 
-    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
+    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
     if f.lower 
         New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
     else
@@ -495,8 +409,8 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     alpha_upper = batch_info[node][:alpha_upper]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
     lower_bias = prop_method.use_gpu ? fmap(cu, zeros(size(upper_bias))) : zeros(size(upper_bias))
-    lower_mask = (lower .>= 0)
-    upper_mask = (upper .<= 0)
+    active_mask = (lower .>= 0)
+    inactive_mask = (upper .<= 0)
     unstable_mask = (upper .> 0) .& (lower .< 0)
     batch_info[node][:unstable_mask] = unstable_mask
     
@@ -508,13 +422,13 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
 
     if prop_method.bound_lower
         batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
         push!(lower_A, Alpha_Lower_Layer)
     end
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
         push!(upper_A, Alpha_Upper_Layer)
     end
     push!(batch_info[:Alpha_Lower_Layer_node], node)
@@ -522,20 +436,19 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     return New_bound
 end
 
-function add_beta(A, spec_A_b, beta, beta_S, beta_index)
+function add_beta(A, beta, beta_S)
     #buffer_beta = Zygote.Buffer(beta)
-    #original_size_beta = cat([vecbeta_convert_to_original_size(beta_index[i], buffer_beta[:, i], beta_S[:, i]) for i in 1:size(buffer_beta)[end]]..., dims = ndims(beta_S)) 
     #original_size_beta = original_size_beta .* beta_S
     beta_split = beta .* beta_S
     #println("beta")
     #println(beta, size(beta))
     #println(beta_S, size(beta_S))
     #New_A = A .+ NNlib.batched_mul(spec_A_b[1], reshape(original_size_beta, (1, size(original_size_beta)...)))
-    println("add beta")
-    println(size(A))
-    println(size(beta))
-    println(size(beta_S))
-    println(size(beta_split))
+    # println("add beta")
+    # println(size(A))
+    # println(size(beta))
+    # println(size(beta_S))
+    # println(size(beta_split))
     New_A = A .+ reshape(beta_split, (1, size(beta_split)...))#NNlib.batched_mul(spec_A_b[1], reshape(beta_split, (1, size(beta_split)...)))
     return New_A
 end
@@ -550,13 +463,6 @@ function vecbeta_convert_to_original_size(index, vector, original)
 end
 
 function convert_vec_beta_to_original_size(beta, beta_S, beta_index)
-    #= for i in eachindex(beta)
-        if i == 1
-            original_size_beta = vecbeta_convert_to_original_size(beta_index[1], beta[1], beta_S[1])
-        else
-            original_size_beta = cat(vecbeta_convert_to_original_size(beta_index[i], beta[i], beta_S[i])) 
-        end
-    end =#
     original_size_beta = cat(vecbeta_convert_to_original_size(beta_index[i], beta[i], beta_S[i]) for i in eachindex(beta), dims = ndims(beta_S)) 
     return original_size_beta
 end
@@ -568,21 +474,18 @@ function (f::BetaLayer)(x)
     if isnothing(A)
         return [nothing, nothing]
     end
-    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.lower_mask 
+    # lower_slop = alpha if unstable, 1 if active, 0 if inactive
+    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
     if f.lower 
         New_A = bound_oneside(A, lower_slope, f.upper_slope)
-    else
-        New_A = bound_oneside(A, f.upper_slope, lower_slope)
-    end
-    
-    New_A = add_beta(New_A, f.spec_A_b, f.beta, f.beta_S, f.beta_index)
-    # New_b = nothing
-
-    if f.lower 
+        New_A = add_beta(New_A, f.beta, f.beta_S)
         New_b = multiply_bias(A, f.upper_slope, f.lower_bias, f.upper_bias) .+ b
     else
+        New_A = bound_oneside(A, f.upper_slope, lower_slope)
+        New_A = add_beta(New_A, f.beta, f.beta_S)
         New_b = multiply_bias(A, f.upper_slope, f.upper_bias, f.lower_bias) .+ b
     end
+    
     return [New_A, New_b]
 end
 
@@ -596,6 +499,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     lower = batch_info[node][:pre_lower]
     upper = batch_info[node][:pre_upper]
     #end
+    # println("=== in relu ===")
     # println("lower: ", lower)
     # println("upper: ", upper)
 
@@ -604,8 +508,8 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
     lower_bias = prop_method.use_gpu ? fmap(cu, zeros(size(upper_bias))) : zeros(size(upper_bias))
 
-    lower_mask = (lower .>= 0)
-    upper_mask = (upper .<= 0)
+    active_mask = (lower .>= 0)
+    inactive_mask = (upper .<= 0)
     unstable_mask = (upper .> 0) .& (lower .< 0)
     batch_info[node][:unstable_mask] = unstable_mask
 
@@ -618,26 +522,32 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
 
     lower_A = bound.lower_A_x
     upper_A = bound.upper_A_x
+    # println("before lower_A: ")
+    # print_beta_layers(lower_A, batch_info[:init_A_b])
+    # println("before upper_A: ")
+    # print_beta_layers(upper_A, batch_info[:init_A_b])
 
     batch_info[node][:pre_upper_A_function] = nothing
     batch_info[node][:pre_lower_A_function] = nothing
 
     if prop_method.bound_lower
         batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        Beta_Lower_Layer = BetaLayer(node, alpha_lower, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        Beta_Lower_Layer = BetaLayer(node, alpha_lower, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
         push!(lower_A, Beta_Lower_Layer)
     end
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        Beta_Upper_Layer = BetaLayer(node, alpha_upper, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, lower_mask, upper_slope, lower_bias, upper_bias)
+        Beta_Upper_Layer = BetaLayer(node, alpha_upper, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
         push!(upper_A, Beta_Upper_Layer)
     end
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
 
-    # println("lower_A: ", lower_A)
-    # println("upper_A: ", upper_A)
+    # println("after lower_A: ")
+    # print_beta_layers(lower_A, batch_info[:init_A_b])
+    # println("after upper_A: ")
+    # print_beta_layers(upper_A, batch_info[:init_A_b])
 
     return New_bound
 end
