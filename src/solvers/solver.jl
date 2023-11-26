@@ -37,6 +37,17 @@ abstract type Bound end
 
 """
     init_batch_bound(prop_method::ForwardProp, batch_input, batch_output)
+
+Returns a list of the input specifications (geometries) for the given batch of 
+inputs.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver that uses forward propagation method.
+- `batch_input`: Array of inputs.
+- `batch_output`: Array of outputs.
+
+## Returns
+- List of the input specifications for the given batch of inputs.
 """
 function init_batch_bound(prop_method::ForwardProp, batch_input, batch_output)
     return [init_bound(prop_method, input) for input in batch_input]
@@ -44,6 +55,17 @@ end
 
 """
     init_batch_bound(prop_method::BackwardProp, batch_input, batch_output)
+
+Returns a list of the output specifications (geometries) for the given batch of 
+outputs.
+
+## Arguments
+- `prop_method` (`BackwardProp`): Solver that uses backward propagation method.
+- `batch_input`: Array of inputs.
+- `batch_output`: Array of outputs.
+
+## Returns
+- List of the output specifications for the given batch of outputs.
 """
 function init_batch_bound(prop_method::BackwardProp, batch_input, batch_output)
     return [init_bound(prop_method, output) for output in batch_output]
@@ -51,6 +73,15 @@ end
 
 """
     init_bound(prop_method::ForwardProp, input)
+
+Returns the geometry representation used to encode the input specification.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver that uses forward propagation method. 
+- `input`: Geometry representation used to encode the input specification.
+
+## Returns
+- `input`: Geometry representation used to encode the input specification.
 """
 function init_bound(prop_method::ForwardProp, input)
     return input
@@ -58,6 +89,15 @@ end
 
 """
     init_bound(prop_method::BackwardProp, output)
+
+Returns the geometry representation used to encode the output specification.
+
+## Arguments
+- `prop_method` (`BackwardProp`): Solver that uses backward propagation method. 
+- `output`: Geometry representation used to encode the output specification.
+
+## Returns
+- `output`: Geometry representation used to encode the output specification.
 """
 function init_bound(prop_method::BackwardProp, output)
     return output
@@ -65,6 +105,14 @@ end
 
 """
     process_bound(prop_method::PropMethod, batch_bound, batch_out_spec, model_info, batch_info)
+
+Returns the list of bounds resulting from the propagation and the information of
+the batch.
+
+## Arguments
+
+## Returns
+
 """
 function process_bound(prop_method::PropMethod, batch_bound, batch_out_spec, model_info, batch_info)
     return batch_bound, batch_info
@@ -73,7 +121,7 @@ end
 """
     init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
 
-
+ON-HOLD
 """
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1
@@ -84,6 +132,8 @@ end
 
 """
     init_propagation(prop_method::BackwardProp, batch_input, batch_output, model_info)
+
+ON-HOLD
 """
 function init_propagation(prop_method::BackwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.final_nodes) == 1
@@ -102,6 +152,8 @@ end
 
 """
     check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
+
+Checks whether the reachable set for 
 """
 function check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
     results = [check_inclusion(prop_method, model, batch_input[i], batch_reach[i], batch_output[i]) for i in eachindex(batch_reach)]

@@ -7,9 +7,12 @@ Structure containing the information of the neural network to be verified.
 - start_nodes: List of input layer nodes' names.
 - final_nodes: List of output layer nodes' names.
 - all_nodes: List of all the nodes's names.
-- node_layer: 
-- node_prevs: 
-- node_nexts: 
+- node_layer: Dictionary of all the nodes. The key is the name of the node and 
+    the value is the operation performed at the node.
+- node_prevs: Dictionary of the nodes connected to the current node.
+    The key is the name of the node and the value is the list of nodes.
+- node_nexts: Dictionary of the nodes connected from the current node.
+    The key is the name of the node and the value is the list of nodes.
 - activation_nodes: List of all the activation nodes' names.
 - activation_number: Number of activation nodes (deprecated in the future).
 """
@@ -49,6 +52,15 @@ end
 
 """
     get_act(l)
+
+Returns the activation function of the node `l` if it exists.
+
+## Arguments
+- `l`: node
+
+## Returns
+- Activation function of the node if it exists.
+- Otherwise, return `nothing`.
 """
 function get_act(l)
     (hasfield(typeof(l), :σ) && string(l.σ) != "identity") && return l.σ

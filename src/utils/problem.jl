@@ -23,6 +23,17 @@ function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
     end
 end
 
+"""
+    build_flux_model(onnx_model_path)
+
+Builds a `Flux.Chain` from the given ONNX model path.
+
+## Arguments
+- `onnx_model_path`: String path to ONNX model in `.onnx` file.
+
+## Returns
+- `model`: `Flux.Chain` constructed from the `.onnx` file.
+"""
 function build_flux_model(onnx_model_path)
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
     model_vec = Any[]
@@ -79,7 +90,11 @@ Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_
     
 Supertype of all result types.
 
-See also: [`BasicResult`](@ref), [`CounterExampleResult`](@ref), [`AdversarialResult`](@ref), [`ReachabilityResult`](@ref)
+See also: 
+- [`BasicResult`](@ref) 
+- [`CounterExampleResult`](@ref)
+- [`AdversarialResult`](@ref)
+- [`ReachabilityResult`](@ref)
 """
 abstract type Result end
 

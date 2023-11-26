@@ -42,8 +42,8 @@ const Box = Ai2{Hyperrectangle}
 Covers supported Ai2 variations: Ai2h, Ai2z, Ai2s, Box.
 
 ## Fields
-- `pre_bound_method`: The geometric representation used to compute the 
-    over-approximation of the input bounds.
+- `pre_bound_method` (`Union{SequentialForwardProp, Nothing}`): The geometric 
+    representation used to compute the over-approximation of the input bounds.
 """
 struct StarSet <: SequentialForwardProp
     pre_bound_method::Union{SequentialForwardProp, Nothing}
@@ -57,10 +57,11 @@ StarSet() = StarSet(nothing)
 Initialize the solver 
 
 ## Agruments
-- `prop_method` (`StarSet`) : propagation method of type `StarSet`.
-- `batch_input` (`AbstractVector`) : batch of input s
-- `batch_output` (`AbstractVector`) : batch of outputs
-- `model_info`   :
+- `prop_method` (`StarSet`) : Propagation method of type `StarSet`.
+- `batch_input` (`AbstractVector`) : Batch of inputs.
+- `batch_output` (`AbstractVector`) : Batch of outputs.
+- `model_info`: Structure containing the information of the neural network to
+    be verified.
 
 ## Returns
 - `batch_output`: batch of outputs.
@@ -94,7 +95,7 @@ end
     compute_bound(bound::Zonotope)
 
 Computes the lower- and upper-bounds of a zonotope. 
-This function is used when propagating through the layers of network.
+This function is used when propagating through the layers of model.
 Radius is the sum of absolute value of the generators of the given zonotope.
 
 ## Arguments
@@ -112,11 +113,11 @@ end
     compute_bound(bound::Star)
 
 Computes the lower- and upper-bounds of a star set. 
-This function is used when propagating through the layers of network.
+This function is used when propagating through the layers of model.
 It overapproximates the given star set with a hyperrectangle.
 
 ## Arguments
-- `bound` (`Star`) : star of which the bounds need to be computed
+- `bound` (`Star`): Star set of which the bounds need to be computed.
 
 ## Returns
 - Lower- and upper-bounds of the overapproximated hyperrectangle.
@@ -133,8 +134,9 @@ Given a hyperrectangle as `input`, this function returns a star set that
 encompasses the hyperrectangle. This helps a more precise computation of bounds.
 
 ## Arguments
-- `prop_method` (`StarSet`): 
-- `input` (`Hyperrectangle`): hyperrectangle to be converted into a star set
+- `prop_method` (`StarSet`): `StarSet`-type solver; includes `Ai2h`, `Ai2z`, 
+    `Ai2s`, `Box`.
+- `input` (`Hyperrectangle`): Hyperrectangle to be converted into a star set
 
 ## Returns
 - `Star` set that encompasses the given hyperrectangle.
@@ -155,19 +157,19 @@ end
     check_inclusion(prop_method::ForwardProp, model, input::LazySet, 
     reach::LazySet, output::LazySet)
 
-Determines whether the reachable set, R(input, model), is within the valid 
+Determines whether the reachable set, `reach`, is within the valid 
 output specified by a `LazySet`. This function achieves this by directly 
 checking if the reachable set `reach` is a subset of the set of valid outputs 
 `output`. If not, it attempts to find a counterexample and returns the 
 appropriate `Result`.
 
 ## Arguments
-- `prop_method` (`ForwardProp`): solver being used.
-- `model` : deep neural network model that is to be verified.
-- `input` (`LazySet`): input specification supported by `LazySet`.
-- `reach` (`LazySet`): reachable set resulting from the propagation of `input` 
+- `prop_method` (`ForwardProp`): Solver being used.
+- `model`: Neural network model that is to be verified.
+- `input` (`LazySet`): Input specification supported by `LazySet`.
+- `reach` (`LazySet`): Reachable set resulting from the propagation of `input` 
     through the `model`.
-- `output` (`LazySet`) : set of valid outputs represented with a `LazySet`.
+- `output` (`LazySet`) : Set of valid outputs represented with a `LazySet`.
 
 ## Returns
 - `ReachabilityResult(:holds, [reach])` if `reach` is a subset of `output`.
@@ -197,12 +199,12 @@ box approximation (overapproximation with hyperrectangle) of the `reach` set is
 disjoint with the `unsafe_output`.
 
 ## Arguments
-- `prop_method` (`ForwardProp`): solver being used.
-- `model` : deep neural network model that is to be verified.
-- `input` (`LazySet`): input specification supported by `Lazyset`.
-- `reach` (`LazySet`): reachable set resulting from the propagation of `input` 
+- `prop_method` (`ForwardProp`): Solver being used.
+- `model`: Neural network model that is to be verified.
+- `input` (`LazySet`): Input specification supported by `Lazyset`.
+- `reach` (`LazySet`): Reachable set resulting from the propagation of `input` 
     through the `model`.
-- `output` (`Complement`): set of valid outputs represented with a complement set.
+- `output` (`Complement`): Set of valid outputs represented with a complement set.
 
 ## Returns
 - `ReachabilityResult(:holds, [reach])` if `box_reach` is disjoint with the
