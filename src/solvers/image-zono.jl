@@ -1,10 +1,27 @@
 """
     ImageZono <: SequentialForwardProp
+
+ImageZono is a verification approach that uses Image Zonotope as the geometric 
+representation. It is an extension of `ImageStar` where there is no linear 
+constraints on the free parameters, α:
+
+``Θ = \\{ x : x = c + ∑_{i=1}^{m} (α_i v_i) \\}``
+
+where ``c`` is the center image, ``V = \\{ v_1, …, v_m \\}`` is the set of
+generator images, and α's are the free parameters.
 """
 struct ImageZono <: SequentialForwardProp end
 
 """
     ImageZonoBound{T<:Real} <: Bound
+
+`ImageZonoBound` is used to represent the bounded set for `ImageZono`.
+
+## Fields
+- `center` (`AbstractArray{T, 4}`): center image ("anchor" image in literature), 
+    of size `heigth x width x number of channels x 1`.
+- `generators` (`AbstractArray{T, 4}`): matrix of generator images, of size
+    `height x width x number of channels x number of generators`.
 """
 struct ImageZonoBound{T<:Real} <: Bound
     center::AbstractArray{T, 4}       # h x w x c x 1
@@ -13,6 +30,17 @@ end
 
 """
     prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
+
+## Arguments
+- `search_method` (`SearchMethod`): Method to search the branches.
+- `split_method` (`SplitMethod`): Method to split the branches.
+- `prop_method` (`ImageZono`): Solver to be used, specifically the `ImageZono`.
+- `problem` (`Problem`): Problem to be preprocessed to better fit the solver.
+
+## Returns
+- `model_info`, a structure containing the information of the neural network to 
+    be verified.
+- `Problem` after processing the initial input specification and model.
 """
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
@@ -21,6 +49,11 @@ end
 
 """
     init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
+
+For the `ImageStar` solver, this function converts the input set, represented 
+with an `ImageConvexHull`, to an `ImageStarBound` representation. This serves as 
+a preprocessing step for the `ImageStar` solver. It assumes that batch_input[1] 
+is a list of vertex images. 
 """
 function init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
     imgs = ch.imgs

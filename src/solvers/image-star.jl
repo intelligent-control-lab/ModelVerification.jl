@@ -10,9 +10,9 @@ set such that the center and generators are images with multiple channels.
 ``Θ = \\{ x : x = c + ∑_{i=1}^{m} (α_i v_i), \; Cα ≤ d \\}``
 
 where ``c`` is the center image, ``V = \\{ v_1, …, v_m \\}`` is the set of
-generator images, and ``Cα ≤ d`` represent the predicate. This set 
-representation enables efficient over-approximative analysis of CNNs. ImageStar 
-is less conservative and faster than ImageZono [1].
+generator images, and ``Cα ≤ d`` represent the predicate with α's as the free 
+parameters. This set representation enables efficient over-approximative 
+analysis of CNNs. ImageStar is less conservative and faster than ImageZono [1].
 
 Note that initializing `ImageStar()` defaults to `ImageStar(nothing)`.
 
@@ -58,7 +58,7 @@ end
 Preprocessing of the `Problem` to be solved. This method converts the model to a bounded computational graph, makes the input specificaiton compatible with the 
 solver, and returns the model information and preprocessed `Problem`.
 
-## Fields
+## Arguments
 - `search_method` (`SearchMethod`): Method to search the branches.
 - `split_method` (`SplitMethod`): Method to split the branches.
 - `prop_method` (`ImageStar`): Solver to be used, specifically the `ImageStar`.
@@ -108,8 +108,7 @@ end
     assert_zono_star(bound::ImageStarBound)
 
 Asserts whether the given `ImageStarBound` set is a Zonotope.
-This is done mainly by checking whether the free parameter belongs to a unit 
-hypercube.
+This is done by checking whether the free parameter belongs to a unit hypercube.
 """
 function assert_zono_star(bound::ImageStarBound)
     @assert length(bound.b) % 2 == 0
