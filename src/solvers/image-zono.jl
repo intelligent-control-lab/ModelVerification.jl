@@ -31,6 +31,10 @@ end
 """
     prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
 
+Converts the model to a bounded computational graph and makes input 
+specification compatible with the solver, `prop_method`. This in turn also 
+initializes the branch bank.
+
 ## Arguments
 - `search_method` (`SearchMethod`): Method to search the branches.
 - `split_method` (`SplitMethod`): Method to split the branches.

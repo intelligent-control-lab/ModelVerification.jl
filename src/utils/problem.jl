@@ -64,9 +64,16 @@ end
     Problem{P, Q}(network::Network, input::P, output::Q)
 
 Problem definition for neural verification.
-
 The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
+
+There are three ways to construct a `Problem`:
+1. `Problem(path::String, model::Chain, input_data, output_data)` if both the  
+    `.onnx` model path and `Flux_model` are given.
+2. `Problem(path::String, input_data, output_data)` if only the `.onnx` model 
+    path is given.
+3. `Problem(model::Chain, input_data, output_data)` if only the `Flux_model` is 
+    given.
 
 ## Fields
 - `network` : `Network` that can be constructed either using the path to an onnx
@@ -82,7 +89,7 @@ struct Problem{P, Q}
 end
 Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
-Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_mdoel input
+Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_model input
     Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data)
 
 """

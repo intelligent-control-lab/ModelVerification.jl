@@ -1,5 +1,10 @@
 """
     Bisect <: SplitMethod
+
+Bisection method for splitting branches.
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
 """
 @with_kw struct Bisect <: SplitMethod
     num_split::Int64     = 1
@@ -7,6 +12,9 @@ end
 
 """
     InputGradSplit <: SplitMethod
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
 """
 @with_kw struct InputGradSplit <: SplitMethod
     num_split::Int64     = 1
@@ -15,7 +23,10 @@ end
 """
     BaBSR <: SplitMethod
 
-Branch-and-Bound method for splitting.
+Branch-and-Bound method for splitting branches.
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
 """
 @with_kw struct BaBSR <: SplitMethod
     num_split::Int64     = 1
@@ -23,6 +34,22 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
+
+Recursively bisects the hyperrectangle input specification at the center for 
+`split_method.num_split` number of times.
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`Hyperrectangle`): Input specification represented with a 
+    `Hyperrectangle`.
+- `output`: Output specification.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: 
+
+## Returns
+- List of subtrees split from the `input`.
 """
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
     #input = fmap(cu, input)
@@ -38,6 +65,23 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
+
+Given an input specificaiton represented with any geometry, this function 
+converts it to a hyperrectangle. Then, it calls `split_branch(..., 
+input::Hyperrectangle, ...)` to recursively bisect the input specificaiton for a 
+`split_method.num_split` number of times.
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`LazySet`): Input specification represented with any `LazySet`.
+- `output`: Output specification.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: 
+
+## Returns
+- List of subtrees split from the `input`.
 """
 function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
@@ -45,6 +89,15 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
+
+Given an input specificaiton represented with 
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`ImageStarBound`): Input specification represented with an 
+    `ImageStarBound`.
+- `output`: Output specification.
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
     println("splitting")
@@ -63,6 +116,8 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
+
+TO-BE-IMPLEMENTED
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
     return [input, nothing] #TODO: find a way to split ImageZonoBound
@@ -70,6 +125,8 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
+
+TO-BE-IMPLEMENTED
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
     input.A
@@ -77,19 +134,21 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+
+TO-BE-IMPLEMENTED
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
     return [input, nothing] #TODO: find a way to split ImageZonoBound
 end
 
 """
-    split_interval(dom, i)
+    split_interval(dom::Hyperrectangle, i::Int64)
 
 Split a set into two at the given index.
 
 Inputs:
-- `dom::Hyperrectangle`: the set to be split
-- `i`: the index to split at
+- `dom` (`Hyperrectangle`): The set to be split
+- `i` (`Int64`): The index to split at
 Return:
 - `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: two sets after split
 """

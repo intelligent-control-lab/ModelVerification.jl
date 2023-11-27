@@ -33,7 +33,7 @@ end
 Converts the given `Problem` into a form that is compatible with the verification
 process of the toolbox. In particular, it retrieves information about the ONNX 
 model to be verified and stores them into a `Model`. It returns the `Problem` 
-itself and the `Model` structure.
+itself and the `Model` structure. 
 
 ## Arguments
 - `search_method` (`SearchMethod`): Search method for the verification process.

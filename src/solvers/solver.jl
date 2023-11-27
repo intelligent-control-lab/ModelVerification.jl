@@ -1,10 +1,14 @@
 """
     ForwardProp <: PropMethod
+
+Abstract type representing solvers that use forward propagation.
 """
 abstract type ForwardProp <: PropMethod end
 
 """
     BackwardProp <: PropMethod
+
+Abstract type representing solvers that use backward propagation.
 """
 abstract type BackwardProp <: PropMethod end
 
@@ -110,6 +114,13 @@ Returns the list of bounds resulting from the propagation and the information of
 the batch.
 
 ## Arguments
+- `prop_method` (`PropMethod`): Solver.
+- `batch_bound`: List of the bounds for the given batch of outputs.
+- `batch_out_spec`: List of the output specifications for the given batch of 
+    outputs.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: 
 
 ## Returns
 
@@ -153,7 +164,24 @@ end
 """
     check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
 
-Checks whether the reachable set for 
+Determines whether the reachable sets, `batch_reach`, are within the respective 
+valid output sets, `batch_output`.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver being used.
+- `model`: Neural network model that is to be verified.
+- `input` (`AbstractArray`): List of input specifications.
+- `reach` (`AbstractArray`): List of reachable sets.
+- `output` (`AbstractArray`) : List of sets of valid outputs.
+
+## Returns
+List of a combination of the following components:
+
+- `ReachabilityResult(:holds, [reach])` if `reach` is a subset of `output`.
+- `CounterExampleResult(:unknown)` if `reach` is not a subset of `output`, but 
+    cannot find a counterexample.
+- `CounterExampleResult(:violated, x)` if `reach` is not a subset of `output`, 
+    and there is a counterexample.
 """
 function check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
     results = [check_inclusion(prop_method, model, batch_input[i], batch_reach[i], batch_output[i]) for i in eachindex(batch_reach)]
