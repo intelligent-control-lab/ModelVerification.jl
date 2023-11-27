@@ -81,12 +81,11 @@ prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output
 
 For the `ImageStar` solver, this function converts the input set, represented 
 with an `ImageConvexHull`, to an `ImageStarBound` representation. This serves as 
-a preprocessing step for the `ImageStar` solver. It assumes that batch_input[1] 
-is a list of vertex images. 
+a preprocessing step for the `ImageStar` solver. 
 
 ## Arguments
 - `prop_method` (`ImageStar`): `ImageStar` solver.
-- `ch` (`ImageConvexHull`): convex hull, type `ImageConvexHull`, is used as the 
+- `ch` (`ImageConvexHull`): Convex hull, type `ImageConvexHull`, is used for the 
     input specification.
 
 ## Returns
@@ -161,7 +160,7 @@ specified by a `LazySet`.
 - `output` (`LazySet`) : Set of valid outputs represented with a `LazySet`.
 
 ## Returns
-- `ReachabilityResult(:holds, [box_reach])` if `reach` is a subset of `output`, 
+- `ReachabilityResult(:holds, box_reach)` if `reach` is a subset of `output`, 
     the function returns `:holds` with the box approximation (overapproximation 
     with hyperrectangle) of the `reach` set.
 - `CounterExampleResult(:unknown)` if `reach` is not a subset of `output`, but 

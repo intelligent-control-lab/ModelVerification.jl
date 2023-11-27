@@ -50,10 +50,17 @@ end
 """
     init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
 
-For the `ImageStar` solver, this function converts the input set, represented 
-with an `ImageConvexHull`, to an `ImageStarBound` representation. This serves as 
-a preprocessing step for the `ImageStar` solver. It assumes that batch_input[1] 
-is a list of vertex images. 
+For the `ImageZono` solver, this function converts the input set, represented 
+with an `ImageConvexHull`, to an `ImageZonoBound` representation. This serves as 
+a preprocessing step for the `ImageZono` solver. 
+
+## Arguments
+- `prop_method` (`ImageZono`): `ImageZono` solver.
+- `ch` (`ImageConvexHull`): Convex hull, type `ImageConvexHull`, is used as the 
+    input specification.
+
+## Returns
+- `ImageZonoBound` set that encompasses the given `ImageConvexHull`.
 """
 function init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
     imgs = ch.imgs
@@ -64,6 +71,17 @@ end
 
 """
     init_bound(prop_method::ImageZono, bound::ImageStarBound)
+
+For the `ImageZono` solver, if the input set, represented with an 
+`ImageStarBound`, is a zonotope, this function converts it to an 
+`ImageZonoBound` representation.
+
+## Arguments
+- `prop_method` (`ImageZono`): `ImageZono` solver.
+- `ch` (`ImageStarBound`): `ImageStarBound` is used for the input specification.
+
+## Returns
+- `ImageZonoBound` representation.
 """
 function init_bound(prop_method::ImageZono, bound::ImageStarBound)
     assert_zono_star(bound)
@@ -72,6 +90,18 @@ end
 
 """
     compute_bound(bound::ImageZonoBound)
+
+Computes the lower- and upper-bounds of an image zono set.
+This function is used when propagating through the layers of the model.
+It converts the image zono set to a zonotope. Then, it computes the bounds using 
+`compute_bound(bound::Zonotope)`.
+
+## Arguments
+- `bound` (`ImageZonoBound`): Image zono set of which the bounds need to be 
+    computed.
+
+## Returns
+- Lower- and upper-bounds of the flattened zonotope.
 """
 function compute_bound(bound::ImageZonoBound)
     cen = reshape(bound.center, :)
@@ -87,6 +117,26 @@ center(bound::ImageZonoBound) = bound.center
 
 """
     check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+
+Determines whether the reachable set, `reach`, is within the valid output 
+specified by a `LazySet`.
+
+## Agruments
+- `prop_method` (`ImageZono`): Solver being used.
+- `model`: Neural network model that is to be verified.
+- `input` (`ImageZonoBound`): Input specification supported by `ImageZonoBound`.
+- `reach` (`LazySet`): Reachable set resulting from the propagation of `input` 
+    through the `model`.
+- `output` (`LazySet`) : Set of valid outputs represented with a `LazySet`.
+
+## Returns
+- `ReachabilityResult(:holds, box_reach)` if `reach` is a subset of `output`, 
+    the function returns `:holds` with the box approximation (overapproximation 
+    with hyperrectangle) of the `reach` set.
+- `CounterExampleResult(:unknown)` if `reach` is not a subset of `output`, but 
+    cannot find a counterexample.
+- `CounterExampleResult(:violated, x)` if `reach` is not a subset of `output`, 
+    and there is a counterexample.
 """
 function check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
     # println(low(reach))
