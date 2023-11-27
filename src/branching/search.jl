@@ -15,7 +15,7 @@ branch bank.
 end
 
 """
-    search_branches(search_method, split_method, prop_method, problem, model_info)
+    search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
 
 Searches through the branches in the branch bank, `branches`, until the branch 
 bank is empty or time out. In each iteration (up to `search_method.max_iter`), 

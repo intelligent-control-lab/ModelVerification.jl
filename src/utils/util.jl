@@ -6,6 +6,14 @@ The `.nnet` format is borrowed from [NNet](https://github.com/sisl/NNet).
 The format assumes all hidden layers have ReLU activation.
 Keyword argument `last_layer_activation` sets the activation of the last
 layer, and defaults to `Id()`, (i.e. a linear output layer).
+
+## Arguments
+- `fname` (`String`): String path to the `.nnet` file.
+- `last_layer_activation`: Keyword argument that sets the activation of the last 
+    layer which defaults to `Id()`.
+
+## Returns
+- A vector of layers saved as `Network`.
 """
 function read_nnet(fname::String; last_layer_activation = Id())
     f = open(fname)
@@ -29,22 +37,33 @@ function read_nnet(fname::String; last_layer_activation = Id())
 end
 
 """
-    read_layer(output_dim::Int, f::IOStream, [act = ReLU()])
+    read_layer(output_dim::Int64, f::IOStream, act = ReLU())
 
-Read in layer from nnet file and return a `Layer` containing its weights/biases.
-Optional argument `act` sets the activation function for the layer.
+Read in layer from `.nnet` file and return a `Layer` containing its 
+weights & biases. Optional argument `act` sets the activation function for the 
+layer.
+
+## Arguments
+- `output_dim` (Int64): Output dimension of the layer.
+- `f` (`IOStream`): IO stream of the `.nnet` file.
+- `act`: Optional argument specifying the activation function of the layer. 
+    Defaults to `ReLU()`.
+
+## Returns
+- `Layer` containing the weights and bias values (and the activation function 
+    of the layer).
 """
 function read_layer(output_dim::Int64, f::IOStream, act = ReLU())
 
     rowparse(splitrow) = parse.(Float64, splitrow[findall(!isempty, splitrow)])
-     # first read in weights
-     W_str_vec = [rowparse(split(readline(f), ",")) for i in 1:output_dim]
-     weights = vcat(W_str_vec'...)
-     # now read in bias
-     bias_string = [split(readline(f), ",")[1] for j in 1:output_dim]
-     bias = rowparse(bias_string)
-     # activation function is set to ReLU as default
-     return Layer(weights, bias, act)
+    # first read in weights
+    W_str_vec = [rowparse(split(readline(f), ",")) for i in 1:output_dim]
+    weights = vcat(W_str_vec'...)
+    # now read in bias
+    bias_string = [split(readline(f), ",")[1] for j in 1:output_dim]
+    bias = rowparse(bias_string)
+    # activation function is set to ReLU as default
+    return Layer(weights, bias, act)
 end
 
 """
@@ -55,7 +74,11 @@ to_comment(txt) = "//"*replace(txt, "\n"=>"\n//")
 """
     print_layer(file::IOStream, layer)
 
-Print to `file` an object implementing `weights(layer)` and `bias(layer)`
+Print to `file` an object implementing `weights(layer)` and `bias(layer)`.
+
+## Arguments
+- `file` (`IOStream`): IO stream of the target `.nnet` file.
+- `layer`: Layer to be transcribed to `file`.
 """
 function print_layer(file::IOStream, layer)
    print_row(W, i) = println(file, join(W[i,:], ", "), ",")
@@ -68,8 +91,15 @@ end
 """
     print_header(file::IOStream, network[; header_text])
 
-The NNet format has a particular header containing information about the network size and training data.
-`print_header` does not take training-related information into account (subject to change).
+The NNet format has a particular header containing information about the 
+network size and training data. `print_header` does not take training-related 
+information into account (subject to change).
+
+## Arguments
+- `file` (`IOStream`): IO stream of the target `.nnet` file.
+- `network`: Network to be transcribed to `file`.
+- `header_text`: Optional header text that comes before the network information. 
+    Defaults to an empty string.
 """
 function print_header(file::IOStream, network; header_text="")
    println(file, to_comment(header_text))
@@ -98,13 +128,18 @@ function print_header(file::IOStream, network; header_text="")
 end
 
 """
-    write_nnet(filename, network[; header_text])
+    write_nnet(filename, network; header_text)
 
-Write `network` to \$filename.nnet.
+Write `network` to `filename.nnet`.
 Note: Does not perform safety checks on inputs, so use with caution.
 
 Based on python code at https://github.com/sisl/NNet/blob/master/utils/writeNNet.py
 and follows .nnet format given here: https://github.com/sisl/NNet.
+
+## Arguments
+- `outfile`: String name of the `.nnet` file.
+- `network`: Network to be transcribed to `outfile.nnet`.
+- `header_text`: Optional header text that comes before the network information.
 """
 function write_nnet(outfile, network; header_text="Default header text.\nShould replace with the real deal.")
     name, ext = splitext(outfile)
@@ -120,7 +155,7 @@ end
 """
     compute_output(nnet::Network, input::Vector{Float64})
 
-Propagate a given vector through a nnet and compute the output.
+Propagates a given vector through a `Network` and computes the output.
 """
 function compute_output(nnet::Network, input)
     curr_value = input
@@ -307,7 +342,7 @@ end
 Simple linear mapping on intervals.
 `L, U := ([W]₊*l + [W]₋*u), ([W]₊*u + [W]₋*l)`
 
-Outputs:
+## Returns
 - `(lbound, ubound)` (after the mapping)
 """
 function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecOrMat) where N
@@ -323,7 +358,7 @@ end
 Computes node-wise bounds given a input set. The optional last
 argument determines whether the bounds are pre- or post-activation.
 
-Return:
+## Returns
 - `Vector{Hyperrectangle}`: bounds for all nodes. `bounds[1]` is the input set.
 """
 function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there is another function by the same name in convDual. Should reconsider dispatch

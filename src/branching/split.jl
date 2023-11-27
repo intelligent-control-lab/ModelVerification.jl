@@ -66,9 +66,9 @@ end
 """
     split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
 
-Given an input specificaiton represented with any geometry, this function 
+Given an input specification represented with any geometry, this function 
 converts it to a hyperrectangle. Then, it calls `split_branch(..., 
-input::Hyperrectangle, ...)` to recursively bisect the input specificaiton for a 
+input::Hyperrectangle, ...)` to recursively bisect the input specification for a 
 `split_method.num_split` number of times.
 
 ## Arguments
@@ -90,7 +90,7 @@ end
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
 
-Given an input specificaiton represented with 
+Given an input specification represented with 
 
 ## Arguments
 - `split_method` (`Bisect`): Bisection split method.

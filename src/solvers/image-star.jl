@@ -56,7 +56,7 @@ end
     prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
 
 Preprocessing of the `Problem` to be solved. This method converts the model to a 
-bounded computational graph, makes the input specificaiton compatible with the 
+bounded computational graph, makes the input specification compatible with the 
 solver, and returns the model information and preprocessed `Problem`. This in 
 turn also initializes the branch bank.
 

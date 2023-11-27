@@ -43,7 +43,8 @@ abstract type Bound end
     init_batch_bound(prop_method::ForwardProp, batch_input, batch_output)
 
 Returns a list of the input specifications (geometries) for the given batch of 
-inputs.
+inputs. This is for `ForwardProp` solvers. Each input specification is 
+processed to fit the geometric representation used by the solver.
 
 ## Arguments
 - `prop_method` (`ForwardProp`): Solver that uses forward propagation method.
@@ -61,7 +62,8 @@ end
     init_batch_bound(prop_method::BackwardProp, batch_input, batch_output)
 
 Returns a list of the output specifications (geometries) for the given batch of 
-outputs.
+outputs. This is for `BackwardProp` solvers. Each input specification is 
+processed to fit the geometric representation used by the solver.
 
 ## Arguments
 - `prop_method` (`BackwardProp`): Solver that uses backward propagation method.
@@ -79,6 +81,7 @@ end
     init_bound(prop_method::ForwardProp, input)
 
 Returns the geometry representation used to encode the input specification.
+This is for `ForwardProp` solvers. 
 
 ## Arguments
 - `prop_method` (`ForwardProp`): Solver that uses forward propagation method. 
@@ -94,7 +97,8 @@ end
 """
     init_bound(prop_method::BackwardProp, output)
 
-Returns the geometry representation used to encode the output specification.
+Returns the geometry representation used to encode the output specification. 
+This is for `BackwardProp` solvers.
 
 ## Arguments
 - `prop_method` (`BackwardProp`): Solver that uses backward propagation method. 
@@ -115,15 +119,16 @@ the batch.
 
 ## Arguments
 - `prop_method` (`PropMethod`): Solver.
-- `batch_bound`: List of the bounds for the given batch of outputs.
+- `batch_bound`: List of the bounds for the given batch.
 - `batch_out_spec`: List of the output specifications for the given batch of 
     outputs.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
-- `batch_info`: 
+- `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-
+- `batch_bound`: List of the bounds for the given batch.
+- `batch_info`: Dictionary containing information of each node in the model.
 """
 function process_bound(prop_method::PropMethod, batch_bound, batch_out_spec, model_info, batch_info)
     return batch_bound, batch_info
@@ -132,7 +137,21 @@ end
 """
     init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
 
-ON-HOLD
+Returns a dictionary containing the information of each node in the model. This 
+function is for `ForwardProp` solvers, and is mainly concerned with initializing 
+the dictionary, `batch_info`, and populating it with the initial bounds for the 
+starting node. For the starting node of the model, the `:bound` key is mapped 
+to the list of input specifications.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver that uses forward propagation.
+- `batch_input`: List of inputs.
+- `batch_output`: List of outputs.
+- `model_info`: Structure containing the information of the neural network to 
+    be verified.
+
+## Returns
+- `batch_info`: Dictionary containing information of each node in the model.
 """
 function init_propagation(prop_method::ForwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.start_nodes) == 1
@@ -144,7 +163,21 @@ end
 """
     init_propagation(prop_method::BackwardProp, batch_input, batch_output, model_info)
 
-ON-HOLD
+Returns a dictionary containing the information of each node in the model. This 
+function is for `BackwardProp` solvers, and is mainly concerned with 
+initializing the dictionary, `batch_info`, and populating it with the initial 
+bounds for the starting node. For the starting node of the model, the `:bound` 
+key is mapped to the list of input specifications.
+
+## Arguments
+- `prop_method` (`BackwardProp`): Solver that uses backward propagation.
+- `batch_input`: List of inputs.
+- `batch_output`: List of outputs.
+- `model_info`: Structure containing the information of the neural network to 
+    be verified.
+
+## Returns
+- `batch_info`: Dictionary containing information of each node in the model.
 """
 function init_propagation(prop_method::BackwardProp, batch_input, batch_output, model_info)
     @assert length(model_info.final_nodes) == 1
@@ -155,6 +188,20 @@ end
  
 """
     prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+
+Initialize the bound of the start node of the computational graph based on the 
+solver (`prop_method`).
+
+## Agruments
+- `prop_method` (`PropMethod`): Propagation method, i.e., the solver.
+- `batch_input` (`AbstractVector`): Batch of inputs.
+- `batch_output` (`AbstractVector`): Batch of outputs.
+- `model_info`: Structure containing the information of the neural network to
+    be verified.
+
+## Returns
+- `batch_output`: Batch of outputs.
+- `batch_info`: Dictionary containing information of each node in the model.
 """
 function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)

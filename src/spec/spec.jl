@@ -12,8 +12,8 @@ Convex hull for images used to specify safety property for images.
 It is the smallest convex polytope that contains all the images given in the `imgs` array.
 
 ## Fields
-- `imgs` (`AbstractArray`): list of images in `AbstractArray`. 
-    Image is represented as a matrix of h x w x c.
+- `imgs` (`AbstractArray`): List of images in `AbstractArray`. Image is 
+    represented as a matrix of height x weight x channels.
 """
 struct ImageConvexHull <: Spec
     # spec: A x - b <= 0 is the safe set or unsafe set
@@ -26,9 +26,12 @@ end
 Safety specification defined as the set ``\\{ x: x = A x - b ≤ 0 \\}``.
 
 ## Fields
-- `A` (`AbstractArray{Float64, 3}`): normal dierction of size `spec_dim x out_dim x batch_size`.
-- `b` (`AbstractArray{Float64, 2}`): constraints of size `spec_dim x batch_size`.
-- `is_complement` (`Bool`): boolean flag for whether this specification is a complement or not.
+- `A` (`AbstractArray{Float64, 3}`): Normal dierction of size 
+    `spec_dim x out_dim x batch_size`.
+- `b` (`AbstractArray{Float64, 2}`): Constraints of size 
+    `spec_dim x batch_size`.
+- `is_complement` (`Bool`): Boolean flag for whether this specification is a 
+    complement or not.
 """
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
@@ -40,7 +43,7 @@ end
 """
     InputSpec
 
-Input specificaiton can be of any type supported by `LazySet` or `ImageConvexHull`.
+Input specification can be of any type supported by `LazySet` or `ImageConvexHull`.
 """
 const InputSpec = Union{LazySet, ImageConvexHull}
 
@@ -72,7 +75,7 @@ Retrieves the linear specifications of the batch of output sets and returns
 a `LinearSpec` structure. 
 
 ## Arguments
-- `batch_out_set` (`AbstractVector`): batch of output sets.
+- `batch_out_set` (`AbstractVector`): Batch of output sets.
 
 ## Returns
 - `LinearSpec` of the batch of output sets.
@@ -101,9 +104,28 @@ function get_linear_spec(batch_out_set::AbstractVector)
 end
 
 """
-    classification_spec(n, target)
+    classification_spec(n::Int64, target::Int64)
+
+Generates an output specification constructed with a convex polyhedron, 
+`HPolyhedron`, for classification tasks. Given `n`-number of labels with 
+`target` as the correct label, the resulting polyhedron is the finite 
+intersection of halfspaces:
+```math
+P = \\bigcap_{i=1}^n H_i
+```
+where ``H_i = \\{x : a_i^T x \\leq 0 \\}, \; i\\in\\{1:n\\}`` is a halfspace, 
+``a_i`` is a row vector where the `n`-th element is 1.0 and the `target`-th 
+element is -1.0.
+
+## Arguments
+- `n` (`Int64`): Number of labels.
+- `target` (`Int64`): Target label.
+
+## Returns
+- `HPolyhedron` specified as above such that the output specification captures 
+    the target label.
 """
-function classification_spec(n, target)
+function classification_spec(n::Int64, target::Int64)
     A = Matrix{Float64}(I, n, n)
     A[:, target] .= -1
     A = [A[1:target-1, :]; A[target+1:end, :]]
