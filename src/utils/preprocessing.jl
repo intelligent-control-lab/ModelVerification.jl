@@ -30,7 +30,8 @@ struct Model
 end
 
 """
-    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, 
+                    prop_method::PropMethod, problem::Problem)
 
 Converts the given `Problem` into a form that is compatible with the verification
 process of the toolbox. In particular, it retrieves information about the ONNX 

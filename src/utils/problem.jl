@@ -1,3 +1,6 @@
+"""
+    get_parallel_chains(comp_vertices, index_more_than_one_outputs)
+"""
 function get_parallel_chains(comp_vertices, index_more_than_one_outputs)
     function get_chain(vertex)
         m = Any[]

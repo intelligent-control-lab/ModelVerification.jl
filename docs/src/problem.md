@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = ModelVerification
+```
+
 ```@contents
 Pages=["problem.md"]
 Depth = 3
@@ -36,9 +40,17 @@ _Details on [Network](./network.md)_
 | [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |
 | [`EnumerationResult`]      | Set of all the (un)safe regions in the safety property's domain. |
 
-## `Problem` and `Result` Documentation
-```@autodocs
-Modules=[ModelVerification]
-Pages=["problem.jl"]
+## `Problem` Documentation
+```@docs
+Problem
+prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
 ```
 
+## `Result` Documentations
+```@docs
+Result
+BasicResult
+CounterExampleResult
+AdversarialResult
+ReachabilityResult
+```

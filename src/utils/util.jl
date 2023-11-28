@@ -67,6 +67,8 @@ function read_layer(output_dim::Int64, f::IOStream, act = ReLU())
 end
 
 """
+    to_comment(txt)
+
 Prepend `//` to each line of a string.
 """
 to_comment(txt) = "//"*replace(txt, "\n"=>"\n//")
@@ -89,7 +91,7 @@ function print_layer(file::IOStream, layer)
 end
 
 """
-    print_header(file::IOStream, network[; header_text])
+    print_header(file::IOStream, network; header_text="")
 
 The NNet format has a particular header containing information about the 
 network size and training data. `print_header` does not take training-related 
@@ -166,15 +168,23 @@ function compute_output(nnet::Network, input)
 end
 
 """
-    get_activation(L, x::Vector)
-Finds the activation pattern of a vector `x` subject to the activation function given by the layer `L`.
-Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+    get_activation(L::Layer{ReLU}, x::Vector)
+    
+Finds the activation pattern of a vector `x` subject to the activation function 
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
 """
 get_activation(L::Layer{ReLU}, x::Vector) = x .>= 0.0
+
+"""
+    get_activation(L::Layer{Id}, args...)
+    
+Finds the activation pattern of a vector `x` subject to the activation function 
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+"""
 get_activation(L::Layer{Id}, args...) = trues(n_nodes(L))
 
 """
-    get_activation(nnet::Network, x::Vector)
+    get_activation(nnet::Network, x::Vector{Float64})
 
 Given a network, find the activation pattern of all neurons at a given point x.
 Returns Vector{Vector{Bool}}. Each Vector{Bool} refers to the activation pattern of a particular layer.
@@ -313,7 +323,6 @@ function act_gradient_bounds(nnet::Network, input::AbstractPolytope)
 end
 
 """
-    get_gradient_bounds(nnet::Network, LΛ::Vector{AbstractVector}, UΛ::Vector{AbstractVector})
     get_gradient_bounds(nnet::Network, input::AbstractPolytope)
 
 Get lower and upper bounds on network gradient for given gradient bounds on activations, or given an input set.
@@ -324,6 +333,12 @@ function get_gradient_bounds(nnet::Network, input::AbstractPolytope)
     LΛ, UΛ = act_gradient_bounds(nnet, input)
     return get_gradient_bounds(nnet, LΛ, UΛ)
 end
+
+"""
+    get_gradient_bounds(nnet::Network, LΛ::Vector{AbstractVector}, 
+                        UΛ::Vector{AbstractVector})
+    
+"""
 function get_gradient_bounds(nnet::Network, LΛ::Vector{<:AbstractVector}, UΛ::Vector{<:AbstractVector})
     n_input = size(nnet.layers[1].weights, 2)
     LG = Matrix(1.0I, n_input, n_input)
@@ -352,7 +367,6 @@ function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecO
 end
 
 """
-    get_bounds(problem::Problem)
     get_bounds(nnet::Network, input::Hyperrectangle, [true])
 
 Computes node-wise bounds given a input set. The optional last
@@ -377,6 +391,10 @@ function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there
     end
     return bounds
 end
+
+"""
+    get_bounds(problem::Problem)
+"""
 get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.input; kwargs...)
 
 """
@@ -416,6 +434,9 @@ function approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
     return Hyperrectangle(c, r)
 end
 
+"""
+    approximate_act_map(layer::Layer, input::Hyperrectangle)
+"""
 approximate_act_map(layer::Layer, input::Hyperrectangle) = approximate_act_map(layer.activation, input)
 
 
@@ -424,6 +445,9 @@ struct UnboundedInputError <: Exception
 end
 Base.showerror(io::IO, e::UnboundedInputError) = print(io, msg)
 
+"""
+    isbounded(input)
+"""
 function isbounded(input)
     if input isa HPolytope
         return LazySets.isbounded(input, false)
@@ -432,6 +456,12 @@ function isbounded(input)
     end
 end
 
-
+"""
+    is_hypercube(set::Hyperrectangle)
+"""
 is_hypercube(set::Hyperrectangle) = all(iszero.(set.radius .- set.radius[1]))
+
+"""
+    is_halfspace_equivalent(set)
+"""
 is_halfspace_equivalent(set) = length(constraints_list(set)) == 1

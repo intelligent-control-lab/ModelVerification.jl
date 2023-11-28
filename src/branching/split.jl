@@ -33,7 +33,8 @@ Branch-and-Bound method for splitting branches.
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
+    split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, 
+                 output, model_info, batch_info)
 
 Recursively bisects the hyperrectangle input specification at the center for 
 `split_method.num_split` number of times.
@@ -64,7 +65,8 @@ function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle,
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
+    split_branch(split_method::Bisect, model::Chain, input::LazySet, 
+                 output, model_info, batch_info)
 
 Given an input specification represented with any geometry, this function 
 converts it to a hyperrectangle. Then, it calls `split_branch(..., 
@@ -88,7 +90,8 @@ function split_branch(split_method::Bisect, model::Chain, input::LazySet, output
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageStarBound, output)
 
 Given an input specification represented with an `ImageStarBound`, this function 
 converts it 
@@ -116,7 +119,8 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageZonoBound, output)
 
 TO-BE-IMPLEMENTED
 """
@@ -125,7 +129,8 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound,
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageStarBound, output, model_info, batch_info)
 
 TO-BE-IMPLEMENTED
 """
@@ -134,7 +139,8 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageZonoBound, output, model_info, batch_info)
 
 TO-BE-IMPLEMENTED
 """
@@ -167,7 +173,8 @@ function split_interval(dom::Hyperrectangle, i::Int64)
 end
 
 """
-    split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+    split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, 
+               j, input, output)
 """
 function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
     # S_dict : {node => [idx_list, val_list, mask_list, history_S]}, such that we can do the following when propagate relu
@@ -198,7 +205,8 @@ function split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_no
 end
 
 """
-    split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
+    split_branch(split_method::BaBSR, model::Chain, 
+                 input::Tuple, output, model_info, batch_info)
 """
 function split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)

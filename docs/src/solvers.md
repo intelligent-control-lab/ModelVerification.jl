@@ -81,7 +81,14 @@ check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::Laz
 
 # ImageZono
 ```@docs
-
+ImageZono
+ImageZonoBound
+prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
+init_bound(prop_method::ImageZono, ch::ImageConvexHull) 
+init_bound(prop_method::ImageZono, bound::ImageStarBound)
+compute_bound(bound::ImageZonoBound)
+center(bound::ImageZonoBound)
+check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
 ```
 
 # Crown

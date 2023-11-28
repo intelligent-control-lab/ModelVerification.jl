@@ -4,11 +4,10 @@
 Abstrct type representing networks. Note that "model", "network", "neural 
 network", "deep neural network" are used interchangeably throughout the toolbox.
 """
-
 abstract type AbstractNetwork end
 
 """
-    Layer{F, N}
+    Layer{F<:ActivationFunction, N<:Number}
 
 Consists of `weights` and `bias` for linear mapping, and `activation` for 
 nonlinear mapping.
@@ -27,7 +26,7 @@ struct Layer{F<:ActivationFunction, N<:Number}
 end
 
 """
-    Network([layer1, layer2, layer3, ...])
+    Network
 
 A vector of layers.
 

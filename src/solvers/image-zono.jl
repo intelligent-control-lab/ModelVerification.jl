@@ -29,7 +29,8 @@ struct ImageZonoBound{T<:Real} <: Bound
 end
 
 """
-    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageZono, problem::Problem)
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, 
+                    prop_method::ImageZono, problem::Problem)
 
 Converts the model to a bounded computational graph and makes input 
 specification compatible with the solver, `prop_method`. This in turn also 
@@ -117,10 +118,23 @@ function compute_bound(bound::ImageZonoBound)
     return l, u
 end
 
+"""
+    center(bound::ImageZonoBound)
+
+Returns the center image of the `ImageZonoBound` bound.
+
+## Arguments
+- `bound` (`ImageZonoBound`): Geometric representation of the specification 
+    using `ImageZonoBound`.
+
+## Returns
+- `ImageZonoBound.center` image of type `AbstractArray{T, 4}`.
+"""
 center(bound::ImageZonoBound) = bound.center
 
 """
-    check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
+    check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, 
+                    reach::LazySet, output::LazySet)
 
 Determines whether the reachable set, `reach`, is within the valid output 
 specified by a `LazySet`.

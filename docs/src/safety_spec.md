@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = ModelVerification
+```
+
 ```@contents
 Pages=["safety_spec.md"]
 Depth=3
@@ -85,7 +89,23 @@ where $c\in\mathbb{R}^{h\times w \times k_0}$ is the center image, $r_i\in\mathb
 [4] HD. Tran, S. Bak, W. Xiang, and T.T. Johnson, "Verification of Deep Convolutional Neural Networks Using ImageStars," in _Computer Aided Verification (CAV)_, 2020.
 
 ## `Spec`
-```@autodocs
-Modules=[ModelVerification]
-Pages=["spec.jl"]
+
+### Specifications
+```@docs
+Spec
+InputSpec
+OutputSpec
+```
+
+```@docs
+ImageConvexHull
+LinearSpec
+classification_spec(n::Int64, target::Int64)
+```
+
+### Functions
+```@docs
+get_size(input_spec::LazySet)
+get_size(input_spec::ImageConvexHull)
+get_linear_spec(batch_out_set::AbstractVector)
 ```
