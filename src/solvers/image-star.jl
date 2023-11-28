@@ -7,7 +7,7 @@ the verification method itself that uses the ImageStar set. In terms of
 geometric representation, an ImageStar is an extension of the generalized star
 set such that the center and generators are images with multiple channels.
 
-``Θ = \\{ x : x = c + ∑_{i=1}^{m} (α_i v_i), \; Cα ≤ d \\}``
+``Θ = \\{ x : x = c + ∑_{i=1}^{m} (α_i v_i), \\; Cα ≤ d \\}``
 
 where ``c`` is the center image, ``V = \\{ v_1, …, v_m \\}`` is the set of
 generator images, and ``Cα ≤ d`` represent the predicate with α's as the free 
@@ -53,7 +53,8 @@ struct ImageStarBound{T<:Real} <: Bound
 end
 
 """
-    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ImageStar, problem::Problem)
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, 
+                    prop_method::ImageStar, problem::Problem)
 
 Preprocessing of the `Problem` to be solved. This method converts the model to a 
 bounded computational graph, makes the input specification compatible with the 
@@ -76,6 +77,24 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, problem.Flux_model, init_bound(prop_method, problem.input), problem.output)
 end
 
+"""
+    prepare_method(prop_method::ImageStar, batch_input::AbstractVector,
+                   batch_output::AbstractVector, model_info)
+
+Initialize the bound of the start node of the computational graph based on the 
+`pre_bound_method` specified in the given ImageStar solver.
+
+## Agruments
+- `prop_method` (`ImageStar`): ImageStar solver.
+- `batch_input` (`AbstractVector`): Batch of inputs.
+- `batch_output` (`AbstractVector`): Batch of outputs.
+- `model_info`: Structure containing the information of the neural network to
+    be verified.
+
+## Returns
+- `batch_output`: Batch of outputs.
+- `batch_info`: Dictionary containing information of each node in the model.
+"""
 prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output, model_info)
 
 """
@@ -145,10 +164,23 @@ function compute_bound(bound::ImageStarBound)
     return l, u
 end
 
+"""
+    center(bound::ImageStarBound)
+
+Returns the center image of the `ImageStarBound` bound.
+
+## Arguments
+- `bound` (`ImageStarBound`): Geometric representation of the specification 
+    using `ImageStarBound`.
+
+## Returns
+- `ImageStarBound.center` image of type `AbstractArray{T, 4}`.
+"""
 center(bound::ImageStarBound) = bound.center
 
 """
-    check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
+    check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, 
+                    reach::LazySet, output::LazySet)
 
 Determines whether the reachable set, `reach`, is within the valid output 
 specified by a `LazySet`. 

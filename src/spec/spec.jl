@@ -110,12 +110,14 @@ Generates an output specification constructed with a convex polyhedron,
 `HPolyhedron`, for classification tasks. Given `n`-number of labels with 
 `target` as the correct label, the resulting polyhedron is the finite 
 intersection of halfspaces:
-```math
+
+``
 P = \\bigcap_{i=1}^n H_i
-```
-where ``H_i = \\{x : a_i^T x \\leq 0 \\}, \; i\\in\\{1:n\\}`` is a halfspace, 
-``a_i`` is a row vector where the `n`-th element is 1.0 and the `target`-th 
-element is -1.0.
+``
+
+where ``H_i = \\{x : a_i^T x \\leq 0 \\}, \\; i\\in\\{1:n\\}`` is a halfspace, 
+``a_i`` is a row vector where the `n`-th element is 1.0, the `target`-th 
+element is -1.0, and the rest are 0's.
 
 ## Arguments
 - `n` (`Int64`): Number of labels.

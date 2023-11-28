@@ -1,5 +1,5 @@
 """
-    Ai2{T}
+    Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: SequentialForwardProp
 
 `Ai2` performs over-approximated reachability analysis to compute the over-
 approximated output reachable set for a network. `T` can be `Hyperrectangle`, 
@@ -197,7 +197,8 @@ end
 Determines whether the reachable set, R(input, model), is within the valid 
 output specified by a `LazySet`. This function achieves this by checking if the
 box approximation (overapproximation with hyperrectangle) of the `reach` set is
-disjoint with the `unsafe_output`.
+disjoint with the `unsafe_output`. If the box approximation is a subset of the 
+`unsafe_output`, then the safety property is violated. 
 
 ## Arguments
 - `prop_method` (`ForwardProp`): Solver being used.
@@ -205,7 +206,10 @@ disjoint with the `unsafe_output`.
 - `input` (`LazySet`): Input specification supported by `Lazyset`.
 - `reach` (`LazySet`): Reachable set resulting from the propagation of `input` 
     through the `model`.
-- `output` (`Complement`): Set of valid outputs represented with a complement set.
+- `output` (`Complement`): Set of valid outputs represented with a complement 
+    set. For problems using this `check_inclusion` method, the unsafe region is 
+    specified. Then, the complement of the unsafe region is given as the desired 
+    output specification.
 
 ## Returns
 - `ReachabilityResult(:holds, [reach])` if `box_reach` is disjoint with the
