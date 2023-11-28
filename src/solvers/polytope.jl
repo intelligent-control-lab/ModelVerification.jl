@@ -4,10 +4,10 @@
 `Ai2` performs over-approximated reachability analysis to compute the over-
 approximated output reachable set for a network. `T` can be `Hyperrectangle`, 
 `Zonotope`, `Star`, or `HPolytope`. Different geometric representations impact
-the verification performance due to different over-approximation size. 
+the verification performance due to different over-approximation sizes. 
 We use `Zonotope` as "benchmark" geometry, as in the original implementation[1], 
-due to improved scalability and precision (similar result can be achieved using 
-`Star`). On the other hand, using  a `HPolytope` representation potentially 
+due to improved scalability and precision (similar results can be achieved using 
+`Star`). On the other hand, using a `HPolytope` representation potentially 
 leads to a more precise but less scalable result, and the opposite holds for 
 `Hyperrectangle`.
 
@@ -57,7 +57,7 @@ StarSet() = StarSet(nothing)
 Initialize the bound of the start node of the computational graph for the 
 `StarSet` solvers.
 
-## Agruments
+## Arguments
 - `prop_method` (`StarSet`) : Propagation method of type `StarSet`.
 - `batch_input` (`AbstractVector`) : Batch of inputs.
 - `batch_output` (`AbstractVector`) : Batch of outputs.
@@ -96,8 +96,8 @@ end
     compute_bound(bound::Zonotope)
 
 Computes the lower- and upper-bounds of a zonotope. 
-This function is used when propagating through the layers of model.
-Radius is the sum of absolute value of the generators of the given zonotope.
+This function is used when propagating through the layers of the model.
+Radius is the sum of the absolute value of the generators of the given zonotope.
 
 ## Arguments
 - `bound` (`Zonotope`) : zonotope of which the bounds need to be computed
@@ -114,7 +114,7 @@ end
     compute_bound(bound::Star)
 
 Computes the lower- and upper-bounds of a star set. 
-This function is used when propagating through the layers of model.
+This function is used when propagating through the layers of the model.
 It overapproximates the given star set with a hyperrectangle.
 
 ## Arguments
