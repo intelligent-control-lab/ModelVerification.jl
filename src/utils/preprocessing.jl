@@ -4,17 +4,19 @@
 Structure containing the information of the neural network to be verified.
 
 ## Fields
-- start_nodes: List of input layer nodes' names.
-- final_nodes: List of output layer nodes' names.
-- all_nodes: List of all the nodes's names.
-- node_layer: Dictionary of all the nodes. The key is the name of the node and 
-    the value is the operation performed at the node.
-- node_prevs: Dictionary of the nodes connected to the current node.
+- `start_nodes` (`Array{String, 1}`): List of input layer nodes' names.
+- `final_nodes` (`Array{String, 1}`): List of output layer nodes' names.
+- `all_nodes` (`Array{String, 1}`): List of all the nodes's names.
+- `node_layer` (`Dict`): Dictionary of all the nodes. The key is the name of the 
+    node and the value is the operation performed at the node.
+- `node_prevs` (`Dict`): Dictionary of the nodes connected to the current node.
     The key is the name of the node and the value is the list of nodes.
-- node_nexts: Dictionary of the nodes connected from the current node.
-    The key is the name of the node and the value is the list of nodes.
-- activation_nodes: List of all the activation nodes' names.
-- activation_number: Number of activation nodes (deprecated in the future).
+- `node_nexts` (`Dict`): Dictionary of the nodes connected from the current 
+    node. The key is the name of the node and the value is the list of nodes.
+- `activation_nodes` (`Array{String, 1}`): List of all the activation nodes' 
+    names.
+- `activation_number` (`Int`): Number of activation nodes (deprecated in the 
+    future).
 """
 struct Model
     start_nodes::Array{String, 1}

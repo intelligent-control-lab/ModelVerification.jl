@@ -1,16 +1,72 @@
+"""
+    enqueue_nodes!(prop_method::ForwardProp, queue, model_info)
+
+Inserts the nodes connected from the starting node into the given `queue`.
+"""
 enqueue_nodes!(prop_method::ForwardProp, queue, model_info) = enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
+
+"""
+    enqueue_nodes!(prop_method::BackwardProp, queue, model_info)
+
+Inserts the final nodes into the given `queue`.
+"""
 enqueue_nodes!(prop_method::BackwardProp, queue, model_info) = enqueue!(queue, [s for s in model_info.final_nodes]...)
 
+"""
+    output_node(prop_method::ForwardProp, model_info)    
+
+Returns the final nodes of the model.
+"""
 output_node(prop_method::ForwardProp, model_info) = model_info.final_nodes[1]
+
+"""
+    output_node(prop_method::BackwardProp, model_info)
+
+Returns the starting nodes of the model for `BackwardProp` methods. Since this 
+is for `BackwardProp` methods, the starting nodes of the model are the output 
+nodes.
+"""
 output_node(prop_method::BackwardProp, model_info) = model_info.node_nexts[model_info.start_nodes[1]][1]
 
+"""
+    next_nodes(prop_method::ForwardProp,  model_info, node)
+
+Returns the next nodes of the `node` for `ForwardProp` methods.
+"""
 next_nodes(prop_method::ForwardProp,  model_info, node) = model_info.node_nexts[node]
+
+"""
+    next_nodes(prop_method::BackwardProp, model_info, node)
+
+Returns the previous nodes of the `node` for `BackwardProp` methods. Since this 
+is for `BackwardProp` methods, the previous nodes are the "next" nodes.
+"""
 next_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_prevs[node]
+
+"""
+    prev_nodes(prop_method::ForwardProp,  model_info, node)
+
+Returns the previous nodes of the `node` for `ForwardProp` methods.
+"""
 prev_nodes(prop_method::ForwardProp,  model_info, node) = model_info.node_prevs[node]
+
+"""
+    prev_nodes(prop_method::BackwardProp, model_info, node)
+
+Returns the next nodes of the `node` for `BackwardProp` methods. Since this is 
+for `BackwardProp` methods, the next nodes are the "previous" nodes.
+"""
 prev_nodes(prop_method::BackwardProp, model_info, node) = model_info.node_nexts[node]
 
 all_nexts_in(prop_method, model_info, output_node, cnt) = (cnt == length(next_nodes(prop_method, model_info, output_node)))
 all_prevs_in(prop_method, model_info, output_node, cnt) = (cnt == length(prev_nodes(prop_method, model_info, output_node)))
+
+"""
+    has_two_reach_node(prop_method, model_info, node)
+
+Checks whether there are two nodes connected to the current `node`, i.e., there 
+are two previous nodes. 
+"""
 has_two_reach_node(prop_method, model_info, node) = (length(prev_nodes(prop_method, model_info, node)) == 2)
 
 """

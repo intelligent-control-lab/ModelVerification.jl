@@ -78,7 +78,7 @@ input::Hyperrectangle, ...)` to recursively bisect the input specification for a
 - `output`: Output specification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
-- `batch_info`: 
+- `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
 - List of subtrees split from the `input`.
@@ -90,7 +90,8 @@ end
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
 
-Given an input specification represented with 
+Given an input specification represented with an `ImageStarBound`, this function 
+converts it 
 
 ## Arguments
 - `split_method` (`Bisect`): Bisection split method.
@@ -146,11 +147,12 @@ end
 
 Split a set into two at the given index.
 
-Inputs:
-- `dom` (`Hyperrectangle`): The set to be split
-- `i` (`Int64`): The index to split at
-Return:
-- `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: two sets after split
+## Arguments
+- `dom` (`Hyperrectangle`): The set in hyperrectangle to be split.
+- `i` (`Int64`): The index to split at.
+
+## Returns
+- `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: Two sets after split.
 """
 function split_interval(dom::Hyperrectangle, i::Int64)
     input_lower, input_upper = low(dom), high(dom)
@@ -225,6 +227,10 @@ end
 
 """
     vecsign_convert_to_original_size(index, vector, original)
+
+## Arguments
+
+## Returns
 """
 function vecsign_convert_to_original_size(index, vector, original)
     original_size_matrix = zeros(size(vec(original)))
@@ -235,6 +241,10 @@ end
 
 """
     vecmask_convert_to_original_size(index, original)
+
+## Arguments
+
+## Returns
 """
 function vecmask_convert_to_original_size(index, original)
     original_size_matrix = ones(size(vec(original)))
