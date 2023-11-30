@@ -4,14 +4,15 @@
 
 Compute W*x ⊕ b for a vector or LazySet `x`
 """
-affine_map(layer::Dense, x::AbstractMatrix) = layer.weight*x + layer.bias
+affine_map(layer::Dense, x::AbstractArray) = layer.weight*x + layer.bias
 
 affine_map(layer::Dense, x::LazySet) = LazySets.affine_map(layer.weight, x, layer.bias)
 
 function affine_map(layer::Dense, x::HPolytope)
     # There is a bug in CDDLib, which throws segment fault sometimes 
     # when translate HPolytope. So we have to convert it to VPolytope first
-    x = tovrep(x)
+    x = tovrep(x) # this will convert to Float64. for precision requirements.
+    # println("in affine: ", eltype(x))
     x = LazySets.affine_map(layer.weight, x, layer.bias)
     return x
 end

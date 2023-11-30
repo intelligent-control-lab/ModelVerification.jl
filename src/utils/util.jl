@@ -344,15 +344,15 @@ function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there
 end
 get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.input; kwargs...)
 
-"""
-    affine_map(layer, x)
+# """
+#     affine_map(layer, x)
 
-Compute W*x ⊕ b for a vector or LazySet `x`
-"""
-affine_map(layer::Layer, x) = layer.weights*x + layer.bias
-function affine_map(layer::Layer, x::LazySet)
-    LazySets.affine_map(layer.weights, x, layer.bias)
-end
+# Compute W*x ⊕ b for a vector or LazySet `x`
+# """
+# affine_map(layer::Layer, x) = layer.weights*x + layer.bias
+# function affine_map(layer::Layer, x::LazySet)
+#     LazySets.affine_map(layer.weights, x, layer.bias)
+# end
 
 
 """

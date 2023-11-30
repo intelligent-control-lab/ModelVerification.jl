@@ -104,7 +104,7 @@ function propagate_once(prop_method::PropMethod, model_info, batch_info, save_pa
         end
         # println("done removing input")
         # sleep(0.1)
-        println("======")
+        # println("======")
     end
     if !isnothing(save_path)
         plot(SNRs, xlabel = "layer", ylabel="SNR", legend=false, yaxis=:log)
@@ -112,8 +112,8 @@ function propagate_once(prop_method::PropMethod, model_info, batch_info, save_pa
     end
     # plot(SNRs)
     # savefig(save_path * "_SNRs.png")
-    println("all done")
-    sleep(0.1)
+    # println("all done")
+    # sleep(0.1)
     return batch_info
 end
 

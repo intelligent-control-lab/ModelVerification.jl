@@ -3,7 +3,7 @@
 struct ExactReach <: SequentialForwardProp end
 
 struct ExactReachBound <: Bound
-    polys::AbstractArray{HPolytope}
+    polys::AbstractArray{LazySet}
 end
 
 function center(bound::ExactReachBound)

@@ -45,7 +45,9 @@ function init_bound(prop_method::StarSet, input::Hyperrectangle)
     I = Matrix{T}(LinearAlgebra.I(n))
     A = [I; .-I]
     b = [ones(T, n); ones(T, n)] # -1 to 1
-    return Star(T.(cen), T.(gen), HPolyhedron(A, b))  
+    s = Star(T.(cen), T.(gen), HPolyhedron(A, b))  
+    # println(s)
+    return s
 end
 
 function check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::LazySet)

@@ -21,6 +21,10 @@ function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle,
     subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
     return [subtree1; subtree2]
 end
+function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
+    branches = split_branch(split_method, model, input.domain, output, model_info, batch_info)
+    return [(ReLUConstrainedDomain(domain, input.all_relu_cons), output) for (domain,output) in branches]
+end
 
 function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
@@ -120,9 +124,9 @@ function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_inde
         return [(ReLUConstrainedDomain(input, copy_relu_con_dict), output)]
     end
     j > length(split_neurons_index_in_node[i]) && return split_beta(relu_con_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output)
-    relu_con_dict[split_relu_node[i]].val_list[j] = 1 # make relu > 0
+    relu_con_dict[split_relu_node[i]].val_list[j] = 1 # make relu < 0, beta_S[j,j] = 1
     subtree1 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
-    relu_con_dict[split_relu_node[i]].val_list[j] = -1 # make relu < 0
+    relu_con_dict[split_relu_node[i]].val_list[j] = -1 # make relu > 0, beta_S[j,j] = -1
     subtree2 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
     return [subtree1; subtree2]
 end

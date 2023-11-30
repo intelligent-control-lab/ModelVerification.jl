@@ -28,8 +28,12 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
         length(branches) == 0 && break
         input, output = popfirst!(branches)
         # println(input)
-        
-        # println(iter, "/", length(branches))
+        # println("=================================")
+        # println("iter: ", iter)
+        # println("input domain: ", input.domain)
+        # if haskey(input.all_relu_cons, "dense_0_relu")
+        #     println("input relu con: ", input.all_relu_cons["dense_0_relu"])
+        # end
         # sleep(0.01)
 
         push!(batch_input, input)
@@ -48,12 +52,12 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             @timeit to "process_bound" batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec, model_info, batch_info)
             # println(typeof(batch_out_spec[1]))
             @timeit to "check_inclusion" batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
-            println("batch_bound")
-            println(batch_bound)
+            # println("batch_bound")
+            # println(batch_bound)
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && collect_bound && (push!(verified_bound, batch_bound[i]))
                 batch_result[i].status == :holds && continue
-                batch_result[i].status == :violated && return batch_result[i], collect_bound
+                batch_result[i].status == :violated && return batch_result[i], verified_bound
                 # batch_result[i].status == :unknown
                 @timeit to "split_branch" sub_branches = split_branch(split_method, problem.Flux_model, batch_input[i], batch_output[i], model_info, batch_info)
                 branches = [branches; sub_branches]

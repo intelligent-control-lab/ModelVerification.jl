@@ -93,7 +93,6 @@ include("solvers/polytope.jl")
 include("solvers/image-star.jl")
 include("solvers/image-zono.jl")
 include("solvers/crown.jl")
-include("solvers/alpha-crown.jl")
 include("solvers/beta-crown.jl")
 include("solvers/exact-reach.jl")
 

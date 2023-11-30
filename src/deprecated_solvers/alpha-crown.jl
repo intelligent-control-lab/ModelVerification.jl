@@ -24,33 +24,6 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
-function get_sub_model(model_info, end_node)
-    # get the first part of the model until end_node.
-    queue = Queue{Any}()
-    enqueue!(queue, end_node)
-    sub_nodes = [end_node]
-    node_prevs = Dict(end_node => [])
-    node_nexts = Dict(end_node => [])
-    while !isempty(queue)
-        node = dequeue!(queue)
-        for input_node in model_info.node_prevs[node]
-            if !(input_node in sub_nodes)
-                push!(sub_nodes, input_node)
-                enqueue!(queue, input_node)
-                node_prevs[input_node] = []
-                node_nexts[input_node] = []
-            end
-            push!(node_prevs[node], input_node)
-            push!(node_nexts[input_node], node)
-        end
-    end
-    node_layer = filter(kv -> kv[1] in sub_nodes, model_info.node_layer)
-    start_nodes = filter(n -> n in sub_nodes, model_info.start_nodes)
-    activation_nodes = filter(n -> n in sub_nodes, model_info.activation_nodes)
-    activation_number = length(activation_nodes)
-    return Model(start_nodes, [end_node], sub_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
-end
-
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
@@ -124,7 +97,7 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ou
     
     #initialize alpha 
     for node in model_info.activation_nodes
-        batch_info = init_alpha(model_info.node_layer[node], node, batch_info)
+        batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
     end
 
     for node in model_info.all_nodes
@@ -147,22 +120,6 @@ function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, b
     return bound
 end
 
-struct Compute_bound
-    batch_data_min
-    batch_data_max
-end
-Flux.@functor Compute_bound ()
-
-function (f::Compute_bound)(x)
-    #z = zeros(size(x[1]))
-    #l = batched_vec(max.(x[1], z), f.batch_data_min) + batched_vec(min.(x[1], z), f.batch_data_max) .+ x[2]
-    #u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
-    A_pos = clamp.(x[1], 0, Inf)
-    A_neg = clamp.(x[1], -Inf, 0)
-    l = batched_vec(A_pos, f.batch_data_min) + batched_vec(A_neg, f.batch_data_max) .+ x[2]
-    u = batched_vec(A_pos, f.batch_data_max) + batched_vec(A_neg, f.batch_data_min) .+ x[2]
-    return l, u
-end 
 
 
 function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, batch_out_spec, model_info, batch_info)
@@ -174,7 +131,7 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
     # maximize lower(A * x - b) or minimize upper(A * x - b)
     loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
 
-    bound_model = optimize_bound(bound_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    bound_model = optimize_model(bound_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     
     for (index, params) in enumerate(Flux.params(bound_model))
         relu_node = batch_info[:Alpha_Lower_Layer_node][index]
@@ -187,33 +144,6 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
     # println(spec_l)
     # println(spec_u)
     return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
-end
-
-function optimize_bound(model, input, loss_func, optimizer, max_iter)
-    to = get_timer("Shared")
-    
-    min_loss = Inf
-    @timeit to "setup" opt_state = Flux.setup(optimizer, model)
-    for i in 1 : max_iter
-        # println(model)
-        # println(input)
-        # @assert false
-        @timeit to "forward" losses, grads = Flux.withgradient(model) do m
-            result = m(input) 
-            println("result: ", result)
-            # @assert false
-            loss_func(result)
-        end
-        println(" losses: ", losses, " opt_state: ", opt_state)
-        # println(i, " ", losses)
-        if losses <= min_loss
-            min_loss = losses
-        else
-            return model
-        end
-        @timeit to "update" Flux.update!(opt_state, model, grads[1])
-    end
-    return model
 end
 
 function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
@@ -260,4 +190,106 @@ function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractAr
         end
     end
     return results
+end
+
+
+mutable struct AlphaLayer
+    node
+    alpha
+    lower
+    unstable_mask
+    active_mask 
+    upper_slope
+    lower_bias
+    upper_bias
+end
+Flux.@functor AlphaLayer (alpha,) #only alpha need to be trained
+
+
+function (f::AlphaLayer)(x)
+    last_A = x[1]
+    if isnothing(last_A)
+        return [New_A, nothing]
+    end
+
+    lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
+    if f.lower 
+        New_A = bound_oneside(last_A, lower_slope, f.upper_slope)
+    else
+        New_A = bound_oneside(last_A, f.upper_slope, lower_slope)
+    end
+
+    if f.lower 
+        New_bias = multiply_bias(last_A, f.lower_bias, f.upper_bias) .+ x[2]
+    else
+        New_bias = multiply_bias(last_A, f.upper_bias, f.lower_bias) .+ x[2]
+    end
+    return [New_A, New_bias]
+end
+
+function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
+    node = batch_info[:current_node]
+   #=  if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
+        lower, upper = compute_bound(batch_info[node][:pre_bound])
+        batch_info[node][:pre_lower] = lower
+        batch_info[node][:pre_upper] = upper
+    else =#
+    lower = batch_info[node][:pre_lower]  
+    upper = batch_info[node][:pre_upper]
+    #end
+
+    alpha_lower = batch_info[node][:alpha_lower]
+    alpha_upper = batch_info[node][:alpha_upper]
+    upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
+    lower_bias = prop_method.use_gpu ? fmap(cu, zeros(size(upper_bias))) : zeros(size(upper_bias))
+    active_mask = (lower .>= 0)
+    inactive_mask = (upper .<= 0)
+    unstable_mask = (upper .> 0) .& (lower .< 0)
+    batch_info[node][:unstable_mask] = unstable_mask
+    
+    lower_A = bound.lower_A_x
+    upper_A = bound.upper_A_x
+    
+    batch_info[node][:pre_lower_A_function] = nothing
+    batch_info[node][:pre_upper_A_function] = nothing
+
+    if prop_method.bound_lower
+        batch_info[node][:pre_lower_A_function] = copy(lower_A)
+        Alpha_Lower_Layer = AlphaLayer(node, alpha_lower, true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
+        push!(lower_A, Alpha_Lower_Layer)
+    end
+
+    if prop_method.bound_upper
+        batch_info[node][:pre_upper_A_function] = copy(upper_A)
+        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
+        push!(upper_A, Alpha_Upper_Layer)
+    end
+    push!(batch_info[:Alpha_Lower_Layer_node], node)
+    New_bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
+    return New_bound
+end
+
+
+function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
+    node = batch_info[:current_node]
+    #TO DO: we haven't consider the perturbation in weight and bias
+    bias_lb = _preprocess(node, batch_info, layer.bias)
+    bias_ub = _preprocess(node, batch_info, layer.bias)
+    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing
+    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+        weight = layer.weight
+        bias = bias_lb
+        if prop_method.bound_lower
+            lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info[:batch_size])
+        else
+            lA_x = nothing
+        end
+        if prop_method.bound_upper
+            uA_x = dense_bound_oneside(bound.upper_A_x, weight, bias, batch_info[:batch_size])
+        else
+            uA_x = nothing
+        end
+        New_bound = AlphaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max)
+        return New_bound
+    end
 end

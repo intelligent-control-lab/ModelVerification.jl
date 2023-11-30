@@ -12,13 +12,13 @@ function propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, b
     return ImageStarBound(new_c, new_g, new_A, new_b)
 end
 
-function propagate_skip(prop_method::AlphaCrown, layer::typeof(+), bound1::AlphaCrownBound, bound2::AlphaCrownBound, batch_info)
-    New_Lower_A_bias = New_Upper_A_bias = nothing
-    if prop_method.bound_lower
-        New_Lower_A_bias = [Chain(bound1.lower_A_x), Chain(bound2.lower_A_x)]
-    end
-    if prop_method.bound_upper
-        New_Upper_A_bias = [Chain(bound1.upper_A_x), Chain(bound2.upper_A_x)]
-    end
-    return AlphaCrownBound(New_Lower_A_bias, New_Upper_A_bias, nothing, nothing, bound1.batch_data_min, bound1.batch_data_max)
-end
+# function propagate_skip(prop_method::AlphaCrown, layer::typeof(+), bound1::AlphaCrownBound, bound2::AlphaCrownBound, batch_info)
+#     New_Lower_A_bias = New_Upper_A_bias = nothing
+#     if prop_method.bound_lower
+#         New_Lower_A_bias = [Chain(bound1.lower_A_x), Chain(bound2.lower_A_x)]
+#     end
+#     if prop_method.bound_upper
+#         New_Upper_A_bias = [Chain(bound1.upper_A_x), Chain(bound2.upper_A_x)]
+#     end
+#     return AlphaCrownBound(New_Lower_A_bias, New_Upper_A_bias, nothing, nothing, bound1.batch_data_min, bound1.batch_data_max)
+# end

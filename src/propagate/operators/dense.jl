@@ -1,6 +1,7 @@
-
+using Plots
 function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
+    # display(plot(reach, title=typeof(prop_method), xlim=[-3,3], ylim=[-3,3]))
     return reach
 end
 
@@ -8,18 +9,18 @@ function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactRea
     bounds = []
     cnt = 0
     for bound in reach.polys
-        cnt += 1
-        println("cnt: ", cnt)
-        println(layer)
-        println(bound)
-        sleep(0.1)
+        # cnt += 1
+        # println("cnt: ", cnt)
+        # println(layer)
+        # println(bound)
+        # sleep(0.1)
         nb = affine_map(layer, bound)
-        println("after affine")
-        sleep(0.1)
+        # println("after affine")
+        # sleep(0.1)
         push!(bounds, nb)
     end
-    println("after for")
-    sleep(0.1)
+    # println("after for")
+    # sleep(0.1)
     reach = ExactReachBound(bounds)
     # reach = ExactReachBound([affine_map(layer, bound) for bound in reach.polys])
     return reach
@@ -96,29 +97,6 @@ function dense_bound_oneside(last_A, weight, bias, batch_size)
     return last_A
 end
 
-function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
-    node = batch_info[:current_node]
-    #TO DO: we haven't consider the perturbation in weight and bias
-    bias_lb = _preprocess(node, batch_info, layer.bias)
-    bias_ub = _preprocess(node, batch_info, layer.bias)
-    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing
-    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-        weight = layer.weight
-        bias = bias_lb
-        if prop_method.bound_lower
-            lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info[:batch_size])
-        else
-            lA_x = nothing
-        end
-        if prop_method.bound_upper
-            uA_x = dense_bound_oneside(bound.upper_A_x, weight, bias, batch_info[:batch_size])
-        else
-            uA_x = nothing
-        end
-        New_bound = AlphaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max)
-        return New_bound
-    end
-end
 
 function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]

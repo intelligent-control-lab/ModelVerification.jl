@@ -1,14 +1,17 @@
 
 mutable struct BetaCrown <: BatchBackwardProp 
+    use_alpha::Bool
+    use_beta::Bool
     use_gpu::Bool
-    split_neuron_number::Int
     pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing, Dict}
     bound_lower::Bool
     bound_upper::Bool
     optimizer
     train_iteration::Int
 end
-
+BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10)
+BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10) =
+    BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration)
 struct BetaCrownBound <: Bound
     lower_A_x
     upper_A_x
@@ -17,6 +20,24 @@ struct BetaCrownBound <: Bound
     batch_data_min
     batch_data_max
 end
+
+
+struct Compute_bound
+    batch_data_min
+    batch_data_max
+end
+Flux.@functor Compute_bound ()
+
+function (f::Compute_bound)(x)
+    #z = zeros(size(x[1]))
+    #l = batched_vec(max.(x[1], z), f.batch_data_min) + batched_vec(min.(x[1], z), f.batch_data_max) .+ x[2]
+    #u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
+    A_pos = clamp.(x[1], 0, Inf)
+    A_neg = clamp.(x[1], -Inf, 0)
+    l = batched_vec(A_pos, f.batch_data_min) + batched_vec(A_neg, f.batch_data_max) .+ x[2]
+    u = batched_vec(A_pos, f.batch_data_max) + batched_vec(A_neg, f.batch_data_min) .+ x[2]
+    return l, u
+end 
 
 
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
@@ -125,7 +146,6 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     end
     
     batch_info[:batch_size] = length(batch_input)
-    batch_info[:split_neuron_number] = prop_method.split_neuron_number
     for node in model_info.all_nodes
         batch_info[node][:beta] = 1
         batch_info[node][:max_split_number] = 1
@@ -151,11 +171,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
 end 
 
 
-function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
-    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
-    batch_info[node][:pre_lower] = relu_input_lower
-    batch_info[node][:pre_upper] = relu_input_upper
-
+function update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
     for input in batch_input
         relu_con_dict = input.all_relu_cons
         if haskey(relu_con_dict,node) && !isnothing(relu_con_dict[node].history_split)
@@ -163,16 +179,29 @@ function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
             # println(a)
             # println("batch_info[node][:pre_lower]")
             # println(batch_info[node][:pre_lower])
-            batch_info[node][:pre_lower][relu_con_dict[node].history_split .== 1] .= 0 # enforce relu > 0
-            batch_info[node][:pre_upper][relu_con_dict[node].history_split .== -1] .= 0 # enforce relu < 0
+            relu_input_lower[relu_con_dict[node].history_split .== 1] .= 0 # enforce relu > 0
+            relu_input_upper[relu_con_dict[node].history_split .== -1] .= 0 # enforce relu < 0
         end
     end
+    return relu_input_lower, relu_input_upper
+end
+
+function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
+    relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
+    # relu_input_lower, relu_input_upper = update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
+
+    # println("relu_input_lower: ", relu_input_lower)
+    # println("relu_input_upper: ", relu_input_upper)
+
+    batch_info[node][:pre_lower] = relu_input_lower # reach_dim x batch 
+    batch_info[node][:pre_upper] = relu_input_upper
 
     #batch_size = size(relu_input_lower)[end]
     unstable_mask = (relu_input_upper .> 0) .& (relu_input_lower .< 0) #indices of non-zero alphas/ indices of activative neurons
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(relu_input_lower, relu_input_upper) #upper slope and upper bias
-    lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    # lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
+    lower_slope = copy(upper_slope) #lower slope
     #lower_slope = zeros(size(upper_slope))
     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
     #total_neuron_size = length(relu_input_lower) ÷ batch_size #number of the neuron of the pre_layer of relu
@@ -186,6 +215,7 @@ function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
     alpha_upper = lower_slope .* unstable_mask
     batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
     batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
+
     return batch_info
 end   
 
@@ -202,7 +232,7 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
     # println("batch_size")
     # println(batch_size)
     # @assert false
-    batch_info[node][:beta_lower] =  zeros(input_dim..., batch_size)
+    batch_info[node][:beta_lower] =  zeros(input_dim..., batch_size) # reach_dim x batch 
     batch_info[node][:beta_upper] =  zeros(input_dim..., batch_size)
     batch_info[node][:beta_lower_index] =  []
     batch_info[node][:beta_upper_index] =  []
@@ -249,6 +279,7 @@ function print_beta_layers(layers, x)
     layers = layers |> gpu
     x = x |> gpu
     println("--- printing beta layers ---")
+    println(x)
     for layer in layers
         x = layer(x)
         if isa(layer, BetaLayer)
@@ -265,6 +296,34 @@ function print_beta_layers(layers, x)
     end
     println("--- --- ---")
 end
+
+
+function optimize_model(model, input, loss_func, optimizer, max_iter)
+    to = get_timer("Shared")
+    
+    min_loss = Inf
+    @timeit to "setup" opt_state = Flux.setup(optimizer, model)
+    for i in 1 : max_iter
+        @timeit to "forward" losses, grads = Flux.withgradient(model) do m
+            result = m(input)
+            # println("result: ", result)
+            loss_func(result)
+        end
+        # println("opt_state: ", opt_state)
+        # println("losses: ", losses)
+        # for p in Flux.params(model)
+        #     println("  ",p)
+        # end
+        # if losses <= min_loss
+        #     min_loss = losses
+        # else
+        #     return model
+        # end
+        @timeit to "update" Flux.update!(opt_state, model, grads[1])
+    end
+    return model
+end
+
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
@@ -279,46 +338,42 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)
     # loss_func = prop_method.bound_lower ?  x -> -maximum(x[1]) : x -> maximum(x[2]) # maximum leads to error in flux
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
-    loss_func = prop_method.bound_lower ?  x -> -sum(exp.(x[1])) : x -> sum(exp.(x[2]))\/
+    loss_func = prop_method.bound_lower ?  x -> -sum(x[1].^2) : x -> sum(x[2].^2) # surrogate loss to minimize the max spec
 
-    # @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
-    # @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
+    # @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
 
-    @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
-    @timeit to "optimize_bound" bound_upper_model = optimize_bound(bound_upper_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
-
-
-    println("=======================")
-    println("bound_lower_model")
-    print_beta_layers(bound_lower_model, batch_info[:init_A_b])
-    if isa(bound_lower_model[2], BetaLayer)
-        println(bound_lower_model[2])
-        bound_lower_model[2].alpha .= [0,0] |> gpu
-        println(bound_lower_model[2])
-        @timeit to "forward" losses, grads = Flux.withgradient(bound_lower_model) do m
-            result = m(batch_info[:init_A_b] |> gpu) 
-            loss = loss_func(result)
-            println("result: ", result)
-            println("loss: ", loss)
-        end
-        # println(bound_lower_model[2])
-        # @assert false
-    end
-    println("manual set")
-    print_beta_layers(bound_lower_model, batch_info[:init_A_b])
-    lower_l, lower_u = bound_lower_model(batch_info[:init_A_b] |> gpu)
-    # @timeit to "optimize_bound" bound_lower_model = optimize_bound(bound_lower_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, 1)
-    println("lower bound")
-    println(lower_l, " ", lower_u)
-    println("-----------------------")
-    println("bound_upper_model")
-    print_beta_layers(bound_upper_model, batch_info[:init_A_b])
-    upper_l, upper_u = bound_upper_model(batch_info[:init_A_b] |> gpu)
-    println("upper bound")
-    println(upper_l, " ", upper_u)
-    println("=======================")
     
+    if length(Flux.params(bound_lower_model)) > 0
+        @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+    end
+    if length(Flux.params(bound_upper_model)) > 0
+        @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+    end
 
+    # println("=======================")
+    # println("bound_lower_model")
+
+    # result = bound_lower_model(batch_info[:init_A_b] |> gpu) 
+    # loss = loss_func(result)
+    # println("result: ", result)
+    # println("loss: ", loss)
+    
+    # print_beta_layers(bound_lower_model, batch_info[:init_A_b])
+
+    # println("manual set")
+    # print_beta_layers(bound_lower_model, batch_info[:init_A_b])
+    # lower_l, lower_u = bound_lower_model(batch_info[:init_A_b] |> gpu)
+    # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:init_A_b] |> gpu, loss_func, prop_method.optimizer, 1)
+    # println("lower bound")
+    # println(lower_l, " ", lower_u)
+    
+    # println("bound_upper_model")
+    
+    # upper_l, upper_u = bound_upper_model(batch_info[:init_A_b] |> gpu)
+    # println("upper bound")
+    # println(upper_l, " ", upper_u)
+    # println("=======================")
 
     for (index, params) in enumerate(Flux.params(bound_lower_model))
         relu_node = batch_info[:Beta_Lower_Layer_node][ceil(Int, index / 2)]
@@ -340,6 +395,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # println("batch_info[:init_A_b]")
     # println(batch_info[:init_A_b])
     # println(size(batch_info[:init_A_b]))
+    # println("batch_info[:spec_A_b]")
     # println(batch_info[:spec_A_b])
     
     
@@ -350,10 +406,31 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # println(batch_bound.lower_A_x)
     # println("batch_bound.upper_A_x")
     # println(batch_bound.upper_A_x)
-    # println("lower_spec_l")
-    # println(lower_spec_l)
-    # println("upper_spec_u")
-    # println(upper_spec_u)
+    if isa(bound_lower_model[2], BetaLayer)
+        # println("-----------------------")
+        # print_beta_layers(bound_lower_model, batch_info[:spec_A_b])
+        # println("-----------------------")
+        # print_beta_layers(bound_upper_model, batch_info[:spec_A_b])
+        # println("-----------------------")
+        # bound_upper_model[2].alpha .= [0.444,0.444] |> gpu
+        # println(bound_lower_model[2])
+        # result = bound_lower_model(batch_info[:init_A_b] |> gpu) 
+        # loss = loss_func(result)
+        # println("result: ", result)
+        # println("loss: ", loss)
+        # println(bound_lower_model[2])
+        # @assert false
+        # println("lower alpha")
+        # println(bound_lower_model[2].alpha)
+        # println("lower_spec_l")
+        # println(lower_spec_l)
+        # println("upper alpha")
+        # println(bound_upper_model[2].alpha)
+        # println("upper_spec_u")
+        # println(upper_spec_u)
+    end
+
+    
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension.
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension.
     prop_method.bound_lower = batch_out_spec.is_complement ? true : false
