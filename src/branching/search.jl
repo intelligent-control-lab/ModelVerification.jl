@@ -54,7 +54,7 @@ of verification procedures, the model is verified to be valid and returns
 - `split_method`: Method for splitting the branches when further refinement is 
     needed. This inclueds methods such as `Bisect` and `BaBSR`.
 - `prop_method`: Propagation method used for the verification process. This is 
-    one of the `solver` used to verify the given model.
+    one of the solvers used to verify the given model.
 - `problem`: Problem definition for model verification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.

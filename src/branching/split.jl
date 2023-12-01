@@ -47,7 +47,7 @@ Recursively bisects the hyperrectangle input specification at the center for
 - `output`: Output specification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
-- `batch_info`: 
+- `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
 - List of subtrees split from the `input`.
