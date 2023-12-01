@@ -1,4 +1,6 @@
-
+"""
+    AlphaCrown <: BatchBackwardProp 
+"""
 mutable struct AlphaCrown <: BatchBackwardProp 
     use_gpu::Bool
     pre_bound_method::Union{BatchForwardProp, BatchBackwardProp, Nothing, Dict}
@@ -8,6 +10,9 @@ mutable struct AlphaCrown <: BatchBackwardProp
     train_iteration::Int
 end
 
+"""
+    AlphaCrownBound <: Bound
+"""
 struct AlphaCrownBound <: Bound
     lower_A_x
     upper_A_x
@@ -17,13 +22,48 @@ struct AlphaCrownBound <: Bound
     batch_data_max
 end
 
-
+"""
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
+"""
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::AlphaCrown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
+"""
+    get_sub_model(model_info, end_node)
+"""
+function get_sub_model(model_info, end_node)
+    # get the first part of the model until end_node.
+    queue = Queue{Any}()
+    enqueue!(queue, end_node)
+    sub_nodes = [end_node]
+    node_prevs = Dict(end_node => [])
+    node_nexts = Dict(end_node => [])
+    while !isempty(queue)
+        node = dequeue!(queue)
+        for input_node in model_info.node_prevs[node]
+            if !(input_node in sub_nodes)
+                push!(sub_nodes, input_node)
+                enqueue!(queue, input_node)
+                node_prevs[input_node] = []
+                node_nexts[input_node] = []
+            end
+            push!(node_prevs[node], input_node)
+            push!(node_nexts[input_node], node)
+        end
+    end
+    node_layer = filter(kv -> kv[1] in sub_nodes, model_info.node_layer)
+    start_nodes = filter(n -> n in sub_nodes, model_info.start_nodes)
+    activation_nodes = filter(n -> n in sub_nodes, model_info.activation_nodes)
+    activation_number = length(activation_nodes)
+    return Model(start_nodes, [end_node], sub_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
+end
+
+"""
+    prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+"""
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
@@ -32,6 +72,9 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ba
     return prepare_method(prop_method, batch_input, out_specs, model_info)
 end
 
+"""
+    prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+"""
 function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
     batch_size = size(out_specs.A, 3)
     prop_method.bound_lower = out_specs.is_complement ? true : false
@@ -112,7 +155,9 @@ function prepare_method(prop_method::AlphaCrown, batch_input::AbstractVector, ou
     return out_specs, batch_info
 end
 
-
+"""
+    init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
+"""
 function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)
@@ -120,8 +165,32 @@ function init_batch_bound(prop_method::AlphaCrown, batch_input::AbstractArray, b
     return bound
 end
 
+"""
+    Compute_bound
+"""
+struct Compute_bound
+    batch_data_min
+    batch_data_max
+end
+Flux.@functor Compute_bound ()
 
+"""
+    (f::Compute_bound)(x)
+"""
+function (f::Compute_bound)(x)
+    #z = zeros(size(x[1]))
+    #l = batched_vec(max.(x[1], z), f.batch_data_min) + batched_vec(min.(x[1], z), f.batch_data_max) .+ x[2]
+    #u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
+    A_pos = clamp.(x[1], 0, Inf)
+    A_neg = clamp.(x[1], -Inf, 0)
+    l = batched_vec(A_pos, f.batch_data_min) + batched_vec(A_neg, f.batch_data_max) .+ x[2]
+    u = batched_vec(A_pos, f.batch_data_max) + batched_vec(A_neg, f.batch_data_min) .+ x[2]
+    return l, u
+end 
 
+"""
+    process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, batch_out_spec, model_info, batch_info)
+"""
 function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, batch_out_spec, model_info, batch_info)
     #println("batch_bound.batch_data_min max")
     #println(size(batch_bound.batch_data_min), size(batch_bound.batch_data_max))
@@ -146,6 +215,38 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
     return ConcretizeCrownBound(spec_l, spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 
+"""
+    optimize_bound(model, input, loss_func, optimizer, max_iter)
+"""
+function optimize_bound(model, input, loss_func, optimizer, max_iter)
+    to = get_timer("Shared")
+    
+    min_loss = Inf
+    @timeit to "setup" opt_state = Flux.setup(optimizer, model)
+    for i in 1 : max_iter
+        # println(model)
+        # println(input)
+        # @assert false
+        @timeit to "forward" losses, grads = Flux.withgradient(model) do m
+            result = m(input) 
+            # println(result)
+            # @assert false
+            loss_func(result)
+        end
+        # println(i, " ", losses)
+        if losses <= min_loss
+            min_loss = losses
+        else
+            return model
+        end
+        @timeit to "update" Flux.update!(opt_state, model, grads[1])
+    end
+    return model
+end
+
+"""
+    check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
+"""
 function check_inclusion(prop_method::AlphaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
     # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
     batch_input = prop_method.use_gpu ? fmap(cu, batch_input) : batch_input

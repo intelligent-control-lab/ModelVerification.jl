@@ -1,66 +1,130 @@
-# NeuralVerification.jl
-
-*A library of algorithms for verifying deep neural networks.
-At the moment, all of the algorithms are written under the assumption of feedforward, fully-connected NNs,
-and some of them also assume ReLU activation, but both of these assumptions will be relaxed in the future.*
+# ModelVerification.jl
 
 ```@contents
-Pages = ["index.md", "problem.md", "solvers.md", "functions.md", "existing_implementations.md"]
-Depth = 2
+Pages=["index.md"]
 ```
 
-## Installation
-To download this library, clone it from the julia package manager like so:
-```julia
-(v1.0) pkg> add https://github.com/sisl/NeuralVerification.jl
+## Introduction
+Deep Neural Network (DNN) is crucial in approximating nonlinear functions across diverse applications, such as computer vision and control. Verifying specific input-output properties can be a highly challenging task. To this end, we present [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl), the only cutting-edge toolbox that contains a suite of state-of-the-art methods for verifying DNNs. This toolbox significantly extends and improves the previous version ([NeuralVerification.jl](https://sisl.github.io/NeuralVerification.jl/latest/)) and is designed to empower developers and machine learning practioners with robust tools for verifying and ensuring the trustworthiness of their DNN models.
+
+### Key features:
+- _Julia and Python integration_: Built on Julia programming language, [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) leverages Julia's high-performance capabilities, ensuring efficient and scalable verification processes. Moreover, we provide the user with an easy, ready-to-use Python interface to exploit the full potential of the toolbox even without knowledge of the Julia language.
+- _Different types of verification_: [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) enables verification of several input-output specifications, such as reacability analysis, behavioral properties (e.g., to verify Deep Reinforcement Learning policies), or even robustness properties for Convolutional Neural Network (CNN). It also introduces new types of verification, not only for finding individual adversarial input, but for enumerating the entire set of unsafe zones for a given network and safety properties.
+- _Verification benchmarks_: Compare our or your verification toolboxes against state-of-the-art benchmarks and evaluation criteria ([VNN-Comp 2023](https://vnncomp.christopher-brix.de/)). [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) includes a collection of solvers and standard benchmarks to perform this evaluation efficiently.
+
+## Setup
+This toolbox requires Julia v1.5 or later. Refer the [official Julia documentation](https://julialang.org/downloads/) to install it for your system.
+
+### Installation
+To download this toolbox, clone it from the Julia package manager like so:
+
+```Julia
+pkg> add https://github.com/intelligent-control-lab/ModelVerification.jl/
 ```
 
-## Usage
-### Initializing a solver
-First, we select the solver to be used, as this informs the input and output constraints that constitute the `Problem`.
-We initialize an instance of `MaxSens` with a custom `resolution`, which determines how small the input set is partitioned for the search.
-For more information about `MaxSens` and other solvers, see [Solvers](@ref).
-```@example ex1
-using NeuralVerification
+### Develop the toolbox (for development)
 
-solver = MaxSens(resolution = 0.3)
+_Deprecated once project is done and should be changed to "Building the package"._
+
+Go to the toolbox directory and start the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/). 
+```Julia
+julia > ]
+(@v1.9) > develop .
+(@v1.9) > activate .
+(@v1.9) > instantiate
 ```
 
-### Creating a Problem
-A `Problem` consists of a `Network` to be tested, a set representing the domain of the *input test region*, and another set representing the range of the *output region*.
-In this example, we use a small neural network with only one hidden layer consisting of 2 neurons.
+This will enable development mode for the toolbox. The dependency packages will also be installed. Some of the important ones are listed below. 
+- [Flux](https://fluxml.ai/Flux.jl/stable/)
+- [LazySets](https://juliareach.github.io/LazySets.jl/dev/)
+- [JuMP](https://jump.dev/JuMP.jl/stable/)
+- [Zygote](https://fluxml.ai/Zygote.jl/stable/)
 
-Note that the input and output sets may be of different types for different solvers.
-`MaxSens` requires a `Hyperrectangle` or `HPolytope` as its input and output constraints, so that is what we will use here:
-```@example ex1
-nnet = read_nnet("../../examples/networks/small_nnet.nnet")
+## Overview of the toolbox
+![](./assets/overview.png)
 
-A = reshape([-1.0, 1.0], 2, 1)
-input  = HPolytope(A, [1.0, 1.0])
-output = HPolytope(A, [1.0, 100.0])
+[ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) receives input as a set consisting of:
+- [Model](./network.md) to be verified,
+- A [safety property](./safety_spec.md) encoded as input-output specifications for the neural network,
+- The [solver](./solvers.md) to be used for the formal verification process.
 
-problem = Problem(nnet, input, output)
+The toolbox's [output](./problem.md) varies depending on the type of verification we are performing. Nonetheless, at the end of the verification process, the response of the toolbox potentially allows us to obtain provable guarantees that a given safety property holds (or does not hold) for the model tested.
+
+For more details on how the toolbox works, please refer to the [tutorial](#tutorials) below.
+
+## Quickstart
+Here is a simple example for verifying that the user-given safety property holds for a small deep neural network (DNN) with a single input node, two hidden layers with two ReLU nodes, and a single output node. We use the formal verification results obtained through the reachability analysis to get a provable answer whether the safety property holds.
+
+First, we load the relevant libraries and the [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) toolbox.
+```Julia
+using ModelVerification
+using Flux
+using LazySets
 ```
-Note that in this example, `input` and `output` are each 1-dimensional sets (line segments) corresponding to the input and output dimensions of `nnet`. [](Needs more explanation.)
-The input region is bounded by [-1.0, 1.0], and the output region is bounded by [-1.0, 100.0].
-This can be seen by carrying out `A .* [1.0, 1.0]`, etc. to create the constraints associated with the sets `input` and `output`.
-For more information about `HPolytope`s and `Hyperrectangle`s, which are commonly used to represent the input/output sets in this package, please refer to the [`LazySets` documentation](https://juliareach.github.io/LazySets.jl/latest/index.html).
 
-### Calling the solver
-To solve the problem, we simply call the `solve` function. This syntax is independent of the solver selected.
-```@example ex1
-solve(solver, problem)
+First, load the model.
+```Julia
+onnx_path = "models/small_nnet.onnx"
+toy_model = build_flux_model(onnx_path)
 ```
-In this case, the solver returns a `ReachabilityResult` and indicates that the property is satisfied.
-That is, no input in the input region can produce a point that is outside of the specified output region.
 
-A result status of `:holds` means that the specified input-output relationship is "satisfied", i.e. that the property being tested for in the network holds.
-A result status of `:violated` means that the input-output relationship is "unsatisfied", i.e. that the property being tested for in the network does not hold.
-A status of `:Unknown` is also possible.
-All of the algorithms considered in this library are sound, but most are not complete; it is important to note these properties when interpreting the result status.
-For more information about result types, see [`Result`](@ref).
+Suppose we want to verify that all inputs in $\mathcal{X}=[-2.5, 2.5]$ are mapped into $\mathcal{Y}=[18.5, 114.5]$. We encode this safety property using convex sets, provided by [LazySets](https://juliareach.github.io/LazySets.jl/dev/). 
+```Julia
+X = Hyperrectangle(low = [-2.5], high = [2.5]) # expected out: [18.5, 114.5]
+Y = Hyperrectangle(low = [18.5], high = [114.5]) # here we expect the property holds
+```
 
-The accompanying `Hyperrectangle{Float64}[]` is an empty vector that is meaningless in this case.
-If the result was instead `:violated`, then this vector would contain the reachable set (which exceeds the allowed output set).
-Note that since `MaxSens` uses `Hyperrectangle`s to express the interval arithmetic used in the search, the vector type is `Hyperrectangle`.
-For other solvers that return `ReachbilityResult`, the `reachable` vector could contain other subtypes of `AbstractPolytope`.
+Now, we construct a _Problem_ instance. Note that [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) converts the `.onnx` model into a [Flux](https://fluxml.ai/Flux.jl/stable/) model.
+```Julia
+problem = Problem(toy_model, X, Y)
+```
+
+Instantiate the `solver`, which in this case is [CROWN](https://arxiv.org/abs/1811.00866). We also need `search`, `split`, and `propagation` methods in addition to the `solver` and `Problem`.
+```Julia
+search_method = BFS(max_iter=100, batch_size=1)
+split_method = Bisect(1)
+
+use_gpu = false
+lower_bound = true
+upper_bound = true
+solver = Crown(use_gpu, lower_bound, upper_bound)
+```
+
+Finally, we can verify that the safety property holds for this simple example!
+```Julia
+result = verify(search_method, split_method, solver, problem)
+println(result)
+println(result.status)
+```
+
+CROWN verifies that the input-output relationship holds!
+
+## Tutorials
+- [Tutorials](https://github.com/intelligent-control-lab/MV-test/blob/main/tutorial.ipynb)
+    - Example 1: Verifying a toy DNN with reachability analysis
+    - Example 2: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
+    - Example 3: Verifying a CNN for robustness safety property
+<!-- - [MLP examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_mlp.ipynb)
+- [CNN examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_cnn.ipynb)
+- [MNIST examples](https://github.com/intelligent-control-lab/MV-test/blob/main/train_mnist.ipynb)
+- [ACASXU examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_ACASXU.ipynb) -->
+
+## Toolbox Outline
+![](./assets/MV_flow.png)
+
+```@contents
+Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
+Depth = 3
+```
+
+## Python Interface
+```@contents
+Pages = ["nnet_converter.md"]
+Depth = 3
+```
+
+## Benchmarks
+```@contents
+Pages = ["benchmark.md"]
+Depth = 3
+```

@@ -1,15 +1,57 @@
+"""
+    Bisect <: SplitMethod
+
+Bisection method for splitting branches.
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
+"""
 @with_kw struct Bisect <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    InputGradSplit <: SplitMethod
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
+"""
 @with_kw struct InputGradSplit <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    BaBSR <: SplitMethod
+
+Branch-and-Bound method for splitting branches.
+
+## Fields
+- `num_split` (`Int64`): Number of splits to be called.
+"""
 @with_kw struct BaBSR <: SplitMethod
     num_split::Int64     = 1
 end
 
+"""
+    split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, 
+                 output, model_info, batch_info)
+
+Recursively bisects the hyperrectangle input specification at the center for 
+`split_method.num_split` number of times.
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`Hyperrectangle`): Input specification represented with a 
+    `Hyperrectangle`.
+- `output`: Output specification.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- List of subtrees split from the `input`.
+"""
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
     #input = fmap(cu, input)
     #output = fmap(cu, output)
@@ -26,10 +68,36 @@ function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrained
     return [(ReLUConstrainedDomain(domain, input.all_relu_cons), output) for (domain,output) in branches]
 end
 
+"""
+    split_branch(split_method::Bisect, model::Chain, input::LazySet, 
+                 output, model_info, batch_info)
+
+Given an input specification represented with any geometry, this function 
+converts it to a hyperrectangle. Then, it calls `split_branch(..., 
+input::Hyperrectangle, ...)` to recursively bisect the input specification for a 
+`split_method.num_split` number of times.
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`LazySet`): Input specification represented with any `LazySet`.
+- `output`: Output specification.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- List of subtrees split from the `input`.
+"""
 function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
 end
 
+
+"""
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageZonoBound, output)
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
     # println("split image zono")
     # this split only works for zonotope with one generator
@@ -49,7 +117,20 @@ function split_interval(input::ImageZonoBound)
     input_split_right = ImageZonoBound(input.center + half_gen, half_gen)
     return (input_split_left, input_split_right)
 end
+"""
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageStarBound, output)
 
+Given an input specification represented with an `ImageStarBound`, this function 
+converts it 
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`ImageStarBound`): Input specification represented with an 
+    `ImageStarBound`.
+- `output`: Output specification.
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
     println("splitting")
     @assert length(input.b) % 2 == 0
@@ -65,23 +146,39 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     return [(bound1, output), (bound2, output)]
 end
 
+
+"""
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageStarBound, output, model_info, batch_info)
+
+TO-BE-IMPLEMENTED
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
     input.A
 end
 
+"""
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ImageZonoBound, output, model_info, batch_info)
+
+TO-BE-IMPLEMENTED
+"""
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+    return [input, nothing] #TODO: find a way to split ImageZonoBound
+end
 
 """
-    split_interval(dom, i)
+    split_interval(dom::Hyperrectangle, i::Int64)
 
 Split a set into two at the given index.
 
-Inputs:
-- `dom::Hyperrectangle`: the set to be split
-- `i`: the index to split at
-Return:
-- `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: two sets after split
-"""
+## Arguments
+- `dom` (`Hyperrectangle`): The set in hyperrectangle to be split.
+- `i` (`Int64`): The index to split at.
 
+## Returns
+- `(left, right)::Tuple{Hyperrectangle, Hyperrectangle}`: Two sets after split.
+"""
 function split_interval(dom::Hyperrectangle, i::Int64)
     input_lower, input_upper = low(dom), high(dom)
 
@@ -94,6 +191,9 @@ function split_interval(dom::Hyperrectangle, i::Int64)
     return (input_split_left, input_split_right)
 end
 
+"""
+    split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+"""
 function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
     # relu_con_dict : {node => [idx_list, val_list, not_splitted_mask, history_split]}, such that we can do the following when propagate relu
     # batch_info[node][beta][relu_con_dict[node].idx_list] .= relu_con_dict[node].val_list
@@ -131,6 +231,10 @@ function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_inde
     return [subtree1; subtree2]
 end
 
+"""
+    split_branch(split_method::BaBSR, model::Chain, 
+                 input::ReLUConstrainedDomain, output, model_info, batch_info)
+"""
 function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
@@ -155,6 +259,13 @@ function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedD
     return split_beta(relu_con_dict, score, split_relu_node, 1, split_neurons_index_in_node, 1, input.domain, output)#from 1st node and 1st index
 end
 
+"""
+    vecsign_convert_to_original_size(index, vector, original)
+
+## Arguments
+
+## Returns
+"""
 function vecsign_convert_to_original_size(index, vector, original)
     original_size_matrix = zeros(size(vec(original)))
     original_size_matrix[index] .= vector
@@ -162,6 +273,13 @@ function vecsign_convert_to_original_size(index, vector, original)
     return original_size_matrix
 end
 
+"""
+    vecmask_convert_to_original_size(index, original)
+
+## Arguments
+
+## Returns
+"""
 function vecmask_convert_to_original_size(index, original)
     original_size_matrix = ones(size(vec(original)))
     original_size_matrix[index] .= -1
@@ -169,6 +287,11 @@ function vecmask_convert_to_original_size(index, original)
     return original_size_matrix
 end
 
+"""
+    branching_scores_kfsb(model_info, batch_info, input)
+
+"Kernel Function Split Branch"
+"""
 function branching_scores_kfsb(model_info, batch_info, input)
     score = Dict{String, AbstractArray}()
     for node in model_info.activation_nodes
@@ -252,6 +375,11 @@ function branching_scores_kfsb(model_info, batch_info, input)
     return score
 end
 
+"""
+    topk(score, k, model_info)
+
+"Top Kernel"
+"""
 function topk(score, k, model_info)
     vec_score = []
     relu_node_neurons_range = []

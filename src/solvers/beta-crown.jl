@@ -1,4 +1,6 @@
-
+"""
+    BetaCrown <: BatchBackwardProp 
+"""
 mutable struct BetaCrown <: BatchBackwardProp 
     use_alpha::Bool
     use_beta::Bool
@@ -9,9 +11,16 @@ mutable struct BetaCrown <: BatchBackwardProp
     optimizer
     train_iteration::Int
 end
+<<<<<<< HEAD
 BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10)
 BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10) =
     BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration)
+=======
+
+"""
+    BetaCrownBound <: Bound
+"""
+>>>>>>> document
 struct BetaCrownBound <: Bound
     lower_A_x
     upper_A_x
@@ -21,6 +30,7 @@ struct BetaCrownBound <: Bound
     batch_data_max
 end
 
+<<<<<<< HEAD
 
 struct Compute_bound
     batch_data_min
@@ -40,13 +50,20 @@ function (f::Compute_bound)(x)
 end 
 
 
+=======
+"""
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
+"""
+>>>>>>> document
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
     model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
-
+"""
+    init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
+"""
 function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h.domain) for h in batch_input]..., dims=2)) : cat([low(h.domain) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h.domain) for h in batch_input]..., dims=2)) : cat([high(h.domain) for h in batch_input]..., dims=2)
@@ -54,7 +71,9 @@ function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, ba
     return bound
 end
 
-
+"""
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+"""
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
@@ -170,6 +189,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     return out_specs, batch_info
 end 
 
+<<<<<<< HEAD
 
 function update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
     for input in batch_input
@@ -264,6 +284,11 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
 end
 
 
+=======
+"""
+    init_A_b(n, batch_size) # A x < b
+"""
+>>>>>>> document
 function init_A_b(n, batch_size) # A x < b
     I = Matrix{Float64}(LinearAlgebra.I(n))
     Z = zeros(n)
@@ -272,6 +297,9 @@ function init_A_b(n, batch_size) # A x < b
     return [A, b]
 end
 
+"""
+    init_bound(prop_method::BetaCrown, input) 
+"""
 function init_bound(prop_method::BetaCrown, input) 
     return ReLUConstrainedDomain(input, Dict())
 end
@@ -324,6 +352,9 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
     return model
 end
 
+"""
+    process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
+"""
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
@@ -450,7 +481,9 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     return ConcretizeCrownBound(lower_spec_l, upper_spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 
-
+"""
+    get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
+"""
 function get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
@@ -469,6 +502,9 @@ function get_pre_relu_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     return batch_info
 end
 
+"""
+    get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
+"""
 function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
@@ -491,7 +527,9 @@ function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_in
     return batch_info
 end
 
-
+"""
+    check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
+"""
 function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
     # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
     batch_input = prop_method.use_gpu ? fmap(cu, batch_input) : batch_input

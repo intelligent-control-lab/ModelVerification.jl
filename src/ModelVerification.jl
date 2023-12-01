@@ -39,6 +39,11 @@ abstract type Solver end
 
 abstract type SearchMethod end
 abstract type SplitMethod end
+
+"""
+    PropMethod
+
+"""
 abstract type PropMethod end
 
 # @with_kw struct BranchMethod

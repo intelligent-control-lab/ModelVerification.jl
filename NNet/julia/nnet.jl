@@ -18,7 +18,7 @@ Attributes:
     weights (list of arrays): Weight matrices in network
     biases (list of arrays): Bias vectors in network
 """
-type NNet
+struct NNet
     weights::Array{Any,1}
     biases::Array{Any,1}
     numLayers::Int32

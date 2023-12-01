@@ -1,9 +1,15 @@
+"""
+    propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, bound2::ImageZonoBound, batch_info)
+"""
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, bound2::ImageZonoBound, batch_info)
     new_c = bound1.center + bound2.center
     new_g = cat([bound1.generators, bound2.generators]..., dims=4)
     return ImageZonoBound(new_c, new_g)
 end
 
+"""
+    propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, bound2::ImageStarBound, batch_info)
+"""
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, bound2::ImageStarBound, batch_info)
     new_c = bound1.center + bound2.center
     new_g = cat([bound1.generators, bound2.generators]..., dims=4)
@@ -12,6 +18,9 @@ function propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, b
     return ImageStarBound(new_c, new_g, new_A, new_b)
 end
 
+# """
+#     propagate_skip(prop_method::AlphaCrown, layer::typeof(+), bound1::AlphaCrownBound, bound2::AlphaCrownBound, batch_info)
+# """
 # function propagate_skip(prop_method::AlphaCrown, layer::typeof(+), bound1::AlphaCrownBound, bound2::AlphaCrownBound, batch_info)
 #     New_Lower_A_bias = New_Upper_A_bias = nothing
 #     if prop_method.bound_lower

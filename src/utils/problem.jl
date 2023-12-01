@@ -1,3 +1,6 @@
+"""
+    get_chain(vertex)
+"""
 function get_chain(vertex)
     m = Any[]
     curr_vertex = vertex
@@ -30,6 +33,17 @@ function get_chain(vertex)
     return Chain(m...), curr_vertex
 end
 
+"""
+    build_flux_model(onnx_model_path)
+
+Builds a `Flux.Chain` from the given ONNX model path.
+
+## Arguments
+- `onnx_model_path`: String path to ONNX model in `.onnx` file.
+
+## Returns
+- `model`: `Flux.Chain` constructed from the `.onnx` file.
+"""
 function build_flux_model(onnx_model_path)
     comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
     model_vec = Any[]
@@ -65,9 +79,22 @@ end
     Problem{P, Q}(network::Network, input::P, output::Q)
 
 Problem definition for neural verification.
-
 The verification problem consists of: for all  points in the input set,
 the corresponding output of the network must belong to the output set.
+
+There are three ways to construct a `Problem`:
+1. `Problem(path::String, model::Chain, input_data, output_data)` if both the  
+    `.onnx` model path and `Flux_model` are given.
+2. `Problem(path::String, input_data, output_data)` if only the `.onnx` model 
+    path is given.
+3. `Problem(model::Chain, input_data, output_data)` if only the `Flux_model` is 
+    given.
+
+## Fields
+- `network` : `Network` that can be constructed either using the path to an onnx
+    model or a `Flux.Chain` structure.
+- `input` : input specification defined using a LazySet.
+- `output` : output specification defined using a LazySet.
 """
 struct Problem{P, Q}
     onnx_model_path::String
@@ -77,14 +104,19 @@ struct Problem{P, Q}
 end
 Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
-Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_mdoel input
+Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_model input
     Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data)
 
 """
     Result
+    
 Supertype of all result types.
 
-See also: [`BasicResult`](@ref), [`CounterExampleResult`](@ref), [`AdversarialResult`](@ref), [`ReachabilityResult`](@ref)
+See also: 
+- [`BasicResult`](@ref) 
+- [`CounterExampleResult`](@ref)
+- [`AdversarialResult`](@ref)
+- [`ReachabilityResult`](@ref)
 """
 abstract type Result end
 

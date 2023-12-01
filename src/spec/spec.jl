@@ -1,6 +1,20 @@
+"""
+    Spec
 
+Abstract super-type for input-output specifications.
+"""
 abstract type Spec end
 
+"""
+    ImageConvexHull <: Spec
+
+Convex hull for images used to specify safety property for images. 
+It is the smallest convex polytope that contains all the images given in the `imgs` array.
+
+## Fields
+- `imgs` (`AbstractArray`): List of images in `AbstractArray`. Image is 
+    represented as a matrix of height x weight x channels.
+"""
 struct ImageConvexHull <: Spec
     # spec: A x - b <= 0 is the safe set or unsafe set
     imgs::AbstractArray # list of images (h,w,c)
@@ -31,6 +45,19 @@ function get_image_linf_spec(lb, ub, img_size)
     return ImageZonoBound(cen, gen)
 end
 
+"""
+    LinearSpec <: Spec
+
+Safety specification defined as the set ``\\{ x: x = A x - b ≤ 0 \\}``.
+
+## Fields
+- `A` (`AbstractArray{Float64, 3}`): Normal dierction of size 
+    `spec_dim x out_dim x batch_size`.
+- `b` (`AbstractArray{Float64, 2}`): Constraints of size 
+    `spec_dim x batch_size`.
+- `is_complement` (`Bool`): Boolean flag for whether this specification is a 
+    complement or not.
+"""
 struct LinearSpec <: Spec 
     # spec: A x - b <= 0 is the safe set or unsafe set
     A::AbstractArray{Float64, 3} # spec_dim x out_dim x batch_size
@@ -38,18 +65,46 @@ struct LinearSpec <: Spec
     is_complement::Bool
 end
 
+"""
+    InputSpec
+
+Input specification can be of any type supported by `LazySet` or `ImageConvexHull`.
+"""
 const InputSpec = Union{LazySet, ImageConvexHull}
+
+"""
+    OutputSpec
+
+Output specification can be of any type supported by `LazySet` or `LinearSpec`.
+"""
 const OutputSpec = Union{LazySet, LinearSpec}
 
+"""
+    get_size(input_spec::LazySet)
+
+Given a `LazySet`, it determines the size.
+"""
 get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
+
+"""
+    get_size(input_spec::ImageConvexHull)
+
+Given an `ImageConvexHull`, it determines the size.
+"""
 get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
 
-# function get_linear_spec(set::LazySet)
-#     cons = constraints_list(set isa Complement ? Complement(set) : set)
-#     A = permutedims(hcat([Vector(con.a) for con in cons]...))
-#     b = cat([con.b for con in cons], dims=1)
-#     return A, b
-# end
+"""
+    get_linear_spec(batch_out_set::AbstractVector)
+
+Retrieves the linear specifications of the batch of output sets and returns
+a `LinearSpec` structure. 
+
+## Arguments
+- `batch_out_set` (`AbstractVector`): Batch of output sets.
+
+## Returns
+- `LinearSpec` of the batch of output sets.
+"""
 function get_linear_spec(batch_out_set::AbstractVector)
     max_spec_num = maximum([length(constraints_list(o)) for o in batch_out_set])
     out_spec_A = zeros(max_spec_num, dim(batch_out_set[1]), length(batch_out_set)) # spec_dim x out_dim x batch_size
@@ -73,7 +128,31 @@ function get_linear_spec(batch_out_set::AbstractVector)
     return LinearSpec(out_spec_A, out_spec_b, is_complement)
 end
 
-function classification_spec(n, target)
+"""
+    classification_spec(n::Int64, target::Int64)
+
+Generates an output specification constructed with a convex polyhedron, 
+`HPolyhedron`, for classification tasks. Given `n`-number of labels with 
+`target` as the correct label, the resulting polyhedron is the finite 
+intersection of halfspaces:
+
+``
+P = \\bigcap_{i=1}^n H_i
+``
+
+where ``H_i = \\{x : a_i^T x \\leq 0 \\}, \\; i\\in\\{1:n\\}`` is a halfspace, 
+``a_i`` is a row vector where the `n`-th element is 1.0, the `target`-th 
+element is -1.0, and the rest are 0's.
+
+## Arguments
+- `n` (`Int64`): Number of labels.
+- `target` (`Int64`): Target label.
+
+## Returns
+- `HPolyhedron` specified as above such that the output specification captures 
+    the target label.
+"""
+function classification_spec(n::Int64, target::Int64)
     A = Matrix{Float64}(I, n, n)
     A[:, target] .= -1
     A = [A[1:target-1, :]; A[target+1:end, :]]

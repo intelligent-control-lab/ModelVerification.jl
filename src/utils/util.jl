@@ -6,6 +6,14 @@ The `.nnet` format is borrowed from [NNet](https://github.com/sisl/NNet).
 The format assumes all hidden layers have ReLU activation.
 Keyword argument `last_layer_activation` sets the activation of the last
 layer, and defaults to `Id()`, (i.e. a linear output layer).
+
+## Arguments
+- `fname` (`String`): String path to the `.nnet` file.
+- `last_layer_activation`: Keyword argument that sets the activation of the last 
+    layer which defaults to `Id()`.
+
+## Returns
+- A vector of layers saved as `Network`.
 """
 function read_nnet(fname::String; last_layer_activation = Id())
     f = open(fname)
@@ -29,25 +37,38 @@ function read_nnet(fname::String; last_layer_activation = Id())
 end
 
 """
-    read_layer(output_dim::Int, f::IOStream, [act = ReLU()])
+    read_layer(output_dim::Int64, f::IOStream, act = ReLU())
 
-Read in layer from nnet file and return a `Layer` containing its weights/biases.
-Optional argument `act` sets the activation function for the layer.
+Read in layer from `.nnet` file and return a `Layer` containing its 
+weights & biases. Optional argument `act` sets the activation function for the 
+layer.
+
+## Arguments
+- `output_dim` (Int64): Output dimension of the layer.
+- `f` (`IOStream`): IO stream of the `.nnet` file.
+- `act`: Optional argument specifying the activation function of the layer. 
+    Defaults to `ReLU()`.
+
+## Returns
+- `Layer` containing the weights and bias values (and the activation function 
+    of the layer).
 """
 function read_layer(output_dim::Int64, f::IOStream, act = ReLU())
 
     rowparse(splitrow) = parse.(Float64, splitrow[findall(!isempty, splitrow)])
-     # first read in weights
-     W_str_vec = [rowparse(split(readline(f), ",")) for i in 1:output_dim]
-     weights = vcat(W_str_vec'...)
-     # now read in bias
-     bias_string = [split(readline(f), ",")[1] for j in 1:output_dim]
-     bias = rowparse(bias_string)
-     # activation function is set to ReLU as default
-     return Layer(weights, bias, act)
+    # first read in weights
+    W_str_vec = [rowparse(split(readline(f), ",")) for i in 1:output_dim]
+    weights = vcat(W_str_vec'...)
+    # now read in bias
+    bias_string = [split(readline(f), ",")[1] for j in 1:output_dim]
+    bias = rowparse(bias_string)
+    # activation function is set to ReLU as default
+    return Layer(weights, bias, act)
 end
 
 """
+    to_comment(txt)
+
 Prepend `//` to each line of a string.
 """
 to_comment(txt) = "//"*replace(txt, "\n"=>"\n//")
@@ -55,7 +76,11 @@ to_comment(txt) = "//"*replace(txt, "\n"=>"\n//")
 """
     print_layer(file::IOStream, layer)
 
-Print to `file` an object implementing `weights(layer)` and `bias(layer)`
+Print to `file` an object implementing `weights(layer)` and `bias(layer)`.
+
+## Arguments
+- `file` (`IOStream`): IO stream of the target `.nnet` file.
+- `layer`: Layer to be transcribed to `file`.
 """
 function print_layer(file::IOStream, layer)
    print_row(W, i) = println(file, join(W[i,:], ", "), ",")
@@ -66,10 +91,17 @@ function print_layer(file::IOStream, layer)
 end
 
 """
-    print_header(file::IOStream, network[; header_text])
+    print_header(file::IOStream, network; header_text="")
 
-The NNet format has a particular header containing information about the network size and training data.
-`print_header` does not take training-related information into account (subject to change).
+The NNet format has a particular header containing information about the 
+network size and training data. `print_header` does not take training-related 
+information into account (subject to change).
+
+## Arguments
+- `file` (`IOStream`): IO stream of the target `.nnet` file.
+- `network`: Network to be transcribed to `file`.
+- `header_text`: Optional header text that comes before the network information. 
+    Defaults to an empty string.
 """
 function print_header(file::IOStream, network; header_text="")
    println(file, to_comment(header_text))
@@ -98,13 +130,18 @@ function print_header(file::IOStream, network; header_text="")
 end
 
 """
-    write_nnet(filename, network[; header_text])
+    write_nnet(filename, network; header_text)
 
-Write `network` to \$filename.nnet.
+Write `network` to `filename.nnet`.
 Note: Does not perform safety checks on inputs, so use with caution.
 
 Based on python code at https://github.com/sisl/NNet/blob/master/utils/writeNNet.py
 and follows .nnet format given here: https://github.com/sisl/NNet.
+
+## Arguments
+- `outfile`: String name of the `.nnet` file.
+- `network`: Network to be transcribed to `outfile.nnet`.
+- `header_text`: Optional header text that comes before the network information.
 """
 function write_nnet(outfile, network; header_text="Default header text.\nShould replace with the real deal.")
     name, ext = splitext(outfile)
@@ -120,7 +157,7 @@ end
 """
     compute_output(nnet::Network, input::Vector{Float64})
 
-Propagate a given vector through a nnet and compute the output.
+Propagates a given vector through a `Network` and computes the output.
 """
 function compute_output(nnet::Network, input)
     curr_value = input
@@ -131,15 +168,23 @@ function compute_output(nnet::Network, input)
 end
 
 """
-    get_activation(L, x::Vector)
-Finds the activation pattern of a vector `x` subject to the activation function given by the layer `L`.
-Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+    get_activation(L::Layer{ReLU}, x::Vector)
+    
+Finds the activation pattern of a vector `x` subject to the activation function 
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
 """
 get_activation(L::Layer{ReLU}, x::Vector) = x .>= 0.0
+
+"""
+    get_activation(L::Layer{Id}, args...)
+    
+Finds the activation pattern of a vector `x` subject to the activation function 
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+"""
 get_activation(L::Layer{Id}, args...) = trues(n_nodes(L))
 
 """
-    get_activation(nnet::Network, x::Vector)
+    get_activation(nnet::Network, x::Vector{Float64})
 
 Given a network, find the activation pattern of all neurons at a given point x.
 Returns Vector{Vector{Bool}}. Each Vector{Bool} refers to the activation pattern of a particular layer.
@@ -278,7 +323,6 @@ function act_gradient_bounds(nnet::Network, input::AbstractPolytope)
 end
 
 """
-    get_gradient_bounds(nnet::Network, LΛ::Vector{AbstractVector}, UΛ::Vector{AbstractVector})
     get_gradient_bounds(nnet::Network, input::AbstractPolytope)
 
 Get lower and upper bounds on network gradient for given gradient bounds on activations, or given an input set.
@@ -289,6 +333,12 @@ function get_gradient_bounds(nnet::Network, input::AbstractPolytope)
     LΛ, UΛ = act_gradient_bounds(nnet, input)
     return get_gradient_bounds(nnet, LΛ, UΛ)
 end
+
+"""
+    get_gradient_bounds(nnet::Network, LΛ::Vector{AbstractVector}, 
+                        UΛ::Vector{AbstractVector})
+    
+"""
 function get_gradient_bounds(nnet::Network, LΛ::Vector{<:AbstractVector}, UΛ::Vector{<:AbstractVector})
     n_input = size(nnet.layers[1].weights, 2)
     LG = Matrix(1.0I, n_input, n_input)
@@ -307,7 +357,7 @@ end
 Simple linear mapping on intervals.
 `L, U := ([W]₊*l + [W]₋*u), ([W]₊*u + [W]₋*l)`
 
-Outputs:
+## Returns
 - `(lbound, ubound)` (after the mapping)
 """
 function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecOrMat) where N
@@ -317,13 +367,12 @@ function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecO
 end
 
 """
-    get_bounds(problem::Problem)
     get_bounds(nnet::Network, input::Hyperrectangle, [true])
 
 Computes node-wise bounds given a input set. The optional last
 argument determines whether the bounds are pre- or post-activation.
 
-Return:
+## Returns
 - `Vector{Hyperrectangle}`: bounds for all nodes. `bounds[1]` is the input set.
 """
 function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there is another function by the same name in convDual. Should reconsider dispatch
@@ -342,6 +391,10 @@ function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there
     end
     return bounds
 end
+
+"""
+    get_bounds(problem::Problem)
+"""
 get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.input; kwargs...)
 
 # """
@@ -381,6 +434,9 @@ function approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
     return Hyperrectangle(c, r)
 end
 
+"""
+    approximate_act_map(layer::Layer, input::Hyperrectangle)
+"""
 approximate_act_map(layer::Layer, input::Hyperrectangle) = approximate_act_map(layer.activation, input)
 
 
@@ -389,6 +445,9 @@ struct UnboundedInputError <: Exception
 end
 Base.showerror(io::IO, e::UnboundedInputError) = print(io, msg)
 
+"""
+    isbounded(input)
+"""
 function isbounded(input)
     if input isa HPolytope
         return LazySets.isbounded(input, false)
@@ -397,6 +456,12 @@ function isbounded(input)
     end
 end
 
-
+"""
+    is_hypercube(set::Hyperrectangle)
+"""
 is_hypercube(set::Hyperrectangle) = all(iszero.(set.radius .- set.radius[1]))
+
+"""
+    is_halfspace_equivalent(set)
+"""
 is_halfspace_equivalent(set) = length(constraints_list(set)) == 1

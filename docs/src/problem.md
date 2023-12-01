@@ -1,89 +1,52 @@
-# Problem Definitions
+```@meta
+CurrentModule = ModelVerification
+```
 
 ```@contents
-	Pages = ["problem.md"]
-	Depth = 4
+Pages=["problem.md"]
+Depth = 3
 ```
 
-## Problem
+# Problem Outline
 
-```@docs
-Problem
-```
+Verification checks if the input-output relationships of a function, specifically deep neural networks (DNN) $\mathcal{F}$ in this case, hold. For an input specification imposed by a set $\mathcal{X}\subseteq \mathcal{D}_x$, we would like to check if the corresponding output of the function is contained in an output specification imposed by a set $\mathcal{Y}\subseteq \mathcal{D}_y$:
 
-### Input/Output Sets
+$$x\in\mathcal{X} \Longrightarrow y = \mathcal{F}(x) \in \mathcal{Y}.$$
 
-Different solvers require problems formulated with particular input and output sets.
-The table below lists all of the solvers with their required input/output sets.
+Thus, a DNN-Verification problem consists of two main components:
+- model (DNN) : $\mathcal{F}$
+- safety property (input-output specification) : $\mathcal{X}, \mathcal{Y}$.
 
- - HR = `Hyperrectangle`
- - HS = `HalfSpace`
- - HP = `HPolytope`
- - PC = `PolytopeComplement`
+Due to the nonlinear and nonconvex nature of DNNs, estimating the exact reachable set is impractical, although there are algorithms that allow us to do this such as [ExactReach](https://arxiv.org/abs/1712.08163). Thus, we preform an over-approximation of the reachable set, called $\mathcal{R}$. We check its containment in the desired reachable set $\mathcal{Y}$ which if ture, we can assert that the safety property holds.
 
-[](TODO: review these. Not sure they're all correct.)
+Once we instantiate 
 
-|        Solver        |  Input set  |    Output set    |
-|----------------------|:-----------:|:----------------:|
-| [`ExactReach`](@ref) | HP          | HP (bounded[^1]) |
-| [`AI2`](@ref)        | HP          | HP (bounded[^1]) |
-| [`MaxSens`](@ref)    | HR          | HP (bounded[^1]) |
-| [`NSVerify`](@ref)   | HR          | PC[^2]           |
-| [`MIPVerify`](@ref)  | HR          | PC[^2]           |
-| [`ILP`](@ref)        | HR          | PC[^2]           |
-| [`Duality`](@ref)    | HR(uniform) | HS               |
-| [`ConvDual`](@ref)   | HR(uniform) | HS               |
-| [`Certify`](@ref)    | HR          | HS               |
-| [`FastLin`](@ref)    | HR          | HS               |
-| [`FastLip`](@ref)    | HR          | HS               |
-| [`ReluVal`](@ref)    | HR          | HR               |
-| [`Neurify`](@ref)    | HP          | HP               |
-| [`DLV`](@ref)        | HR          | HR[^3]           |
-| [`Sherlock`](@ref)   | HR          | HR[^3]           |
-| [`BaB`](@ref)        | HR          | HR[^3]           |
-| [`Planet`](@ref)     | HR          | PC[^2]           |
-| [`Reluplex`](@ref)   | HP          | PC[^2]           |
-
- [^1]: This restriction is not due to a theoretic limitation, but rather to our implementation, and will eventually be relaxed.
-
- [^2]: See [`PolytopeComplement`](@ref) for a justification of this output set restriction.
-
- [^3]: The set can only have one output node. I.e. it must be a set of dimension 1.
-
-Note that solvers which require `Hyperrectangle`s also work on `HPolytope`s by overapproximating the input set. This is likewise true for solvers that require `HPolytope`s converting a `Hyperrectangle` input to H-representation. Any set which can be made into the required set is converted, wrapped, or approximated appropriately.
-
-### PolytopeComplements
-
-Some optimization-based solvers work on the principle of a complementary output constraint.
-Essentially, they test whether a point *is not* in a set, by checking whether it is in the complement of the set (or vice versa).
-To represent the kinds of sets we are interested in for these solvers, we define the `PolytopeComplement`, which represents the complement of a convex set.
-Note that in general, the complement of a convex set is neither convex nor closed. [](would be good to include an image like the one in the paper that goes with AdversarialResult)
-
-Although it is possible to represent the complement of a `HalfSpace` as another `HalfSpace`, we require that it be specified as a `PolytopeComplement` to disambiguate the boundary.
-
-```@docs
-PolytopeComplement
-```
-
+Below, we give a brief overview of models ([Network](#network)), [safety property](#safety-property), and [outputs (verification results)](#output-verification-results).
 
 ## Network
+_Details on [Network](./network.md)_
 
-```@autodocs
-Modules = [NeuralVerification]
-Pages = ["utils/network.jl"]
-Order = [:type, :function]
+## Safety Property
+*Details on [Input-Output Specification](./safety_spec.md)*
+
+## Output (Verification Results)
+|        Output result       |  Explanation  | 
+|----------------------------|:-----------:|
+| [`BasicResult::hold`]      | The input-output constraint is always satisfied |
+| [`BasicResult::violated`]  | The input-output constraint is violated, i.e., it exists a single point in the input constraint that violates the property         |
+| [`BasicResult::timeout`]   | Could not be determined if the property holds due to timeout in the computation        | 
+| [`CounterExampleResult`]   | Like BasicResult, but also returns a counter_example if one is found (if status = :violated). The counter_example is a point in the input set that, after the NN, lies outside the output constraint set.        |
+| [`AdversarialResult`]      | Like BasicResult, but also returns the maximum allowable disturbance in the input (if status = :violated)        | 
+| [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |
+| [`EnumerationResult`]      | Set of all the (un)safe regions in the safety property's domain. |
+
+## `Problem` Documentation
+```@docs
+Problem
+prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem)
 ```
 
-## Activation Functions
-*Note that of the activation functions listed below, only `ReLU` is fully supported throughout the library.*
-```@autodocs
-Modules = [NeuralVerification]
-Pages = ["utils/activation.jl"]
-Order = [:type]
-```
-
-## Results
-
+## `Result` Documentations
 ```@docs
 Result
 BasicResult

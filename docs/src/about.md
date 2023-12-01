@@ -1,0 +1,2 @@
+# About
+This package is developed by the [Intelligent Control Lab](http://icontrol.ri.cmu.edu/) at the Robotics Institute at Carnegie Mellon University. It is an extension of the [NeuralVerification.jl](https://sisl.github.io/NeuralVerification.jl/latest/).

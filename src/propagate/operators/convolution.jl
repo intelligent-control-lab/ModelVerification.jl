@@ -1,4 +1,6 @@
-
+"""
+    propagate_by_small_batch(f, x; sm_batch=500)
+"""
 function propagate_by_small_batch(f, x; sm_batch=500)
     y = nothing
     batch_size = size(x)[end]
@@ -10,6 +12,10 @@ function propagate_by_small_batch(f, x; sm_batch=500)
     end
     return y
 end
+
+"""
+    propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
+"""
 function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
     # println("layer.bias")
@@ -30,6 +36,9 @@ function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoB
     return ImageZonoBound(new_center, new_generators)
 end
 
+"""
+    propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
+"""
 function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
     # copy a Conv and set activation to identity
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
@@ -42,7 +51,9 @@ function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarB
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-
+"""
+    propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
+"""
 function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
@@ -54,7 +65,9 @@ function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::I
     return ImageZonoBound(new_center, new_generators)
 end
 
-
+"""
+    propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
+"""
 function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
@@ -63,7 +76,9 @@ function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::I
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
-
+"""
+    bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
+"""
 function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
@@ -84,7 +99,9 @@ function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vec
     return batch_reach, batch_bias
 end  
 
-
+"""
+    interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
+"""
 function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
     interval_low = interval[1], interval_high = interval[2]
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
@@ -101,7 +118,9 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     return [lower, upper, nothing]
 end
 
-
+"""
+    bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
+"""
 function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
     mid_weight = (lower_weight .+ upper_weight) / 2.0
