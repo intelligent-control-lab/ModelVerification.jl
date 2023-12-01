@@ -31,15 +31,28 @@ function get_chain(vertex)
 end
 
 function build_flux_model(onnx_model_path)
-    comp_graph = ONNXNaiveNASflux.load(onnx_model_path)
+    comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
     model_vec = Any[]
     start_vertex = [vertex for vertex in ONNXNaiveNASflux.vertices(comp_graph) if isa(vertex, NaiveNASflux.InputShapeVertex)]
     @assert length(start_vertex) == 1
     @assert length(NaiveNASflux.outputs(start_vertex[1])) == 1
     model_vec, end_node = get_chain(NaiveNASflux.outputs(start_vertex[1])[1])
     model = Chain(model_vec...)
+    model = purify_flux_model(model)
     return model
 end
+
+
+function remove_flux_start_flatten(model::Chain)
+    !isa(model[1], ONNXNaiveNASflux.Flatten) && return model
+    println("removing flux flatten")
+    return model[2:end]
+end
+function purify_flux_model(model::Chain)
+    model = remove_flux_start_flatten(model)
+end
+ 
+
 
 get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))
 get_shape(input::Hyperrectangle) = (size(LazySets.center(input))..., 1)

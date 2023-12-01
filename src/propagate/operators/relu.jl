@@ -321,7 +321,6 @@ function multiply_bias(last_A, bias_pos, bias_neg)
     # println("new_b pos: ", NNlib.batched_vec(A_pos, bias_pos))
     # println("new_b neg: ", NNlib.batched_vec(A_neg, bias_neg))
     # println("new_b: ", new_b)
-
     return new_b
 end
 
@@ -343,14 +342,14 @@ function add_beta(A, beta, beta_S)
     # println("beta_split: ", beta_split)
     # println("size(beta): ", size(beta))
     # println("size(beta_S): ", size(beta_S))
-    #New_A = A .+ NNlib.batched_mul(spec_A_b[1], reshape(original_size_beta, (1, size(original_size_beta)...)))
+    # New_A = A .+ NNlib.batched_mul(spec_A_b[1], reshape(original_size_beta, (1, size(original_size_beta)...)))
     # println("add beta")
     # println("size(A): ", size(A))
     # println(size(beta))
     # println(size(beta_S))
     # println(size(beta_split))
     # println("size(beta_split): ", size(reshape(beta_split, (1, size(beta_split)...))))
-    New_A = A .+ reshape(beta_split, (1, size(beta_split)...))#NNlib.batched_mul(spec_A_b[1], reshape(beta_split, (1, size(beta_split)...)))
+    New_A = A .+ reshape(beta_split, (1, size(beta_split)...)) # NNlib.batched_mul(spec_A_b[1], reshape(beta_split, (1, size(beta_split)...)))
     return New_A
 end
 

@@ -3,7 +3,6 @@
     batch_size::Int64 = 1
 end
 
-
 function advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
     branches = [(problem.input, problem.output)]
     for iter in 1:max_iter # BFS with max iteration
