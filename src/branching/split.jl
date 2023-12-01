@@ -95,8 +95,7 @@ end
 
 
 """
-    split_branch(split_method::Bisect, model::Chain, 
-                 input::ImageZonoBound, output)
+    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
     # println("split image zono")
@@ -157,15 +156,6 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     input.A
 end
 
-"""
-    split_branch(split_method::Bisect, model::Chain, 
-                 input::ImageZonoBound, output, model_info, batch_info)
-
-TO-BE-IMPLEMENTED
-"""
-function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
-    return [input, nothing] #TODO: find a way to split ImageZonoBound
-end
 
 """
     split_interval(dom::Hyperrectangle, i::Int64)
