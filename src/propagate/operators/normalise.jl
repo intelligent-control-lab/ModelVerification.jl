@@ -1,4 +1,25 @@
+"""
+    propagate_linear(prop_method::ImageStar, layer::BatchNorm, 
+                     bound::ImageStarBound, batch_info)
 
+Propagate the `ImageStarBound` bound through a batch norm layer. I.e., it 
+applies the batch norm operation to the `ImageStarBound` bound. The batch norm 
+operation is decomposed into two operations: centering and scaling. The 
+centering operation is applied to the center of the `ImageStarBound` bound. The
+scaling operation is applied to the generators of the `ImageStarBound` bound.
+The resulting bound is also of type `ImageStarBound`.
+
+## Arguments
+- `prop_method` (`ImageStar`): The `ImageStar` propagation method used for the 
+    verification problem.
+- `layer` (`BatchNorm`): The batch norm operation to be used for propagation.
+- `bound` (`ImageStarBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The batch normed bound of the output layer represetned in `ImageStarBound` 
+    type.
+"""
 function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
@@ -10,6 +31,28 @@ function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::Image
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
+"""
+    propagate_linear(prop_method::ImageZono, layer::BatchNorm, 
+                     bound::ImageZonoBound, batch_info)
+
+Propagate the `ImageZonoBound` bound through a batch norm layer. I.e., it 
+applies the batch norm operation to the `ImageZonoBound` bound. The batch norm 
+operation is decomposed into two operations: centering and scaling. The 
+centering operation is applied to the center of the `ImageZonoBound` bound. The
+scaling operation is applied to the generators of the `ImageZonoBound` bound.
+The resulting bound is also of type `ImageZonoBound`.
+
+## Arguments
+- `prop_method` (`ImageZono`): The `ImageZono` propagation method used for the 
+    verification problem.
+- `layer` (`BatchNorm`): The batch norm operation to be used for propagation.
+- `bound` (`ImageZonoBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The batch normed bound of the output layer represetned in `ImageZonoBound` 
+    type.
+"""
 function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
@@ -28,6 +71,23 @@ function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::Image
     return ImageZonoBound(new_center, new_generators)
 end 
 
+"""
+    propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, 
+                           batch_info)
+
+Propagate the `batch_reach` through a batch norm layer. I.e., it applies the 
+batch norm operation to the `batch_reach`. The batch norm operation is 
+decomposed into two operations: centering and scaling. This function supports 
+input batch with channel dimension.
+
+## Arguments
+- `layer` (`BatchNorm`): The batch norm operation to be used for propagation.
+- `batch_reach` (`AbstractArray`): The batch of input bounds.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The batch normed bound of the output layer.
+"""
 function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, batch_info)
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     channels = size(batch_reach)[end-1] #number of channels
