@@ -1,10 +1,51 @@
 using Plots
+
+"""
+    propagate_linear(prop_method::ForwardProp, layer::Dense, 
+                     reach::LazySet, batch_info)
+
+Propagate the bounds through the dense layer. It operates an affine 
+transformation on the given input bound and returns the output bound.
+                     
+## Arguments
+- `prop_method` (`ForwardProp`): Forward propagation method used for the 
+    verification process. This is one of the solvers used to verify the given 
+    model.                  
+- `layer` (`Dense`): Dense layer of the model.
+- `reach` (`LazySet`): Bound of the input.
+- `batch_info`: Dictionary containing information of each node in the 
+    model.
+
+## Returns
+- `reach` (`LazySet`): Bound of the output after affine transformation.
+"""
 function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
     # display(plot(reach, title=typeof(prop_method), xlim=[-3,3], ylim=[-3,3]))
     return reach
 end
 
+"""
+    propagate_linear(prop_method::ExactReach, layer::Dense, 
+                     reach::ExactReachBound, batch_info)
+
+Propagate the bounds through the dense layer. It operates an affine 
+transformation on the given input bound and returns the output bound for 
+`ExactReach` solver.
+
+## Arguments
+- `prop_method` (`ExactReach`): Exact reachability method used for the 
+    verification process. This is one of the solvers used to verify the given 
+    model.
+- `layer` (`Dense`): Dense layer of the model.
+- `reach` (`ExactReachBound`): Bound of the input, represented by 
+    `ExactReachBound` type, which is a vector of `LazySet` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `reach` (`ExactReachBound`): Bound of the output after affine transformation, 
+    which is represented by `ExactReachBound` type.
+"""
 function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactReachBound, batch_info)
     bounds = []
     cnt = 0
@@ -26,13 +67,46 @@ function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactRea
     return reach
 end
 
-# Ai2 Box
+"""
+    propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
+
+Propagate the bounds through the dense layer for Ai2 `Box` solver. It operates 
+an approximate affine transformation (affine transformation using hyperrectangle 
+overapproximation) on the given input bound and returns the output bound. 
+
+## Arguments
+- `prop_method` (`Box`): Ai2 `Box` solver used for the verification process.
+- `layer` (`Dense`): Dense layer of the model.
+- `reach` (`LazySet`): Bound of the input.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `reach` (`hyperrectangle`): Bound of the output after approximate affine 
+    transformation.
+"""
 function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
     isa(reach, AbstractPolytope) || throw("Ai2 only support AbstractPolytope type branches.")
     reach = approximate_affine_map(layer, reach)
     return reach
 end  
 
+"""
+    batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, 
+                       u::AbstractArray) where N
+
+Clamps the input to the given bounds and computes the interval map of the 
+resulting bound using the given weight matrix.
+
+## Arguments
+- `W` (`AbstractMatrix{N}`): Weight matrix of the layer.
+- `l` (`AbstractArray`): Lower bound of the input.
+- `u` (`AbstractArray`): Upper bound of the input.
+
+## Returns
+Tuple of:
+- `l_new` (`AbstractArray`): Lower bound of the output.
+- `u_new` (`AbstractArray`): Upper bound of the output.
+"""
 function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractArray) where N
     #pos_W = max.(W, fmap(cu, zero(N)))
     #neg_W = min.(W, fmap(cu, zero(N)))
@@ -43,6 +117,26 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
     return (l_new, u_new)
 end
 
+"""
+    propagate_linear_batch(prop_method::Crown, layer::Dense, 
+                           bound::CrownBound, batch_info)
+
+Propagates the bounds through the dense layer for `Crown` solver. It operates
+an affine transformation on the given input bound and returns the output bound.
+It first clamps the input bound and multiplies with the weight matrix using 
+`batch_interval_map` function. Then, it adds the bias to the output bound.
+The resulting bound is represented by `CrownBound` type.
+
+## Arguments
+- `prop_method` (`Crown`): `Crown` solver used for the verification process.
+- `layer` (`Dense`): Dense layer of the model.
+- `bound` (`CrownBound`): Bound of the input, represented by `CrownBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
+    which is represented by `CrownBound` type.
+"""
 function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = prop_method.use_gpu ? batch_interval_map(fmap(cu, layer.weight), bound.batch_Low, bound.batch_Up) : batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
@@ -70,7 +164,20 @@ end
 #     return batch_reach
 # end  
 
+"""
+    _preprocess(node, batch_info, bias = nothing)
 
+Preprocesses the bias of the given node for the `BetaCrown` solver. If the bias
+is not `nothing`, it multiplies the bias with the beta value of the node.
+
+## Arguments
+- `node`: Node of the model.
+- `batch_info`: Dictionary containing information of each node in the model.
+- `bias`: Bias of the node, default is `nothing`.
+
+## Returns
+- `bias`: Preprocessed bias of the node.
+"""
 function _preprocess(node, batch_info, bias = nothing)
     if !isnothing(bias)
         if batch_info[node][:beta] != 1.0 
@@ -80,6 +187,10 @@ function _preprocess(node, batch_info, bias = nothing)
     return bias
 end
 
+"""
+    dense_bound_oneside(last_A, weight, bias, batch_size)
+
+"""
 function dense_bound_oneside(last_A, weight, bias, batch_size)
     if isnothing(last_A)
         return [nothing, x[2]]
@@ -97,7 +208,29 @@ function dense_bound_oneside(last_A, weight, bias, batch_size)
     return last_A
 end
 
+"""
+    propagate_linear_batch(prop_method::BetaCrown, layer::Dense, 
+                           bound::BetaCrownBound, batch_info)
 
+Propagates the bounds through the dense layer for `BetaCrown` solver. It 
+operates an affine transformation on the given input bound and returns the
+output bound. It first preprocesses the lower- and upper-bounds of the bias of 
+the node using `_preprocess`. Then, it computes the interval map of the 
+resulting lower- and upper-bounds using `dense_bound_oneside` function. The 
+resulting bound is represented by `BetaCrownBound` type.
+
+## Arguments
+- `prop_method` (`BetaCrown`): `BetaCrown` solver used for the verification 
+    process.
+- `layer` (`Dense`): Dense layer of the model.
+- `bound` (`BetaCrownBound`): Bound of the input, represented by 
+    `BetaCrownBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `New_bound` (`BetaCrownBound`): Bound of the output after affine 
+    transformation, which is represented by `BetaCrownBound` type.
+"""
 function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TO DO: we haven't consider the perturbation in weight and bias

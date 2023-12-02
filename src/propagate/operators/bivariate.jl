@@ -1,5 +1,22 @@
 """
-    propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, bound2::ImageZonoBound, batch_info)
+    propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, 
+                   bound2::ImageZonoBound, batch_info)
+
+Propagate the bounds of the two input layers to the output layer for skip 
+connection. The output layer is of type `ImageZonoBound`. The input layers' 
+centers and generators are concatenated to form the output layer's center and
+generators.
+
+## Arguments
+- `prop_method` (`PropMethod`): The propagation method used for the verification 
+    problem.
+- `layer` (`typeof(+)`): The layer operation to be used for propagation.
+- `bound1` (`ImageZonoBound`): The bound of the first input layer.
+- `bound2` (`ImageZonoBound`): The bound of the second input layer.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The bound of the output layer represetned in `ImageZonoBound` type.
 """
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, bound2::ImageZonoBound, batch_info)
     new_c = bound1.center + bound2.center
@@ -8,7 +25,24 @@ function propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, b
 end
 
 """
-    propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, bound2::ImageStarBound, batch_info)
+    propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, 
+                   bound2::ImageStarBound, batch_info)
+
+Propagate the bounds of the two input layers to the output layer for skip 
+connection. The output layer is of type `ImageStarBound`. The input layers' 
+centers, generators, and constraints are concatenated to form the output layer's 
+center, generators, and constraints.
+
+## Arguments
+- `prop_method` (`PropMethod`): The propagation method used for the verification 
+problem.
+- `layer` (`typeof(+)`): The layer operation to be used for propagation.
+- `bound1` (`ImageStarBound`): The bound of the first input layer.
+- `bound2` (`ImageStarBound`): The bound of the second input layer.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The bound of the output layer represetned in `ImageStarBound` type.
 """
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, bound2::ImageStarBound, batch_info)
     new_c = bound1.center + bound2.center

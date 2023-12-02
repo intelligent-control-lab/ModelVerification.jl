@@ -1,5 +1,3 @@
-
-
 struct ExactReach <: SequentialForwardProp end
 
 struct ExactReachBound <: Bound
