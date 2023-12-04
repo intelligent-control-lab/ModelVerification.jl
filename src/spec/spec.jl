@@ -20,6 +20,21 @@ struct ImageConvexHull <: Spec
     imgs::AbstractArray # list of images (h,w,c)
 end
 
+"""
+    ReLUConstraints
+
+A mutable structure for storing information related to the constraints of a ReLU 
+(Rectified Linear Unit) activation function in a neural network.
+
+## Fields
+- `idx_list`: A list of indices. 
+- `val_list`: A list of values corresponding to the indices in `idx_list`. 
+- `not_splitted_mask`: A mask indicating which elements in `idx_list` and 
+    `val_list` have not been split. This is used in the context of a piecewise 
+    linear approximation of the ReLU function, where the input space is split 
+    into regions where the function is linear.
+- `history_split`: A record of the splits that have been performed. 
+"""
 mutable struct ReLUConstraints
     idx_list
     val_list
@@ -27,17 +42,53 @@ mutable struct ReLUConstraints
     history_split
 end
 
+"""
+    ReLUConstrainedDomain <: Spec
+
+A mutable structure for storing specifications related to the ReLU 
+(Rectified Linear Unit) activation function in a neural network.
+
+## Fields
+- `domain`: A geometric specification representing the domain of the ReLU 
+    function.
+- `all_relu_cons`: A dictionary of ReLU constraints for each node in the 
+    network.
+"""
 mutable struct ReLUConstrainedDomain <: Spec
     # S_dict : {node => [idx_list, val_list, not_splitted_mask, history_S]}, such that we can do the following when propagate relu
     domain
     all_relu_cons::Dict{String, ReLUConstraints}
 end
 
+"""
+    ImageLinfBall
+
+A mutable structure for storing information related to the constraints of a 
+L-infinity ball for images.
+
+## Fields
+- `lb`: Lower bound of the ball.
+- `ub`: Upper bound of the ball.
+"""
 struct ImageLinfBall <: Spec
     lb::AbstractArray # (h,w,c)
     ub::AbstractArray # (h,w,c)
 end
 
+"""
+    get_image_linf_spec(lb, ub, img_size)
+
+Given a lower bound `lb`, an upper bound `ub`, and the size of the image, 
+returns a `ImageZonoBound` structure.
+
+## Arguments
+- `lb`: Lower bound of the image.
+- `ub`: Upper bound of the image.
+- `img_size`: Size of the image.
+
+## Returns
+- `ImageZonoBound` structure.
+"""
 function get_image_linf_spec(lb, ub, img_size)
     h = Hyperrectangle(low = lb, high = ub)
     cen = reshape(center(h), (img_size...,1))
