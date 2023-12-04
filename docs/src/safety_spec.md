@@ -15,22 +15,25 @@ A safety property is essentially an input-output relationship for the model we w
 ## Geometric Representation
 Different solvers implemented in ModelVerification.jl require the input-output specification formulated with particular geometries. We report here a brief overview of the sets we use. For specifics, please read [_Algorithms for Verifying Deep Neural Networks_ by C. Liu, et al.](https://arxiv.org/abs/1903.06758)  and [Sets in `LazySets.jl`](https://juliareach.github.io/LazySets.jl/dev/lib/interfaces/#Set-Interfaces).
 
-- HR = Hyperrectangle
-- HS = HalfSpace
-- HP = HPolytope
-- SS = StarSet
-- ZT = Zonotope
-- IS = ImageStar
-- IZ = ImageZono
-- PC = PolytopeComplement
+ - HR = `Hyperrectangle`
+ - HS = `HalfSpace`
+ - HP = `HPolytope`
+ - SS = `StarSet`
+ - IS = `ImageStar`
+ - ZT = `Zonotope`
+ - PC = `PolytopeComplement`
+ - CH = `ConvexHull`
 
-| **Solver**             | **Input Set**  | **Output Set** |
-| ---------------------- | -------------- | -------------- |
-| Ai2                    | HR, ZT, HP, SS | HP (bounded)   |
-| CROWN                  | HR             | HP (bounded)   |
-| $\alpha$-CROWN         | HR             | HP (bounded)   |
-| $\beta$-CROWN          | HR             | HP (bounded)   |
-| $\alpha$-$\beta$-CROWN | HR             | HP (bounded)   |
+
+|        Solver        |  Input set  |    Output     |
+|----------------------|:-----------:|:----------------:|
+| *Ai2*       | `ZT,SS,HP,HR` | `ReachabilityResult`, `CounterExampleResult`  |
+| *CROWN*    | `ZT,SS,HP,HR,CH`          |  `BasicResult`    |
+| *$\alpha$-CROWN*    | `ZT,SS,HP,HR,CH`         |  `BasicResult`      |
+| *$\beta$-CROWN*    | `ZT,SS,HP,HR,CH`         |  `BasicResult`      |
+| *$\alpha$-$\beta$-CROWN*   | `ZT,SS,HP,HR,CH`         |  `BasicResult`      |
+| *ImageZono* | `CH` |`ReachabilityResult`, `CounterExampleResult` |
+| *ImageStar* | `CH` |`ReachabilityResult`, `CounterExampleResult` |
 
 
 ### Hyperrectangle ([`Hyperrectangle`](https://juliareach.github.io/LazySets.jl/dev/lib/sets/Hyperrectangle/#def_Hyperrectangle))
