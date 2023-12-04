@@ -57,8 +57,7 @@ $$Ax \le b,$$
 
 where $A\in\mathbb{R}^{k\times k_0}, b\in\mathbb{R}^k$ with $k$ representing the number of inequality constraints.
 
-<center><img src="./assets/halfspace_polytope.png" width="300"/></center>
-<center>Polytope made of halfspaces.</center>
+![](./assets/halfspace_polytope.png) 
 
 ### StarSet ([`Star`](https://juliareach.github.io/LazySets.jl/dev/lib/sets/Star/#def_Star))
 Only convex star set is considered in this toolbox. A convex star set is an affine transformation of an arbitrary convex polytope,
@@ -67,8 +66,8 @@ $$x = c + \begin{bmatrix} r_1 & r_2 & \cdots & r_l \end{bmatrix} \alpha,\; C\alp
 
 where $c\in\mathbb{R}^{k_0}$ is the center of the star set, $r_i\in\mathbb{R}^{k_0},\; i\in\{1,\dots,l\}$ are generators of the star set, $C\in\mathbb{R}^{k\times l}$, $d\in\mathbb{R}^{k}$, $\alpha\in\mathbb{R}^l$ is the free parameter that belongs to a unit hypercube, and $k$ is the number of inequality constraints on $\alpha$. $l$ is the degree of freedom of the star set.
 
-<center><img src="./assets/star_domaim.png" width="300"/></center>
-<center>The general starset, on the left, is not necessarily convex. We only consider convex starsets.</center>
+![](./assets/star_domaim.png) 
+The general starset, on the left, is not necessarily convex. We only consider convex starsets.
 
 ### Zonotope ([`Zonotope`](https://juliareach.github.io/LazySets.jl/dev/lib/sets/Zonotope/#def_Zonotope))
 `Zonotope` is basically as star set in which all predicate variables are in the range of $[-1, 1]$. Zonotope represents polytopes that can be written as affine transformations of a unit hypercube, defined as

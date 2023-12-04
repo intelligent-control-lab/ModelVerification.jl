@@ -155,9 +155,16 @@ function write_nnet(outfile, network; header_text="Default header text.\nShould 
     nothing
 end
 """
-    compute_output(nnet::Network, input::Vector{Float64})
+    compute_output(nnet::Network, input)
 
 Propagates a given vector through a `Network` and computes the output.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `input`: Vector to be propagated through `nnet`.
+
+## Returns
+- `Vector` of the output of `nnet` given `input`.
 """
 function compute_output(nnet::Network, input)
     curr_value = input
@@ -171,7 +178,15 @@ end
     get_activation(L::Layer{ReLU}, x::Vector)
     
 Finds the activation pattern of a vector `x` subject to the activation function 
-given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is 
+"active". In the sense of ReLU, this would be `x[i] >= 0`.
+
+## Arguments
+- `L` (`Layer{ReLU}`): Layer with ReLU activation function.
+- `x` (`Vector`): Vector to be propagated through the ReLU activation function.
+
+## Returns
+- `Vector{Bool}` where `true` denotes the node is element-wise "active".
 """
 get_activation(L::Layer{ReLU}, x::Vector) = x .>= 0.0
 
@@ -179,7 +194,17 @@ get_activation(L::Layer{ReLU}, x::Vector) = x .>= 0.0
     get_activation(L::Layer{Id}, args...)
     
 Finds the activation pattern of a vector `x` subject to the activation function 
-given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is "active". In the sense of ReLU, this would be `x[i] >= 0`.
+given by the layer `L`. Returns a Vector{Bool} where `true` denotes the node is 
+"active". In the sense of Identity, this would be a vector of `true`'s for all 
+nodes in the layer `L`.
+
+## Arguments
+- `L` (`Layer{Id}`): Layer with Identity activation function.
+- `x` (`Vector`): Vector to be propagated through the Identity activation 
+    function.
+    
+## Returns
+- `Vector{Bool}` where `true` denotes the node is element-wise "active".
 """
 get_activation(L::Layer{Id}, args...) = trues(n_nodes(L))
 
@@ -187,7 +212,16 @@ get_activation(L::Layer{Id}, args...) = trues(n_nodes(L))
     get_activation(nnet::Network, x::Vector{Float64})
 
 Given a network, find the activation pattern of all neurons at a given point x.
-Returns Vector{Vector{Bool}}. Each Vector{Bool} refers to the activation pattern of a particular layer.
+Returns Vector{Vector{Bool}}. Each Vector{Bool} refers to the activation pattern 
+of a particular layer.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `x` (`Vector{Float64}`): Vector to be propagated through `nnet`.
+
+## Returns
+- `Vector{Vector{Bool}}` where each Vector{Bool} refers to the activation 
+    pattern of a particular layer.
 """
 function get_activation(nnet::Network, x::Vector{Float64})
     act_pattern = Vector{Vector{Bool}}(undef, length(nnet.layers))
@@ -203,12 +237,21 @@ end
 """
     get_activation(nnet::Network, input::Hyperrectangle)
 
-Given a network, find the activation pattern of all neurons for a given input set.
-Assume ReLU.
-return Vector{Vector{Int64}}.
-- 1: activated
-- 0: undetermined
-- -1: not activated
+Given a network, find the activation pattern of all neurons for a given input 
+set. Assume ReLU activation function for all layers. This function first 
+computes the node-wise bounds of the input set, and then computes the 
+activation pattern using `get_activation(nnet, bounds)`.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated, with the activation function 
+    assumed to be ReLU for all layers.
+- `input` (`Hyperrectangle`): Input set to be propagated through `nnet`, 
+        represented as a `Hyperrectangle`.
+
+## Returns
+- `Vector{Vector{Bool}}` where each Vector{Bool} refers to the activation 
+    pattern of a particular layer. `1` means activated, `0` means undetermined, 
+    and `-1` means not activated.
 """
 function get_activation(nnet::Network, input::Hyperrectangle)
     bounds = get_bounds(nnet, input, before_act = true)
@@ -276,13 +319,18 @@ function get_gradient(nnet::Network, x::Vector)
 end
 
 """
-    act_gradient(act, z_hat::Vector{N}) where N
+    act_gradient(act::ReLU, z_hat::Vector)
 
-Compute the gradient of an activation function at point z_hat.
-Currently only supports ReLU and Id.
+Compute the gradient of an ReLU activation function at point z_hat.
 """
 act_gradient(act::ReLU, z_hat::Vector) = z_hat .>= 0.0
-act_gradient(act::Id,   z_hat::Vector) = trues(length(z_hat))
+
+"""
+    act_gradient(act::Id, z_hat::Vector)
+
+Compute the gradient of an Identity activation function at point z_hat.
+"""
+act_gradient(act::Id, z_hat::Vector) = trues(length(z_hat))
 
 """
     relaxed_relu_gradient(l::Real, u::Real)
@@ -367,7 +415,7 @@ function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecO
 end
 
 """
-    get_bounds(nnet::Network, input::Hyperrectangle, [true])
+    get_bounds(nnet::Network, input; before_act::Bool = false)
 
 Computes node-wise bounds given a input set. The optional last
 argument determines whether the bounds are pre- or post-activation.
@@ -393,7 +441,7 @@ function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there
 end
 
 """
-    get_bounds(problem::Problem)
+    get_bounds(problem::Problem; kwargs...)
 """
 get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.input; kwargs...)
 
@@ -420,7 +468,7 @@ function approximate_affine_map(layer::Layer, input::Hyperrectangle)
 end
 
 """
-   approximate_act_map(layer, input::Hyperrectangle)
+    approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
 
 Returns a Hyperrectangle overapproximation of the activation map of the input.
 `act`must be monotonic.
@@ -439,7 +487,9 @@ end
 """
 approximate_act_map(layer::Layer, input::Hyperrectangle) = approximate_act_map(layer.activation, input)
 
-
+"""
+    UnboundedInputError <: Exception
+"""
 struct UnboundedInputError <: Exception
     msg::String
 end

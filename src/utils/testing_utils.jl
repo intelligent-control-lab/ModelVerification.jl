@@ -2,8 +2,9 @@ using Random
 using NeuralVerification;
 
 """
-    make_random_network(layer_sizes::Vector{Int}, [min_weight = -1.0], [max_weight = 1.0], [min_bias = -1.0], [max_bias = 1.0], [rng = 1.0])
-    read_layer(output_dim::Int, f::IOStream, [act = ReLU()])
+    make_random_network(layer_sizes::Vector{Int}, min_weight = -1.0, 
+                        max_weight = 1.0, min_bias = -1.0, max_bias = 1.0, 
+                        rng=MersenneTwister(0))
 
 Generate a network with random weights and bias. The first layer is treated as the input.
 The values for the weights and bias will be uniformly drawn from the range between min_weight

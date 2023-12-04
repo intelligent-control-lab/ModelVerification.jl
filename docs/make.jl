@@ -2,7 +2,7 @@ using Documenter, ModelVerification
 # push!(LOAD_PATH,"../src/")
 
 makedocs(sitename = "ModelVerification.jl",
-        #  modules = [ModelVerification],
+         format = Documenter.HTML(prettyurls = false),
          pages = [
             "index.md", 
             "Toolbox Outline" => [

@@ -43,9 +43,19 @@ end
     n_nodes(L::Layer)
 
 Returns the number of neurons in a layer.
+
+## Arguments
+- `L` (`Layer`): Layer of a network.
+
+## Returns
+- `n` (`Int`): Number of nodes in the layer `L` which is equivalent to the 
+    number of biases in the layer.
 """
 n_nodes(L::Layer) = length(L.bias)
 
+"""
+    get_sub_model(model_info, end_node)
+"""
 function get_sub_model(model_info, end_node)
     # get the first part of the model until end_node.
     queue = Queue{Any}()
