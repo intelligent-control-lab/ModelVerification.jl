@@ -351,7 +351,8 @@ function branching_scores_kfsb(model_info, batch_info, input)
         else
             splited_neurons_mask = input.all_relu_cons[node].not_splitted_mask
         end
-        # splited_neurons_mask = use_gpu ? splited_neurons_mask |> gpu : splited_neurons_mask
+        splited_neurons_mask = use_gpu ? splited_neurons_mask |> gpu : splited_neurons_mask
+
         score_candidate = splited_neurons_mask .* score_candidate #ensure that the neurons splitted in pre iter of propagation will not be split again
         # push!(score, score_candidate)
         score[node] = score_candidate
