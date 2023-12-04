@@ -19,10 +19,6 @@ julia> serve(dir="docs/build")
 ```console
 julia -e 'using LiveServer; serve(dir="docs/build")'
 ```
-3. If you have Python installed
-```console
-python3 -m http.server --bind localhost
-```
 
 This should take you to a full documentation of the toolbox. For more information, please follow the [Note in "Building an Empty Document" section](https://documenter.juliadocs.org/stable/man/guide/#Building-an-Empty-Document).
 
