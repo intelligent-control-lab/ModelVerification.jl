@@ -93,7 +93,6 @@ function split_branch(split_method::Bisect, model::Chain, input::LazySet, output
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
 end
 
-
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, 
                  output, model_info, batch_info)

@@ -87,7 +87,8 @@ export
     ReachabilityResult,
     read_nnet,
     write_nnet,
-    check_inclusion
+    check_inclusion,
+    build_flux_model
 
 # solve(m::Model; kwargs...) = JuMP.solve(m; kwargs...)
 # export solve
