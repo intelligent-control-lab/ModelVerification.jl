@@ -192,7 +192,7 @@ specified by a `LazySet`.
 - `input` (`ImageStarBound`): Input specification supported by `ImageStarBound`.
 - `reach` (`LazySet`): Reachable set resulting from the propagation of `input` 
     through the `model`.
-- `output` (`LazySet`) : Set of valid outputs represented with a `LazySet`.
+- `output` (`LazySet`): Set of valid outputs represented with a `LazySet`.
 
 ## Returns
 - `ReachabilityResult(:holds, box_reach)` if `reach` is a subset of `output`, 

@@ -1,5 +1,6 @@
 """
-    Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} <: SequentialForwardProp
+    Ai2{T<:Union{Hyperrectangle, Zonotope, HPolytope, Star}} 
+                                    <: SequentialForwardProp
 
 `Ai2` performs over-approximated reachability analysis to compute the over-
 approximated output reachable set for a network. `T` can be `Hyperrectangle`, 
@@ -14,8 +15,9 @@ leads to a more precise but less scalable result, and the opposite holds for
 Note that initializing `Ai2()` defaults to `Ai2{Zonotope}`.
 The following aliases also exist for convenience:
 
-# Problem requirement
-1. Network: any depth, ReLU activation (more activations to be supported in the future)
+## Problem Requirement
+1. Network: any depth, ReLU activation (more activations to be supported in the 
+    future)
 2. Input: AbstractPolytope
 ```Julia
 const Ai2h = Ai2{HPolytope}
@@ -23,17 +25,16 @@ const Ai2z = Ai2{Zonotope}
 const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}
 ```
-3. Output: AbstractPolytope
+3. Output:  AbstractPolytope
 
-# Return
+## Returns
 `ReachabilityResult`, `CounterExampleResult`
 
-# Method
+## Method
 Reachability analysis using split and join.
 
-# Property
+## Property
 Sound but not complete.
-
 
 ## Reference
 [1] T. Gehr, M. Mirman, D. Drashsler-Cohen, P. Tsankov, S. Chaudhuri, and 
@@ -80,7 +81,7 @@ Initialize the bound of the start node of the computational graph for the
 
 ## Returns
 - `batch_output`: batch of outputs.
-- `batch_info`:
+- `batch_info`: Dictionary containing information of each node in the model.
 """
 function prepare_method(prop_method::StarSet, batch_input::AbstractVector, 
                         batch_output::AbstractVector, model_info)

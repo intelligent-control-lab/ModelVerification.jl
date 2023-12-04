@@ -54,6 +54,16 @@ process_bound
 check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
 ```
 
+## ExactReach
+```@docs
+ExactReach
+ExactReachBound
+center(bound::ExactReachBound)
+prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::ExactReach, problem::Problem)
+init_bound(prop_method::ExactReach, bound::LazySet)
+check_inclusion(prop_method::ExactReach, model, input::ExactReachBound, reach::ExactReachBound, output::LazySet)
+```
+
 ## Ai2
 ```@docs
 Ai2

@@ -466,7 +466,18 @@ mutable struct BetaLayer
 end
 Flux.@functor BetaLayer (alpha, beta,) #only alpha/beta need to be trained
 
-#Upper bound slope and intercept according to CROWN relaxation.
+"""
+    relu_upper_bound(lower, upper)
+
+Compute the upper bound slope and intercept according to CROWN relaxation. 
+
+## Arguments
+- `lower`: The lower bound of the input node, pre-ReLU operation.
+- `upper`: The upper bound of the input node, pre-ReLU operation.
+
+## Returns
+- The upper bound slope and intercept according to CROWN relaxation.
+"""
 function relu_upper_bound(lower, upper)
     lower_r = clamp.(lower, -Inf, 0)
     upper_r = clamp.(upper, 0, Inf)
@@ -477,6 +488,12 @@ function relu_upper_bound(lower, upper)
 end
 
 #using last_A for getting New_A
+"""
+    multiply_by_A_signs(last_A, slope_pos, slope_neg)
+
+Multiply the last layer's activation by the sign of the slope of the ReLU 
+activation function. This is for `BetaLayer` propagation method. 
+"""
 function multiply_by_A_signs(last_A, slope_pos, slope_neg)
     #last_A : spec_dim x reach_dim x batch_dim
     #slope_pos : reach_dim x batch_dim
@@ -515,6 +532,19 @@ function multiply_bias(last_A, bias_pos, bias_neg)
 end
 
 #bound oneside of the relu, like upper or lower
+"""
+    bound_oneside(last_A, slope_pos, slope_neg)
+
+Bound the ReLU activation function from one side, such as upper or lower.
+
+## Arguments
+- `last_A`: The last layer's activation.
+- `slope_pos`: The slope of the ReLU activation function from the positive side.
+- `slope_neg`: The slope of the ReLU activation function from the negative side.
+
+## Returns
+- The bound of the ReLU activation function from one side.
+"""
 function bound_oneside(last_A, slope_pos, slope_neg)
     if isnothing(last_A)
         return nothing
@@ -522,6 +552,7 @@ function bound_oneside(last_A, slope_pos, slope_neg)
     New_A = multiply_by_A_signs(last_A, slope_pos, slope_neg)
     return New_A
 end
+
 
 function add_beta(A, beta, beta_S)
     #buffer_beta = Zygote.Buffer(beta)
