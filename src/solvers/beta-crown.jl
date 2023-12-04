@@ -51,7 +51,7 @@ end
 """
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::BetaCrown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
-    model = prop_method.use_gpu ? fmap(cu, problem.Flux_model) : problem.Flux_model
+    model = prop_method.use_gpu ? problem.Flux_model |> gpu : problem.Flux_model
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
@@ -82,6 +82,11 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
+    # display("prop_method.use_gpu")
+    # display(prop_method.use_gpu)
+    # display("out_specs")
+    # display(out_specs)
+    # @assert false
     #prop_method.bound_lower = out_specs.is_complement ? true : false
     #prop_method.bound_upper = out_specs.is_complement ? false : true
     prop_method.bound_lower = true
@@ -324,6 +329,10 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
     @timeit to "setup" opt_state = Flux.setup(optimizer, model)
     for i in 1 : max_iter
         @timeit to "forward" losses, grads = Flux.withgradient(model) do m
+            # println("input")
+            # println(input)
+            # println("m")
+            # println(m)
             result = m(input)
             # println("result: ", result)
             loss_func(result)
@@ -352,8 +361,8 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
-    bound_lower_model = prop_method.use_gpu ? fmap(cu, bound_lower_model) : bound_lower_model
-    bound_upper_model = prop_method.use_gpu ? fmap(cu, bound_upper_model) : bound_upper_model
+    bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
+    bound_upper_model = prop_method.use_gpu ? bound_upper_model |> gpu : bound_upper_model
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
 
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension. therefore minimize maximum(spec_A x - b)
@@ -365,12 +374,12 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     # @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
 
-    
+    println("before opt")
     if length(Flux.params(bound_lower_model)) > 0
-        @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+        @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
     if length(Flux.params(bound_upper_model)) > 0
-        @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b] |> gpu, loss_func, prop_method.optimizer, prop_method.train_iteration)
+        @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
 
     # println("=======================")
