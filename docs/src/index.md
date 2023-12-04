@@ -66,7 +66,7 @@ using LazySets
 First, load the model.
 ```Julia
 onnx_path = "models/small_nnet.onnx"
-toy_model = build_flux_model(onnx_path)
+toy_model = ModelVerification.build_flux_model(onnx_path)
 ```
 
 Suppose we want to verify that all inputs in $\mathcal{X}=[-2.5, 2.5]$ are mapped into $\mathcal{Y}=[18.5, 114.5]$. We encode this safety property using convex sets, provided by [LazySets](https://juliareach.github.io/LazySets.jl/dev/). 
