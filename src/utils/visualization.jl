@@ -1,6 +1,13 @@
 using Plots
 using JLD2
 using FileIO
+
+"""
+    propagate_once(prop_method::PropMethod, model_info, batch_info, 
+                   save_path;  vis_center=true, save_bound=false)
+
+                   
+"""
 function propagate_once(prop_method::PropMethod, model_info, batch_info, save_path; vis_center=true, save_bound=false)
     # input: batch x ... x ...
 

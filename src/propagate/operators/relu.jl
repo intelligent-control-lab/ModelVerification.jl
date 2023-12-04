@@ -1,8 +1,46 @@
+"""
+    propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), 
+                  reach::AbstractPolytope, batch_info)
+
+Propagate the `AbstractPolytope` bound through a ReLU layer. I.e., it applies 
+the ReLU operation to the `AbstractPolytope` bound. The resulting bound is also
+of type `AbstractPolytope`. This is for either `Ai2z` or `ImageZono` propagation 
+methods, which both use Zonotope-like representation for the safety 
+specifications. After rectifying the input bound, it overapproximates the 
+resulting bound using a Zonotope.
+
+## Arguments
+- `prop_method` (`Union{Ai2z, ImageZono}`): The propagation method used for the 
+    verification problem. It can be either `Ai2z` or `ImageZono`, which both use 
+    Zonotope-like representation for the safety specifications.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `reach` (`AbstractPolytope`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- the relued bound of the output represented in `Zonotope` type.
+"""
 function propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
 end  
 
+"""
+    partition_relu(bound)
+
+Partition the `bound` into multiple `VPolytope` objects, each of which is the 
+intersection of the `bound` and an orthant. The resulting `VPolytope` objects 
+are stored in an array. This is for ReLU propagations in `ExactReach` solver.
+Thus, the resulting `VPolytope` objects are the outputs of rectifying the input 
+bound. The dimension of the `bound` must be less than 30, since otherwise the 
+number of output sets will be too large.
+
+## Arguments
+- `bound`: The bound of the input node.
+
+## Returns
+- An array of partitioned bounds represented using `VPolytope` type.
+"""
 function partition_relu(bound)
     N = dim(bound)
     N > 30 && @warn "Got dim(X) == $N in `forward_partition`. Expecting 2ᴺ = $(2^big(N)) output sets."
@@ -24,6 +62,29 @@ function partition_relu(bound)
     return output
 end
 
+"""
+    propagate_act(prop_method::ExactReach, layer::typeof(relu), 
+                  reach::ExactReachBound, batch_info)
+
+Propagate the `ExactReachBound` bound through a ReLU layer. I.e., it applies 
+the ReLU operation to the `ExactReachBound` bound. The resulting bound is also 
+of type `ExactReachBound`. This is for `ExactReach` propagation method.
+It calls `partition_relu` that partitions the resulting rectified bound into 
+multiple `VPolytope` objects, each of which is the intersection of the resulting 
+bound and an orthant. The resulting `VPolytope` objects are vertically 
+concatenated and stored in an `ExactReachBound` object.
+
+## Arguments
+- `prop_method` (`ExactReach`): The propagation method used for the verification 
+    problem.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `reach` (`ExactReachBound`): The bound of the input node, represented using 
+    `ExactReachBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- the relued bound of the output represented in `ExactReachBound` type.
+"""
 function propagate_act(prop_method::ExactReach, layer::typeof(relu), reach::ExactReachBound, batch_info)
     partitioned_bound = [partition_relu(bound) for bound in reach.polys]
     partitioned_bound = vcat(partitioned_bound...)
@@ -31,19 +92,52 @@ function propagate_act(prop_method::ExactReach, layer::typeof(relu), reach::Exac
     return reach
 end
 
+"""
+    propagate_act(prop_method::Box, layer::typeof(relu), 
+                  reach::AbstractPolytope, batch_info)
+
+Propagate the `AbstractPolytope` bound through a ReLU layer. I.e., it applies 
+the ReLU operation to the `AbstractPolytope` bound. The resulting bound is also 
+of type `AbstractPolytope`. This is for Ai2's `Box` propagation method. It calls 
+`rectify` that rectifies the input bound.
+
+## Arguments
+- `prop_method` (`Box`): The propagation method used for the verification 
+    problem.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `reach` (`AbstractPolytope`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- the relued bound of the output represented in `AbstractPolytope` type.
+"""
 function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = rectify(reach)
     return reach
 end  
 
+"""
+    fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, 
+                         ::Type{<:Zonotope}) where {N}
+
+Computes the overapproximation of the rectified set `r` using a Zonotope.
+
+## Arguments
+- `r` (`Rectification`): The rectified set.
+- `::Type{<:Zonotope}`: The type of the overapproximation, default is 
+    `Zonotope`.
+
+## Returns
+- The overapproximation of the rectified set `r` using a Zonotope.
+"""
 function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Zonotope}) where {N}
-    Z = LazySets.set(r)
+    Z = LazySets.set(r)     # Returns the original set of the rectification.
     c = copy(LazySets.center(Z))
     G = copy(LazySets.genmat(Z))
     n, m = size(G)
 
     # stats = @timed l, u = low(Z), high(Z)
-    l, u = compute_bound(Z)
+    l, u = compute_bound(Z) # Computes lower- and upper-bounds of the original set.
     # println("non0 ele cnt: ", sum((u - l) .> 1e-8))
     # println("low high time: ", stats.time)
     # println(l)
@@ -72,6 +166,27 @@ function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Z
     return Zonotope(c, LazySets.remove_zero_columns(Gout))
 end
 
+"""
+    propagate_act(prop_method, layer::typeof(relu), 
+                  bound::ImageZonoBound, batch_info)
+
+Propagate the `ImageZonoBound` bound through a ReLU layer. I.e., it applies 
+the ReLU operation to the `ImageZonoBound` bound. The resulting bound is also 
+of type `ImageZonoBound`. This is for `ImageZono` propagation method. It 
+flattens the input bound into a `Zonotope` and calls `fast_overapproximate` that 
+computes the overapproximation of the rectified set using a Zonotope. It then 
+converts the resulting `Zonotope` back to `ImageZonoBound`.
+
+## Arguments
+- `prop_method`: The propagation method used for the verification problem.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `bound` (`ImageZonoBound`): The bound of the input node, represented using 
+    `ImageZonoBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- the relued bound of the output represented in `ImageZonoBound` type.
+"""
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
@@ -109,6 +224,26 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
     return new_bound
 end
 
+"""
+    propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+    
+Propagate the `Star` bound through a ReLU layer. I.e., it applies the ReLU 
+operation to the `Star` bound. The resulting bound is also of type `Star`. This 
+is for `Star` propagation methods.
+
+## Arguments
+- `prop_method`: The propagation method used for the verification problem.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `bound` (`Star`): The bound of the input node, represented using `Star` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- the relued bound of the output represented in `Star` type.
+
+## Reference
+[1] HD. Tran, S. Bak, W. Xiang, and T.T. Johnson, "Verification of Deep Convolutional 
+Neural Networks Using ImageStars," in _Computer Aided Verification (CAV)_, 2020.
+"""
 function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
     # https://arxiv.org/pdf/2004.05511.pdf
     cen = LazySets.center(bound) # h * w * c * 1
@@ -174,6 +309,18 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     return new_bound
 end  
 
+"""
+    ImageStar_to_Star(bound::ImageStarBound)
+
+Convert the `ImageStarBound` bound to `Star` bound.
+
+## Arguments
+- `bound` (`ImageStarBound`): The bound of the input node, represented using 
+    `ImageStarBound` type.
+
+## Returns
+- The bound represented using `Star` type.
+"""
 function ImageStar_to_Star(bound::ImageStarBound)
     cen = reshape(bound.center, :) # h * w * c * 1
     gen = reshape(bound.generators, :, size(bound.generators,4)) # h*w*c x n_alpha
@@ -181,6 +328,18 @@ function ImageStar_to_Star(bound::ImageStarBound)
     return Star(T.(cen), T.(gen), HPolyhedron(T.(bound.A), T.(bound.b)))
 end
 
+"""
+    Star_to_ImageStar(bound::Star, sz)
+
+Converts the `Star` bound to `ImageStarBound` bound.
+
+## Arguments
+- `bound` (`Star`): The bound of the input node, represented using `Star` type.
+- `sz`: The size of the input image, i.e., the target size.
+
+## Returns
+- The bound represented using `ImageStarBound` type.
+"""
 function Star_to_ImageStar(bound::Star, sz)
     new_cen = reshape(LazySets.center(bound), sz[1], sz[2], sz[3], 1)
     new_gen = reshape(basis(bound), sz[1], sz[2], sz[3], :) # h x w x c x (n_alpha + n_beta)
@@ -190,6 +349,27 @@ function Star_to_ImageStar(bound::Star, sz)
     return ImageStarBound(T.(new_cen), T.(new_gen), T.(A), T.(b))
 end
 
+"""
+    propagate_act(prop_method, layer::typeof(relu), 
+                  bound::ImageStarBound, batch_info)
+
+Propagate the `ImageStarBound` bound through a ReLU layer. I.e., it applies 
+the ReLU operation to the `ImageStarBound` bound. The resulting bound is also 
+of type `ImageStarBound`. This is for `ImageStar` propagation method. It 
+converts the input bound to `Star` type, calls `propagate_act` that propagates 
+the `Star` bound through a ReLU layer, and converts the resulting bound back to 
+`ImageStarBound`.
+
+## Arguments
+- `prop_method`: The propagation method used for the verification problem.
+- `layer` (`typeof(relu)`): The ReLU operation to be used for propagation.
+- `bound` (`ImageStarBound`): The bound of the input node, represented using 
+    `ImageStarBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The relued bound of the output represented in `ImageStarBound` type.
+"""
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     to = get_timer("Shared")
     sz = size(bound.generators)
@@ -200,6 +380,16 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, 
     return new_bound
 end
 
+"""
+    propagate_act_batch(prop_method::Crown, layer::typeof(relu), 
+                        bound::CrownBound, batch_info)
+
+Propagate the `CrownBound` bound through a ReLU layer. I.e., it applies the ReLU
+operation to the `CrownBound` bound. The resulting bound is also of type 
+`CrownBound`. This is for `Crown` propagation method. It calls `compute_bound` 
+that computes the lower- and upper-bounds of the input bound. It then computes 
+
+"""
 function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::CrownBound, batch_info)
     to = get_timer("Shared")
     
@@ -276,7 +466,18 @@ mutable struct BetaLayer
 end
 Flux.@functor BetaLayer (alpha, beta,) #only alpha/beta need to be trained
 
-#Upper bound slope and intercept according to CROWN relaxation.
+"""
+    relu_upper_bound(lower, upper)
+
+Compute the upper bound slope and intercept according to CROWN relaxation. 
+
+## Arguments
+- `lower`: The lower bound of the input node, pre-ReLU operation.
+- `upper`: The upper bound of the input node, pre-ReLU operation.
+
+## Returns
+- The upper bound slope and intercept according to CROWN relaxation.
+"""
 function relu_upper_bound(lower, upper)
     lower_r = clamp.(lower, -Inf, 0)
     upper_r = clamp.(upper, 0, Inf)
@@ -287,6 +488,12 @@ function relu_upper_bound(lower, upper)
 end
 
 #using last_A for getting New_A
+"""
+    multiply_by_A_signs(last_A, slope_pos, slope_neg)
+
+Multiply the last layer's activation by the sign of the slope of the ReLU 
+activation function. This is for `BetaLayer` propagation method. 
+"""
 function multiply_by_A_signs(last_A, slope_pos, slope_neg)
     #last_A : spec_dim x reach_dim x batch_dim
     #slope_pos : reach_dim x batch_dim
@@ -325,6 +532,19 @@ function multiply_bias(last_A, bias_pos, bias_neg)
 end
 
 #bound oneside of the relu, like upper or lower
+"""
+    bound_oneside(last_A, slope_pos, slope_neg)
+
+Bound the ReLU activation function from one side, such as upper or lower.
+
+## Arguments
+- `last_A`: The last layer's activation.
+- `slope_pos`: The slope of the ReLU activation function from the positive side.
+- `slope_neg`: The slope of the ReLU activation function from the negative side.
+
+## Returns
+- The bound of the ReLU activation function from one side.
+"""
 function bound_oneside(last_A, slope_pos, slope_neg)
     if isnothing(last_A)
         return nothing
@@ -332,6 +552,7 @@ function bound_oneside(last_A, slope_pos, slope_neg)
     New_A = multiply_by_A_signs(last_A, slope_pos, slope_neg)
     return New_A
 end
+
 
 function add_beta(A, beta, beta_S)
     #buffer_beta = Zygote.Buffer(beta)

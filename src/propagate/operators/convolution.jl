@@ -1,5 +1,17 @@
 """
     propagate_by_small_batch(f, x; sm_batch=500)
+
+Propagate the input `x` through `f` by small batches. This is useful when the 
+input `x` is too large to fit into GPU memory.
+
+## Arguments
+- `f` (function): Function to be applied to the input `x`.
+- `x` (AbstractArray): Input to be propagated through `f`.
+- `sm_batch` (Int): Optional argument for the size of the small batch, default 
+    is 500.
+
+## Returns
+- Output of `f` applied to the input `x`.
 """
 function propagate_by_small_batch(f, x; sm_batch=500)
     y = nothing
@@ -14,7 +26,26 @@ function propagate_by_small_batch(f, x; sm_batch=500)
 end
 
 """
-    propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
+    propagate_linear(prop_method::ImageZono, layer::Conv, 
+                     bound::ImageZonoBound, batch_info)
+
+Propagate the `ImageZonoBound` bound through a convolution layer. I.e., it 
+applies the convolution operation to the `ImageZonoBound` bound. The convolution 
+operation is applied to both the center and the generators of the 
+`ImageZonoBound` bound. Using the `Flux.Conv`, a convolutional layer is made in 
+`Flux` with the given `layer` properties. While `cen_Conv` (convolutional layer 
+for the center image) uses the bias, the `gen_Conv` (convolutional layer for the 
+generators) does not. The resulting bound is also of type `ImageZonoBound`.
+
+## Arguments
+- `prop_method` (`ImageZono`): The `ImageZono` propagation method used for the 
+    verification problem.
+- `layer` (`Conv`): The convolution operation to be used for propagation.
+- `bound` (`ImageZonoBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The convolved bound of the output layer represented in `ImageZonoBound` type.
 """
 function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
@@ -37,7 +68,26 @@ function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoB
 end
 
 """
-    propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
+    propagate_linear(prop_method::ImageStar, layer::Conv, 
+                     bound::ImageStarBound, batch_info)
+
+Propagate the `ImageStarBound` bound through a convolution layer. I.e., it 
+applies the convolution operation to the `ImageStarBound` bound. The convolution 
+operation is applied to both the center and the generators of the 
+`ImageStarBound` bound. Using the `Flux.Conv`, a convolutional layer is made in 
+`Flux` with the given `layer` properties. While `cen_Conv` (convolutional layer 
+for the center image) uses the bias, the `gen_Conv` (convolutional layer for the 
+generators) does not. The resulting bound is also of type `ImageStarBound`.
+
+## Arguments
+- `prop_method` (`ImageStar`): The `ImageStar` propagation method used for the 
+    verification problem.
+- `layer` (`Conv`): The convolution operation to be used for propagation.
+- `bound` (`ImageStarBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The convolved bound of the output layer represented in `ImageStarBound` type.                     
 """
 function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
     # copy a Conv and set activation to identity
@@ -52,7 +102,30 @@ function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarB
 end
 
 """
-    propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
+    propagate_linear(prop_method::ImageZono, layer::ConvTranspose, 
+                     bound::ImageZonoBound, batch_info)
+
+Propagate the `ImageZonoBound` bound through a convolutional transpose layer. 
+I.e., it applies the convolutional transpose operation to the `ImageZonoBound` 
+bound. While a regular convolution reduces the spatial dimensions of an input, a 
+convolutional transpose expands the spatial dimensions of an input.
+The convolutional transpose operation is applied to both the center and 
+the generators of the `ImageZonoBound` bound. Using the `Flux.ConvTranspose`, a 
+convolutional tranpose layer is made in `Flux` with the given `layer` 
+properties. While `cen_Conv` (convolutional transpose layer for the center 
+image) uses the bias, the `gen_Conv` (convolutional transpose layer for the 
+generators) does not. The resulting bound is also of type `ImageZonoBound`.
+
+## Arguments
+- `prop_method` (`ImageZono`): The `ImageZono` propagation method used for the 
+    verification problem.
+- `layer` (`ConvTranspose`): The convolutional transpose operation to be used 
+    for propagation.
+- `bound` (`ImageZonoBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The convolved bound of the output layer represented in `ImageZonoBound` type.              
 """
 function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
@@ -66,7 +139,30 @@ function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::I
 end
 
 """
-    propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
+    propagate_linear(prop_method::ImageStar, layer::ConvTranspose, 
+                     bound::ImageStarBound, batch_info)
+
+Propagate the `ImageStarBound` bound through a convolutional transpose layer. 
+I.e., it applies the convolutional transpose operation to the `ImageStarBound` 
+bound. While a regular convolution reduces the spatial dimensions of an input, a 
+convolutional transpose expands the spatial dimensions of an input.
+The convolutional transpose operation is applied to both the center and 
+the generators of the `ImageStarBound` bound. Using the `Flux.ConvTranspose`, a 
+convolutional tranpose layer is made in `Flux` with the given `layer` 
+properties. While `cen_Conv` (convolutional transpose layer for the center 
+image) uses the bias, the `gen_Conv` (convolutional transpose layer for the 
+generators) does not. The resulting bound is also of type `ImageStarBound`.
+
+## Arguments
+- `prop_method` (`ImageStar`): The `ImageStar` propagation method used for the 
+    verification problem.
+- `layer` (`ConvTranspose`): The convolutional transpose operation to be used 
+    for propagation.
+- `bound` (`ImageStarBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The convolved bound of the output layer represented in `ImageStarBound` type.                          
 """
 function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
@@ -77,7 +173,30 @@ function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::I
 end
 
 """
-    bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
+    bound_onside(layer::Conv{2, 4, typeof(identity), 
+                            Array{Float32, 4}, Vector{Float32}}, 
+                 conv_input_size::AbstractArray, batch_reach::AbstractArray)
+
+Transforms the batch reachable set to the input size of the convolutional layer 
+using a `ConvTranspose` layer. First, it extracts the layer properties such as 
+`weight`, `bias`, and `stride`. Then, it computes the output bias by summing 
+over the batch reach and multiplying by the bias. Then, it flips the weights 
+horizontally and vertically. Then, it computes the padding needed for the output 
+based on the input size and the convolutional layer properties. Then, it creates 
+a `ConvTranspose` layer with the calculated parameters and applies it to the 
+batch reach. If additional padding is needed, it pads the output using the 
+`PaddedView` function.
+
+## Arguments
+- `layer` (`Conv`): The convolutional layer to be used for propagation.
+- `conv_input_size` (AbstractArray): The size of the input to the convolutional 
+    layer.
+- `batch_reach` (AbstractArray): The batch reachable set of the input to the 
+    convolutional layer.
+
+## Returns
+- The batch reachable set and batch bias in dimension equal to the input size of 
+    the convolutional layer.
 """
 function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, conv_input_size::AbstractArray, batch_reach::AbstractArray)  
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
@@ -100,7 +219,26 @@ function bound_onside(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vec
 end  
 
 """
-    interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
+    interval_propagate(layer::Conv{2, 4, typeof(identity), 
+                                   Array{Float32, 4}, Vector{Float32}}, 
+                       interval, C = nothing)
+
+Propagates the interval bounds through a convolutional layer. This is used in 
+the interval arithmetic for neural network verification, where the goal is to 
+compute the range of possible output values given a range of input values, 
+represented with `interval`. It applies the convolution operation with `Conv` 
+to the center of the interval and the deviation of the interval.
+
+## Arguments
+- `layer` (`Conv`): The convolutional layer to be used for propagation.
+- `interval` (Tuple): The interval bounds of the input to the convolutional 
+    layer.
+- `C` (nothing): Optional argument for the center of the interval, default is 
+    nothing.
+
+## Returns
+- The interval bounds after convolution operation represented in an array of 
+    [lower, upper, C = nothing].
 """
 function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, interval, C = nothing) 
     interval_low = interval[1], interval_high = interval[2]
@@ -119,7 +257,25 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
 end
 
 """
-    bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
+    bound_layer(layer::Conv{2, 4, typeof(identity), 
+                            Array{Float32, 4}, Vector{Float32}}, 
+                lower_weight::AbstractArray, upper_weight::AbstractArray, 
+                lower_bias::AbstractArray, upper_bias::AbstractArray)
+
+Propagates the bounds of weight and bias through a convolutional layer. It 
+applies the convolution operation with `Conv` to the weight and bias bounds:
+`upper_weight`, `lower_weight`, `upper_bias`, and `lower_bias`. 
+
+## Arguments
+- `layer` (`Conv`): The convolutional layer to be used for propagation.
+- `lower_weight` (AbstractArray): The lower bound of the weight.
+- `upper_weight` (AbstractArray): The upper bound of the weight.
+- `lower_bias` (AbstractArray): The lower bound of the bias.
+- `upper_bias` (AbstractArray): The upper bound of the bias.
+
+## Returns
+- The bounds of the weight and bias after convolution operation represented in 
+    a tuple of [lower_weight, lower_bias, upper_weight, upper_bias].
 """
 function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vector{Float32}}, lower_weight::AbstractArray, upper_weight::AbstractArray, lower_bias::AbstractArray, upper_bias::AbstractArray)
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups

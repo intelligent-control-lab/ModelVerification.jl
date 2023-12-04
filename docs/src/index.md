@@ -10,6 +10,7 @@ Deep Neural Network (DNN) is crucial in approximating nonlinear functions across
 ### Key features:
 - _Julia and Python integration_: Built on Julia programming language, [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) leverages Julia's high-performance capabilities, ensuring efficient and scalable verification processes. Moreover, we provide the user with an easy, ready-to-use Python interface to exploit the full potential of the toolbox even without knowledge of the Julia language.
 - _Different types of verification_: [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) enables verification of several input-output specifications, such as reacability analysis, behavioral properties (e.g., to verify Deep Reinforcement Learning policies), or even robustness properties for Convolutional Neural Network (CNN). It also introduces new types of verification, not only for finding individual adversarial input, but for enumerating the entire set of unsafe zones for a given network and safety properties.
+- _Visualization of intermediate verification results (reachable sets)_: [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) enables the visualization of intermediate verification results in terms of reachable sets. In particular, our toolbox allows to plot the impactful features for the verification process and the correlated output reachable set (layer by layer) and thus to define new specific input-output specifications based on this information.
 - _Verification benchmarks_: Compare our or your verification toolboxes against state-of-the-art benchmarks and evaluation criteria ([VNN-Comp 2023](https://vnncomp.christopher-brix.de/)). [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) includes a collection of solvers and standard benchmarks to perform this evaluation efficiently.
 
 ## Setup
@@ -102,15 +103,11 @@ CROWN verifies that the input-output relationship holds!
 ## Tutorials
 - [Tutorials](https://github.com/intelligent-control-lab/MV-test/blob/main/tutorial.ipynb)
     - Example 1: Verifying a toy DNN with reachability analysis
-    - Example 2: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
-    - Example 3: Verifying a CNN for robustness safety property
-<!-- - [MLP examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_mlp.ipynb)
-- [CNN examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_cnn.ipynb)
-- [MNIST examples](https://github.com/intelligent-control-lab/MV-test/blob/main/train_mnist.ipynb)
-- [ACASXU examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_ACASXU.ipynb) -->
+    - Example 2: Verifying a CNN for robustness safety property
+    - Example 3: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
 
 ## Toolbox Outline
-![](./assets/MV_flow.png)
+![](./assets/overview_mvflow.png)
 
 ```@contents
 Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
@@ -119,12 +116,6 @@ Depth = 3
 
 ## Python Interface
 ```@contents
-Pages = ["nnet_converter.md"]
-Depth = 3
-```
-
-## Benchmarks
-```@contents
-Pages = ["benchmark.md"]
+Pages = ["nnet_converter.md", "python_interface.md"]
 Depth = 3
 ```

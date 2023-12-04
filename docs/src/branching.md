@@ -28,7 +28,6 @@ Bisect
 split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
 split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
 split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output)
-split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
 split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
 split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
 split_interval(dom::Hyperrectangle, i::Int64)
@@ -37,7 +36,7 @@ split_interval(dom::Hyperrectangle, i::Int64)
 ### Branch-and-bound
 ```@docs
 BaBSR
-split_branch(split_method::BaBSR, model::Chain, input::Tuple, output, model_info, batch_info)
+split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
 split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
 vecsign_convert_to_original_size(index, vector, original)
 vecmask_convert_to_original_size(index, original)

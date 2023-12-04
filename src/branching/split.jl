@@ -95,7 +95,8 @@ end
 
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output)
+    split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, 
+                 output, model_info, batch_info)
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
     # println("split image zono")
