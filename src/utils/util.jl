@@ -250,8 +250,9 @@ activation pattern using `get_activation(nnet, bounds)`.
 
 ## Returns
 - `Vector{Vector{Bool}}` where each Vector{Bool} refers to the activation 
-    pattern of a particular layer. `1` means activated, `0` means undetermined, 
-    and `-1` means not activated.
+    pattern of a particular layer. Each element in each `Vector{Bool}` specifies 
+    the activation pattern of a particular neuron. `1` means activated, `0` 
+    means undetermined, and `-1` means not activated.
 """
 function get_activation(nnet::Network, input::Hyperrectangle)
     bounds = get_bounds(nnet, input, before_act = true)
@@ -261,13 +262,23 @@ end
 """
     get_activation(nnet::Network, bounds::Vector{Hyperrectangle})
 
-Given a network, find the activation pattern of all neurons given the node-wise bounds.
-Assume ReLU. Assume pre-activation bounds where the bounds on the input are given by the first
-hyperrectangle, the first hidden layer by the second hyperrectangle, and so on.
-return Vector{Vector{Int64}}.
-- 1: activated
-- 0: undetermined
-- -1: not activated
+Given a network, find the activation pattern of all neurons given the node-wise 
+bounds. Assume ReLU activation function for all layers. Assume pre-activation 
+bounds where the bounds on the input are given by the first hyperrectangle, the 
+first hidden layer by the second hyperrectangle, and so on.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated, with the activation function 
+    assumed to be ReLU for all layers.
+- `bounds` (`Vector{Hyperrectangle}`): Vector of node-wise bounds, where the 
+    bounds on the input are given by the first hyperrectangle, the first hidden 
+    layer by the second hyperrectangle, and so on.
+
+## Returns
+- `Vector{Vector{Bool}}` where each Vector{Bool} refers to the activation 
+    pattern of a particular layer. Each element in each `Vector{Bool}` specifies 
+    the activation pattern of a particular neuron. `1` means activated, `0` 
+    means undetermined, and `-1` means not activated.
 """
 function get_activation(nnet::Network, bounds::Vector{Hyperrectangle})
     act_pattern = Vector{Vector{Int}}(undef, length(nnet.layers))
@@ -280,12 +291,19 @@ end
 """
     get_activation(L::Layer{ReLU}, bounds::Hyperrectangle)
 
-Given a layer, find the activation pattern of all neurons in the layer given the node-wise bounds.
-Assume ReLU. Assume bounds is the pre-activation bounds for each ReLU in the layer.
-return Vector{Vector{Int64}}.
-- 1: activated
-- 0: undetermined
-- -1: not activated
+Given a layer, find the activation pattern of all neurons in the layer given the 
+node-wise bounds. Assume ReLU activation function for the given layer. Assume 
+bounds is the pre-activation bounds for each ReLU in the layer.
+
+## Arguments
+- `L` (`Layer{ReLU}`): Layer to be propagated, with the activation function 
+    assumed to be ReLU.
+- `bounds` (`Hyperrectangle`): Node-wise pre-activation bounds for the layer.
+
+## Returns
+- `Vector{Bool}` where each element refers to the activation pattern of a 
+    particular neuron. `1` means activated, `0` means undetermined, and `-1` 
+    means not activated.
 """
 function get_activation(L::Layer{ReLU}, bounds::Hyperrectangle)
     lower = low(bounds)
@@ -304,7 +322,17 @@ end
 """
     get_gradient(nnet::Network, x::Vector)
 
-Given a network, find the gradient at the input x
+Given a network, find the gradient for the input x. The function propagates 
+through the layers of the network, and computes the gradient at each layer. 
+The gradient at each layer is computed by multiplying the gradient at the 
+previous layer with the gradient of the current layer.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `x` (`Vector`): Vector to be propagated through `nnet`.
+
+## Returns
+- `Matrix` of the gradient for the input `x` after propagating through `nnet`.
 """
 function get_gradient(nnet::Network, x::Vector)
     z = x
@@ -321,23 +349,58 @@ end
 """
     act_gradient(act::ReLU, z_hat::Vector)
 
-Compute the gradient of an ReLU activation function at point z_hat.
+Compute the gradient of an ReLU activation function at point z_hat. For each 
+element in `z_hat`, if `z_hat[i] > 0`, then `act_gradient[i] = 1`, else 
+`act_gradient[i] = 0`.
+
+## Arguments
+- `act` (`ReLU`): ReLU activation function.
+- `z_hat` (`Vector`): Vector to be propagated through `act`.
+
+## Returns
+- `Vector` of the gradient of `act` at `z_hat`. Each element in the vector 
+    corresponds to the gradient of a particular neuron.
 """
 act_gradient(act::ReLU, z_hat::Vector) = z_hat .>= 0.0
 
 """
     act_gradient(act::Id, z_hat::Vector)
 
-Compute the gradient of an Identity activation function at point z_hat.
+Compute the gradient of an Identity activation function at point z_hat. For 
+each element in `z_hat`, `act_gradient[i] = 1`. 
+
+## Arguments
+- `act` (`Id`): Identity activation function.
+- `z_hat` (`Vector`): Vector to be propagated through `act`.
+
+## Returns
+- `Vector` of the gradient of `act` at `z_hat`. Each element in the vector 
+    corresponds to the gradient of a particular neuron. 
 """
 act_gradient(act::Id, z_hat::Vector) = trues(length(z_hat))
 
 """
     relaxed_relu_gradient(l::Real, u::Real)
 
-Return the slope of a ReLU activation based on its lower and upper bounds
+Return the relaxed slope of a ReLU activation based on its lower and upper 
+bounds. The relaxed ReLU function allows for a smooth approximation of the 
+gradient of the ReLU function. The relaxed ReLU function is defined as follows: 
+- `f'(x) = 0` if `upper-bound < 0`, 
+- `f'(x) = 1` if `lower-bound > 0`, 
+- and `f'(x) = x/(u-l)` if `lower-bound < x < upper-bound` which is the slope of 
+    the line connecting the points `(l, ReLU(l))` and `(u, ReLU(u))`.
 
-Returns `0` if u<0, `1` if l>0, `u/(u-l)` otherwise
+This provides a differentiable approximation of the ReLU function within the 
+interval [l, u].
+
+## Arguments
+- `l` (`Real`): Lower-bound of the input to the ReLU activation function.
+- `u` (`Real`): Upper-bound of the input to the ReLU activation function.
+
+## Returns
+- `0.0` if `u <= 0.0`, 
+- `1.0` if `l >= 0.0`,
+- `u/(u-l)` otherwise.
 """
 function relaxed_relu_gradient(l::Real, u::Real)
     u <= 0.0 && return 0.0
@@ -345,14 +408,26 @@ function relaxed_relu_gradient(l::Real, u::Real)
     return u / (u - l)
 end
 
-
 """
     act_gradient_bounds(nnet::Network, input::AbstractPolytope)
 
-Compute the bounds on the gradient of all activation functions given an input set.
-Currently only support ReLU.
-Return:
-- `LΛ, UΛ::NTuple{2, Vector{BitVector}}`: lower and upper bounds on activation
+Compute the bit-wise bounds on the gradient post activation operation given an 
+input  set. Currently only support ReLU activation function. It first calculates 
+the bounds of the input for each layer using `get_bounds` function (this 
+function propagates through each layer and computes the bounds of each layer). 
+Then, it computes the bit-wise lower and upper gradient for each layer using 
+`act_gradient`. The final output is a tuple of two vectors, where each vector is 
+a vector of bit-vectors. Each element in the vector corresponds to the gradient 
+of a particular neuron which can be either `0` (not activated) or 
+`1` (activated).
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `input` (`AbstractPolytope`): Input set to be propagated through `nnet`.
+
+## Returns
+- `LΛ, UΛ::NTuple{2, Vector{BitVector}}`: lower and upper bit-wsie bounds on the 
+    activation gradients for each layer.
 """
 function act_gradient_bounds(nnet::Network, input::AbstractPolytope)
     # get the pre-activation bounds, and get rid of the input set
@@ -373,9 +448,19 @@ end
 """
     get_gradient_bounds(nnet::Network, input::AbstractPolytope)
 
-Get lower and upper bounds on network gradient for given gradient bounds on activations, or given an input set.
-Return:
-- `(LG, UG)::NTuple{2, Matrix{Float64}` lower and upper bounds.
+Get lower and upper bounds on network gradient for given gradient bounds on 
+activations, or given an input set.
+It first calculates the bit-wise lower and upper gradient bounds for each layer 
+using  `act_gradient_bounds`. Then, it computes the gradient bounds of the 
+entire network for the weights using `get_gradient_bounds`.
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `input` (`AbstractPolytope`): Input set to be propagated through `nnet`.
+
+## Returns
+- `(LG, UG)`: `NTuple{2, Matrix{Float64}` of the lower and upper bounds of the 
+    entire network.
 """
 function get_gradient_bounds(nnet::Network, input::AbstractPolytope)
     LΛ, UΛ = act_gradient_bounds(nnet, input)
@@ -385,7 +470,21 @@ end
 """
     get_gradient_bounds(nnet::Network, LΛ::Vector{AbstractVector}, 
                         UΛ::Vector{AbstractVector})
-    
+
+Given bit-wise lower and upper gradient bounds for each layer (`LΛ` and `UΛ`), 
+compute the lower and upper bounds of the entire network for the weights of the 
+layers. 
+
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `LΛ` (`Vector{AbstractVector}`): Vector of bit-wise lower gradient bounds for 
+    each layer. 
+- `UΛ` (`Vector{AbstractVector}`): Vector of bit-wise upper gradient bounds for
+    each layer.    
+
+## Returns
+- `(LG, UG)`: `NTuple{2, Matrix{Float64}` of the lower and upper bounds of the 
+    entire network.
 """
 function get_gradient_bounds(nnet::Network, LΛ::Vector{<:AbstractVector}, UΛ::Vector{<:AbstractVector})
     n_input = size(nnet.layers[1].weights, 2)
@@ -402,11 +501,16 @@ end
 """
     interval_map(W::Matrix, l::AbstractVecOrMat, u::AbstractVecOrMat)
 
-Simple linear mapping on intervals.
+Simple linear mapping of the weights on intervals.
 `L, U := ([W]₊*l + [W]₋*u), ([W]₊*u + [W]₋*l)`
 
+## Arguments
+- `W` (`AbstractMatrix`): Matrix of weights.
+- `l` (`AbstractVecOrMat`): Vector or matrix of lower bounds.
+- `u` (`AbstractVecOrMat`): Vector or matrix of upper bounds.
+
 ## Returns
-- `(lbound, ubound)` (after the mapping)
+- `(l_new, u_new)`: New bounds after the linear mapping.
 """
 function interval_map(W::AbstractMatrix{N}, l::AbstractVecOrMat, u::AbstractVecOrMat) where N
     l_new = max.(W, zero(N)) * l + min.(W, zero(N)) * u
@@ -420,8 +524,15 @@ end
 Computes node-wise bounds given a input set. The optional last
 argument determines whether the bounds are pre- or post-activation.
 
+## Arguments
+- `nnet` (`Network`): Network to be propagated.
+- `input` (`AbstractPolytope`): Input set to be propagated through `nnet`.
+- `before_act`: Optional argument that determines whether the bounds are 
+    pre- or post-activation. Defaults to `false`.
+
 ## Returns
-- `Vector{Hyperrectangle}`: bounds for all nodes. `bounds[1]` is the input set.
+- `Vector{Hyperrectangle}`: bounds for all nodes. `bounds[1]` is the 
+    input set overapproximated with a `Hyperrectangle`.
 """
 function get_bounds(nnet::Network, input; before_act::Bool = false) # NOTE there is another function by the same name in convDual. Should reconsider dispatch
     input = overapproximate(input, Hyperrectangle)
@@ -442,6 +553,16 @@ end
 
 """
     get_bounds(problem::Problem; kwargs...)
+
+Compute node-wise bounds for a given `Problem` using `get_bounds(nnet, input)`.
+
+## Arguments
+- `problem` (`Problem`): Problem to be propagated.
+- `kwargs`: Keyword arguments to be passed to `get_bounds(nnet, input)` such as 
+    the optional boolean argument `before_act`.
+
+## Returns
+- `Vector{Hyperrectangle}`: bounds for all nodes. `bounds[1]` is the input set.
 """
 get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.input; kwargs...)
 
@@ -460,6 +581,13 @@ get_bounds(problem::Problem; kwargs...) = get_bounds(problem.network, problem.in
    approximate_affine_map(layer, input::Hyperrectangle)
 
 Returns a Hyperrectangle overapproximation of the affine map of the input.
+
+## Arguments
+- `layer` (`Layer`): Layer to be propagated for the affine map.
+- `input` (`Hyperrectangle`): Input set to be propagated through `layer`.
+
+## Returns
+- `Hyperrectangle` overapproximation of the affine map of the input.
 """
 function approximate_affine_map(layer::Layer, input::Hyperrectangle)
     c = affine_map(layer, input.center)
@@ -471,7 +599,14 @@ end
     approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
 
 Returns a Hyperrectangle overapproximation of the activation map of the input.
-`act`must be monotonic.
+`act` must be monotonic.
+
+## Arguments
+- `act` (`ActivationFunction`): Activation function to be propagated.
+- `input` (`Hyperrectangle`): Input set to be propagated through `act`.
+
+## Returns
+- `Hyperrectangle` overapproximation of the activation map of the input.
 """
 function approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
     β    = act.(input.center)
@@ -484,11 +619,26 @@ end
 
 """
     approximate_act_map(layer::Layer, input::Hyperrectangle)
+
+Returns a Hyperrectangle overapproximation of the activation map of the input 
+for the given layer. The activation function of the layer must be monotonic. 
+
+## Arguments
+- `layer` (`Layer`): Layer to be propagated for the activation map.
+- `input` (`Hyperrectangle`): Input set to be propagated through `layer`.
+
+## Returns
+- `Hyperrectangle` overapproximation of the activation map of the input.
 """
 approximate_act_map(layer::Layer, input::Hyperrectangle) = approximate_act_map(layer.activation, input)
 
 """
     UnboundedInputError <: Exception
+
+Exception thrown when an input set is unbounded.
+
+## Fields
+- `msg` (`String`): Error message.
 """
 struct UnboundedInputError <: Exception
     msg::String
@@ -497,6 +647,16 @@ Base.showerror(io::IO, e::UnboundedInputError) = print(io, msg)
 
 """
     isbounded(input)
+
+Check if input set is bounded. If the `input` is of type `HPolytope`, then 
+`LazySets.isbounded` converts the `HPolytope` to a `HPolyhedron` and checks if 
+that is bounded. Otherwise, `LazySets.isbounded` is called directly.
+
+## Arguments
+- `input`: Input set to be checked for boundedness.
+
+## Returns
+- `true` if `input` is bounded, `false` otherwise.
 """
 function isbounded(input)
     if input isa HPolytope
@@ -508,10 +668,28 @@ end
 
 """
     is_hypercube(set::Hyperrectangle)
+
+Check if `set` is a is_hypercube. This is done by checking if all the radii of 
+the `Hyperrectangle` are equal in all directions.
+
+## Arguments
+- `set` (`Hyperrectangle`): Set to be checked for hypercube-ness.
+
+## Returns
+- `true` if `set` is a hypercube, `false` otherwise.
 """
 is_hypercube(set::Hyperrectangle) = all(iszero.(set.radius .- set.radius[1]))
 
 """
     is_halfspace_equivalent(set)
+
+Check if `set` is halfspace equivalent. This is done by checking if the number 
+of constraints in the `set` is equal to 1.
+
+## Arguments
+- `set`: Set to be checked for halfspace equivalence.
+
+## Returns
+- `true` if `set` is halfspace equivalent, `false` otherwise.
 """
 is_halfspace_equivalent(set) = length(constraints_list(set)) == 1

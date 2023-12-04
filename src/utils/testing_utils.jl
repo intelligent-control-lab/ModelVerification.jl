@@ -6,6 +6,8 @@ using NeuralVerification;
                         max_weight = 1.0, min_bias = -1.0, max_bias = 1.0, 
                         rng=MersenneTwister(0))
 
+(DEPRECATED)                        
+
 Generate a network with random weights and bias. The first layer is treated as the input.
 The values for the weights and bias will be uniformly drawn from the range between min_weight
 and max_weight and min_bias and max_bias respectively. The last layer will have an ID()

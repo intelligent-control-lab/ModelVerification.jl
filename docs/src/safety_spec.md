@@ -113,15 +113,20 @@ InputSpec
 OutputSpec
 ```
 
+The following are structures for specifications and construction functions for specifications.
 ```@docs
-ImageConvexHull
 LinearSpec
+get_linear_spec(batch_out_set::AbstractVector)
+ReLUConstraints
+ReLUConstrainedDomain
+ImageConvexHull
+ImageLinfBall
+get_image_linf_spec
 classification_spec(n::Int64, target::Int64)
 ```
 
-### Functions
+The following are helper functions for retrieving information the specification structures.
 ```@docs
 get_size(input_spec::LazySet)
 get_size(input_spec::ImageConvexHull)
-get_linear_spec(batch_out_set::AbstractVector)
 ```

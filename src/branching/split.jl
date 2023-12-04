@@ -63,6 +63,13 @@ function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle,
     subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
     return [subtree1; subtree2]
 end
+
+"""
+    split_branch(split_method::Bisect, model::Chain, 
+                 input::ReLUConstrainedDomain, output, model_info, batch_info)
+
+                 
+"""
 function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
     branches = split_branch(split_method, model, input.domain, output, model_info, batch_info)
     return [(ReLUConstrainedDomain(domain, input.all_relu_cons), output) for (domain,output) in branches]
@@ -92,7 +99,6 @@ input::Hyperrectangle, ...)` to recursively bisect the input specification for a
 function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
     return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
 end
-
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, 
