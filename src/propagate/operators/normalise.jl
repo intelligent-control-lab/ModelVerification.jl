@@ -17,7 +17,7 @@ The resulting bound is also of type `ImageStarBound`.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The batch normed bound of the output layer represetned in `ImageStarBound` 
+- The batch normed bound of the output layer represented in `ImageStarBound` 
     type.
 """
 function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info)
@@ -50,7 +50,7 @@ The resulting bound is also of type `ImageZonoBound`.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The batch normed bound of the output layer represetned in `ImageZonoBound` 
+- The batch normed bound of the output layer represented in `ImageZonoBound` 
     type.
 """
 function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)

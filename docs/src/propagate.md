@@ -34,11 +34,31 @@ Pages=["convolution.jl"]
 ```
 
 ## Dense
+```@autodocs
+Modules=[ModelVerification]
+Pages=["dense.jl"]
+```
 
 ## Identity
+```@autodocs
+Modules=[ModelVerification]
+Pages=["identity.jl"]
+```
 
 ## Normalise
+```@autodocs
+Modules=[ModelVerification]
+Pages=["normalise.jl"]
+```
 
 ## ReLU
+```@autodocs
+Modules=[ModelVerification]
+Pages=["relu.jl"]
+```
 
 ## Stateless
+```@autodocs
+Modules=[ModelVerification]
+Pages=["stateless.jl"]
+```

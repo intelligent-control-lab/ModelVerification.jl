@@ -12,7 +12,7 @@ the `ImageStarBound` into a `Star` type.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The flattened bound of the output layer represetned in `Star` type.
+- The flattened bound of the output layer represented in `Star` type.
 """
 propagate_linear(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info) = 
     Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b))
@@ -31,7 +31,7 @@ the `ImageZonoBound` into a `Zonotope` type.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The flattened bound of the output layer represetned in `Zonotope` type.
+- The flattened bound of the output layer represented in `Zonotope` type.
 """
 propagate_linear(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
     Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
@@ -51,7 +51,7 @@ also of type `ImageStarBound`.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The mean pooled bound of the output layer represetned in `ImageStarBound` 
+- The mean pooled bound of the output layer represented in `ImageStarBound` 
     type.
 """
 function propagate_linear(prop_method, layer::MeanPool, bound::ImageStarBound, batch_info)
@@ -75,7 +75,7 @@ also of type `ImageZonoBound`.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The mean pooled bound of the output layer represetned in `ImageZonoBound` 
+- The mean pooled bound of the output layer represented in `ImageZonoBound` 
     type.
 """
 function propagate_linear(prop_method, layer::MeanPool, bound::ImageZonoBound, batch_info)

@@ -54,7 +54,7 @@ process_bound
 check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
 ```
 
-# Ai2
+## Ai2
 ```@docs
 Ai2
 StarSet
@@ -66,7 +66,7 @@ check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet,
 check_inclusion(prop_method::ForwardProp, model, input::LazySet, reach::LazySet, output::Complement)
 ```
 
-# ImageStar
+## ImageStar
 ```@docs
 ImageStar
 ImageStarBound
@@ -79,7 +79,7 @@ center(bound::ImageStarBound)
 check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, reach::LazySet, output::LazySet)
 ```
 
-# ImageZono
+## ImageZono
 ```@docs
 ImageZono
 ImageZonoBound
@@ -91,8 +91,8 @@ center(bound::ImageZonoBound)
 check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, reach::LazySet, output::LazySet)
 ```
 
-# Crown
+## Crown
 
-# $\alpha$-Crown
+## $\alpha$-Crown
 
-# $\beta$-Crown
+## $\beta$-Crown

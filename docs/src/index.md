@@ -102,15 +102,11 @@ CROWN verifies that the input-output relationship holds!
 ## Tutorials
 - [Tutorials](https://github.com/intelligent-control-lab/MV-test/blob/main/tutorial.ipynb)
     - Example 1: Verifying a toy DNN with reachability analysis
-    - Example 2: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
-    - Example 3: Verifying a CNN for robustness safety property
-<!-- - [MLP examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_mlp.ipynb)
-- [CNN examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_cnn.ipynb)
-- [MNIST examples](https://github.com/intelligent-control-lab/MV-test/blob/main/train_mnist.ipynb)
-- [ACASXU examples](https://github.com/intelligent-control-lab/MV-test/blob/main/test_ACASXU.ipynb) -->
+    - Example 2: Verifying a CNN for robustness safety property
+    - Example 3: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
 
 ## Toolbox Outline
-![](./assets/MV_flow.png)
+![](./assets/overview_mvflow.png)
 
 ```@contents
 Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
@@ -119,12 +115,6 @@ Depth = 3
 
 ## Python Interface
 ```@contents
-Pages = ["nnet_converter.md"]
-Depth = 3
-```
-
-## Benchmarks
-```@contents
-Pages = ["benchmark.md"]
+Pages = ["nnet_converter.md", "python_interface.md"]
 Depth = 3
 ```

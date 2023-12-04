@@ -16,7 +16,7 @@ generators.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The bound of the output layer represetned in `ImageZonoBound` type.
+- The bound of the output layer represented in `ImageZonoBound` type.
 """
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageZonoBound, bound2::ImageZonoBound, batch_info)
     new_c = bound1.center + bound2.center
@@ -42,7 +42,7 @@ problem.
 - `batch_info`: Dictionary containing information of each node in the model.
 
 ## Returns
-- The bound of the output layer represetned in `ImageStarBound` type.
+- The bound of the output layer represented in `ImageStarBound` type.
 """
 function propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, bound2::ImageStarBound, batch_info)
     new_c = bound1.center + bound2.center

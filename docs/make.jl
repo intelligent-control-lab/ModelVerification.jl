@@ -21,9 +21,6 @@ makedocs(sitename = "ModelVerification.jl",
                 "nnet_converter.md",
                 "python_interface.md"
             ],
-            "Benchmarks " => [
-                "benchmark.md"
-            ],
             "existing_implementations.md", 
             "about.md"
         ]
