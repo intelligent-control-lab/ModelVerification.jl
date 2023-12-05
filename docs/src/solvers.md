@@ -13,6 +13,7 @@ For most of the functions below, each solver has a unique dispatch defined.
 ## Variations of propagation methods
 All the solvers are based on one of the following propagation methods.
 ```@docs
+PropMethod
 ForwardProp
 BackwardProp
 SequentialForwardProp
