@@ -328,7 +328,15 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
     min_loss = Inf
     @timeit to "setup" opt_state = Flux.setup(optimizer, model)
     for i in 1 : max_iter
-        @timeit to "forward" losses, grads = Flux.withgradient(model) do m
+        @timeit to "forward" begin
+            x = input
+            for layer in model
+                # println(string(nameof(typeof(layer))))
+                @timeit to string(nameof(typeof(layer))) x = layer(x)
+                # x = layer(x)
+            end
+        end
+        @timeit to "forward_grad" losses, grads = Flux.withgradient(model) do m
             # println("input")
             # println(input)
             # println("m")
