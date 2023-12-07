@@ -37,12 +37,34 @@ using TimerOutputs
 
 abstract type Solver end
 
+"""
+    SearchMethod
+
+Algorithm for iterating through the branches, such as BFS (breadth-first search) 
+and DFS (depth-first search). For an example, see the documentation on 
+[`BFS`](@ref).
+"""
 abstract type SearchMethod end
+
+"""
+    SplitMethod
+
+Algorithm to split an unknown branch into smaller pieces for further refinement.
+Includes methods such as `Bisect` and `BaBSR`. For an example, see the 
+documentation on [`Bisect`](@ref).
+"""
 abstract type SplitMethod end
 
 """
     PropMethod
 
+Algorithm to propagate the bounds through the computational graph. This is the 
+super-type for all the "solvers" used in the verification process, and is 
+different from the functions defined in `propagate` folder. In other words, 
+the `PropMethod` should be understood as the "solver" used in the verification 
+process, while the functions in `propagate` folder are the "propagation" 
+functions used in the verification process. The solvers include methods such as 
+`Ai2` and `Crown`. For an example, see the documentation on [`Ai2`](@ref).
 """
 abstract type PropMethod end
 
@@ -149,6 +171,43 @@ end
 
 to = get_timer("Shared")
 # verify(branch_method::BranchMethod, prop_method, problem) = search_branches(branch_method.search_method, branch_method.split_method, prop_method, problem)
+
+"""
+verify(search_method::SearchMethod, split_method::SplitMethod, 
+       prop_method::PropMethod, problem::Problem; 
+       time_out=86400, attack_restart=100, collect_bound=false, 
+       summary=false, pre_split=nothing)
+
+This is the main function for verification. It takes in a search method, 
+a split method, a propagation method, and a problem, and returns a result. 
+The result is either a `BasicResult`, `CounterExampleResult`, 
+`AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
+For each `Result`, the `status` field is either `:violated`, `:verified`, 
+`:unknown`, or `:timeout`. Optional arguments can be passed to the function 
+to control the timeout, the number of restarts for the attack, whether 
+to collect the bounds for each branch, whether to print a summary of the 
+verification process, and whether to pre-split the problem.
+
+## Arguments
+- `search_method` (`SearchMethod`): The search method, such as `BFS`, used to 
+    search through the branches.
+- `split_method` (`SplitMethod`): The split method, such as `Bisect`, used to 
+    split the branches.
+- `prop_method` (`PropMethod`): The propagation method, such as `Ai2`, used to 
+    propagate the constraints.
+- `problem` (`Problem`): The problem to be verified - consists of a network, 
+    input set, and output set.
+- `time_out` (`Int`): The timeout in seconds. Defaults to 86400 seconds, or 24 
+    hours. If the timeout is reached, the function returns `:timeout`.
+- `attack_restart` (`Int`): The number of restarts for the attack. Defaults to 100.
+- `collect_bound` (`Bool`): Whether to collect the bounds for each branch.
+- `search_adv_bound` (`Bool`): Whether to search the maximal input bound that can 
+    pass the verification (get :holds) with the given setting.
+
+## Returns
+- The result is ResultInfo, the `status` field is either `:violated`, `:verified`, 
+    `:unknown`, or `:timeout`. The info is a dictionary that contains other information.
+"""
 function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; 
                 time_out=86400, 
                 attack_restart=100, 

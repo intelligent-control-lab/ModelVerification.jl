@@ -16,14 +16,17 @@ The `split.jl` module includes algorithms to split an unknown branch, such as bi
 
 ## Search
 ```@docs
+SearchMethod
 BFS
 search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
+advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
 ```
 
 ## Split
 
 ### Bisection
 ```@docs
+SplitMethod
 Bisect
 split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
 split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)

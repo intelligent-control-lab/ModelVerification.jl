@@ -14,6 +14,33 @@ branch bank.
     batch_size::Int64 = 1
 end
 
+"""
+advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, 
+              problem, model_info)
+
+Performs the splitting of the branches in the branch bank, `branches`, for a 
+`max_iter` number of times. This is used in the `search_branches` function as 
+serves as the first step of the verification process: populating the `branches` 
+bank with initial branches.
+
+## Arguments
+- `max_iter` (`Int`): Maximum number of iterations to split the input
+    specification.
+- `search_method` (`BFS`): Breadth-first Search method for iteratively going 
+    through the branches.
+- `split_method`: Method for splitting the branches for the initial 
+    population of the branch bank. This inclueds methods such as `Bisect`.
+- `prop_method`: Propagation method used for the verification process. This is 
+    one of the solvers used to verify the given model.
+- `problem`: Problem definition for model verification. Include the model and 
+    input and output specifications.
+- `model_info`: Structure containing the information of the neural network to be
+    verified.
+
+## Returns
+- `branches`: Array of branches to be verified, split from the initial input 
+    specification.
+"""
 function advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
     branches = [(problem.input, problem.output)]
     for iter in 1:max_iter # BFS with max iteration
@@ -68,9 +95,11 @@ of verification procedures, the model is verified to be valid and returns
 - `problem`: Problem definition for model verification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
-- `collect_bound`(optional): default: false, whether return the verified bound.
-- `pre_split`(optional): nothing, the number of split before nay propagation. This 
-    is particularly useful for large input set that could lead to memory overflow.
+- `collect_bound`(optional): Default is false, whether return the verified 
+    bound.
+- `pre_split`(optional): nothing, the number of split before any propagation. 
+    This is particularly useful for large input set that could lead to memory 
+    overflow.
 
 ## Returns
 - `BasicResult(:holds)` if all the reachable sets are within the corresponding 

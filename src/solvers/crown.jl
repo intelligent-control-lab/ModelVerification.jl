@@ -28,7 +28,8 @@ struct ConcretizeCrownBound <: Bound
 end
 
 """
-    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
+    prepare_problem(search_method::SearchMethod, split_method::SplitMethod, 
+                    prop_method::Crown, problem::Problem)
 """
 function prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_method::Crown, problem::Problem)
     model_info = onnx_parse(problem.onnx_model_path)
@@ -40,7 +41,8 @@ prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::Ab
     prepare_method(prop_method, batch_input, get_linear_spec(batch_output), model_info)
 
 """
-    prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+    prepare_method(prop_method::Crown, batch_input::AbstractVector, 
+                   out_specs::LinearSpec, model_info)
 """    
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
@@ -70,11 +72,13 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
 end
 
 """   
-compute_bound(low::AbstractVecOrMat, up::AbstractVecOrMat, data_min_batch, data_max_batch) where N
+    compute_bound(bound::CrownBound)
 
 Compute lower and upper bounds of a relu node in Crown.
 `l, u := ([low]₊*data_min + [low]₋*data_max), ([up]₊*data_max + [up]₋*data_min)`
 
+## Arguments
+- `bound` (`CrownBound`): CrownBound object
 Outputs:
 - `(lbound, ubound)`
 """

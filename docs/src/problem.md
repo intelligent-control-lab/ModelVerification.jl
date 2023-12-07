@@ -21,8 +21,6 @@ Thus, a DNN-Verification problem consists of two main components:
 
 Due to the nonlinear and nonconvex nature of DNNs, estimating the exact reachable set is impractical, although there are algorithms that allow us to do this such as [ExactReach](https://arxiv.org/abs/1712.08163). Thus, we preform an over-approximation of the reachable set, called $\mathcal{R}$. We check its containment in the desired reachable set $\mathcal{Y}$ which if ture, we can assert that the safety property holds.
 
-Once we instantiate 
-
 Below, we give a brief overview of models ([Network](#network)), [safety property](#safety-property), and [outputs (verification results)](#output-verification-results).
 
 ## Network
@@ -57,4 +55,9 @@ BasicResult
 CounterExampleResult
 AdversarialResult
 ReachabilityResult
+```
+
+## `verify`: high-level logic
+```@docs
+verify
 ```
