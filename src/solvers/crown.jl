@@ -70,7 +70,7 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
 end
 
 """   
-compute_bound(low::AbstractVecOrMat, up::AbstractVecOrMat, data_min_batch, data_max_batch) where N
+    compute_bound(bound::CrownBound)
 
 Compute lower and upper bounds of a relu node in Crown.
 `l, u := ([low]₊*data_min + [low]₋*data_max), ([up]₊*data_max + [up]₋*data_min)`

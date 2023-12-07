@@ -29,6 +29,7 @@ Repeat or terminate the process based on the result.
     - [split methods](./branching.md#split)
 - **Propagation Method**: this is the bound propagation method used for verifying the problem. In other words, it is the choice of term to represent the ["solver"](./solvers.md): all the solvers in [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) are represented as a propagation method. However, this is different from the [methods in `propagate.jl`](./propagate.md). This will be clearer in the following explanations.
 - **Model / (Deep) Neural Network / Network**: these terms are used interchangeably and represent the deep neural network (DNN) to be verified.
+- **Node**: this is not 
 
 ## 1. Creating an instance: _what kind of verification problem do you want to solve?_
 Let's first create an instance. An instance contains all the information required to run the [`verify`](@ref) function. This function does the heavy-lifting where the verification problem is solved. As long as the user properly defines the problem and solver methods, this is the only function the user has to call. To run [`verify`](@ref), the user has to provide the following arguments. These collectively defines an "instance":
@@ -38,11 +39,31 @@ Let's first create an instance. An instance contains all the information require
 - [`PropMethod`](@ref): Solver used to verify the problem, such as `Ai2` and `Crown`.
 - [`Problem`](@ref): Problem to be verified. It is consisted of a [`Network`](@ref), and [input and output specifications](./safety_spec.md).
 
+### [`SearchMethod`](@ref)
 
+### [`SplitMethod`](@ref)
+The following split methods are supported:
+- Bisectection (`Bisect`)
+- Branch-and-bound (`BaBSR`)
+- Input Gradient Split (`InputGradSplit`)
+
+### [`PropMethod`](@ref)
+The following solvers are supported:
+- ExactReach
+- Ai2h, Ai2z, Ai2s, Box
+- ImageStar
+- ImageZono
+- Crown
+- $\beta$-Crown
+- $\alpha$-Crown
+- $\alpha$-$\beta$-Crown
+
+### [`Problem`](@ref)
+- For the different geometric representations for the input and output specifications, please refer [Input-Output Specification](./safety_spec.md). 
+- For information on how to load models and how models are represented in [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl), please refer [Network](./network.md).
 
 
 ## 2. Verifying the instance: _spinning through the branches - where the magic happens!_
-
 
 ```@docs
 verify

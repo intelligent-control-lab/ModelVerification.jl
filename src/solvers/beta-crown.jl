@@ -27,12 +27,15 @@ struct BetaCrownBound <: Bound
     batch_data_max
 end
 
-
+"""
+    Compute_bound
+"""
 struct Compute_bound
     batch_data_min
     batch_data_max
 end
 Flux.@functor Compute_bound ()
+
 
 function (f::Compute_bound)(x)
     #z = zeros(size(x[1]))
@@ -76,6 +79,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     return prepare_method(prop_method, batch_input, out_specs, model_info)
 end
 
+"""
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+"""
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
     #batch_input : (input, S_dict)
     batch_size = length(batch_input)
@@ -183,7 +189,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     return out_specs, batch_info
 end 
 
-
+"""
+    update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
+"""
 function update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
     for input in batch_input
         relu_con_dict = input.all_relu_cons
@@ -199,6 +207,9 @@ function update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_inpu
     return relu_input_lower, relu_input_upper
 end
 
+"""
+    init_alpha(layer::typeof(relu), node, batch_info, batch_input)
+"""
 function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
     relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
     # relu_input_lower, relu_input_upper = update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
@@ -234,6 +245,9 @@ end
 
 #initalize relu's beta
 
+"""
+init_beta(layer::typeof(relu), node, batch_info, batch_input)
+"""
 function init_beta(layer::typeof(relu), node, batch_info, batch_input)
 
     input_dim = size(batch_info[node][:pre_lower])[1:end-1]
@@ -316,7 +330,9 @@ function print_beta_layers(layers, x)
     println("--- --- ---")
 end
 
-
+"""
+    optimize_model(model, input, loss_func, optimizer, max_iter)
+"""
 function optimize_model(model, input, loss_func, optimizer, max_iter)
     to = get_timer("Shared")
     
