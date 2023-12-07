@@ -1,5 +1,5 @@
 """
-    BetaCrown <: BatchBackwardProp 
+    BetaCrown <: BatchBackwardProp
 """
 mutable struct BetaCrown <: BatchBackwardProp 
     use_alpha::Bool

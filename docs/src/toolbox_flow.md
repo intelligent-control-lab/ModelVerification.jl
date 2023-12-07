@@ -4,7 +4,10 @@ CurrentModule = ModelVerification
 
 ```@contents 
 Pages=["toolbox_flow.md"]
+Depth=2
 ```
+
+_Please note that this page is under construction._
 
 # Flow
 ![](./assets/overview_mvflow.png)
@@ -29,7 +32,8 @@ Repeat or terminate the process based on the result.
     - [split methods](./branching.md#split)
 - **Propagation Method**: this is the bound propagation method used for verifying the problem. In other words, it is the choice of term to represent the ["solver"](./solvers.md): all the solvers in [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) are represented as a propagation method. However, this is different from the [methods in `propagate.jl`](./propagate.md). This will be clearer in the following explanations.
 - **Model / (Deep) Neural Network / Network**: these terms are used interchangeably and represent the deep neural network (DNN) to be verified.
-- **Node**: this is not 
+- **Node**: (This is not equivalent to a "neuron" in a traditional deep learning sense.) This refers to a "node" in a computational-graph sense.
+- **Layer**: (This is not equivalent to a "layer" in a traditional deep learning sense.) This refers to an operation at a node, such as ReLU activation function.
 
 ## 1. Creating an instance: _what kind of verification problem do you want to solve?_
 Let's first create an instance. An instance contains all the information required to run the [`verify`](@ref) function. This function does the heavy-lifting where the verification problem is solved. As long as the user properly defines the problem and solver methods, this is the only function the user has to call. To run [`verify`](@ref), the user has to provide the following arguments. These collectively defines an "instance":
@@ -54,20 +58,14 @@ The following solvers are supported:
 - ImageStar
 - ImageZono
 - Crown
-- $\beta$-Crown
-- $\alpha$-Crown
-- $\alpha$-$\beta$-Crown
+- $$\beta$$-Crown
+- $$\alpha$$-Crown
 
 ### [`Problem`](@ref)
 - For the different geometric representations for the input and output specifications, please refer [Input-Output Specification](./safety_spec.md). 
 - For information on how to load models and how models are represented in [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl), please refer [Network](./network.md).
 
-
 ## 2. Verifying the instance: _spinning through the branches - where the magic happens!_
-
-```@docs
-verify
-```
 
 
 ## 3. Results and how to interpret them: _so is my model good to go?_
@@ -75,3 +73,15 @@ The result is either a `BasicResult`, `CounterExampleResult`,
 `AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
 For each `Result`, the `status` field is either `:violated`, `:verified`, 
 `:unknown`, or `:timeout`.
+
+|        Output result       |  Explanation  | 
+|----------------------------|:-----------:|
+| [`BasicResult::hold`]      | The input-output constraint is always satisfied. |
+| [`BasicResult::violated`]  | The input-output constraint is violated, i.e., it exists a single point in the input constraint that violates the property.         |
+| [`BasicResult::timeout`]   | Could not be determined if the property holds due to timeout in the computation.        | 
+| [`CounterExampleResult`]   | Like BasicResult, but also returns a counter_example if one is found (if status = :violated). The counter_example is a point in the input set that, after the NN, lies outside the output constraint set.        |
+| [`AdversarialResult`]      | Like BasicResult, but also returns the maximum allowable disturbance in the input (if status = :violated).        | 
+| [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |
+| [`EnumerationResult`]      | Set of all the (un)safe regions in the safety property's domain. |
+
+For more information, please refer to [_Output (Verification Results)_](./problem.md#result).

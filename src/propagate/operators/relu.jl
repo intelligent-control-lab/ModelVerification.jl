@@ -384,11 +384,7 @@ end
     propagate_act_batch(prop_method::Crown, layer::typeof(relu), 
                         bound::CrownBound, batch_info)
 
-Propagate the `CrownBound` bound through a ReLU layer. I.e., it applies the ReLU
-operation to the `CrownBound` bound. The resulting bound is also of type 
-`CrownBound`. This is for `Crown` propagation method. It calls `compute_bound` 
-that computes the lower- and upper-bounds of the input bound. It then computes 
-
+Propagate the `CrownBound` bound through a ReLU layer.
 """
 function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::CrownBound, batch_info)
     to = get_timer("Shared")

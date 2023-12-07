@@ -199,8 +199,7 @@ verification process, and whether to pre-split the problem.
     input set, and output set.
 - `time_out` (`Int`): The timeout in seconds. Defaults to 86400 seconds, or 24 
     hours. If the timeout is reached, the function returns `:timeout`.
-- `attack_restart` (`Int`): The number of restarts for the attack. Defaults to 
-    100.
+- `attack_restart` (`Int`): The number of restarts for the attack. Defaults to 100.
 - `collect_bound` (`Bool`): Whether to collect the bounds for each branch.
 
 ## Returns

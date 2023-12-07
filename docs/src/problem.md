@@ -56,3 +56,8 @@ CounterExampleResult
 AdversarialResult
 ReachabilityResult
 ```
+
+## `verify`: high-level logic
+```@docs
+verify
+```

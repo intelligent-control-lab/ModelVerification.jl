@@ -114,6 +114,8 @@ compute_bound(bound::ConcretizeCrownBound)
 check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
 ```
 
+## $\alpha$-Crown
+
 ## $\beta$-Crown
 ```@docs
 BetaCrown

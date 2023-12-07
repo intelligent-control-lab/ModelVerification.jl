@@ -108,10 +108,10 @@ CROWN verifies that the input-output relationship holds!
 
 ## Toolbox Outline
 ![](./assets/overview_mvflow.png)
-For a detailed explanation of the overall flow of the toolbox, please refer to the [Toolbox Flow](./toolbox_flow.md) page. For detailed examples on how to use different functionalities provided by the toolbox, please refer to the [Tutorials](#tutorials). The pages below will direct you to the respective documentation for each category.
+For detailed examples on how to use different functionalities provided by the toolbox, please refer to the [Tutorials](#tutorials). The pages below will direct you to the respective documentation for each category.
 
 ```@contents
-Pages = ["toolbox_flow.md", "problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
+Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
 Depth = 3
 ```
 
