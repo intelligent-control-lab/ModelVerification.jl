@@ -55,7 +55,7 @@ Recursively bisects the hyperrectangle input specification at the center for
 function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
     #input = fmap(cu, input)
     #output = fmap(cu, output)
-    split_method.num_split <= 0 && return [(input, output)]
+    split_method.num_split <= 0 && return [Branch(input, output)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)
     max_radius, max_idx = findmax(radius)
     input1, input2 = split_interval(input, max_idx)
@@ -72,7 +72,7 @@ end
 """
 function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
     branches = split_branch(split_method, model, input.domain, output, model_info, batch_info)
-    return [(ReLUConstrainedDomain(domain, input.all_relu_cons), output) for (domain,output) in branches]
+    return [Branch(ReLUConstrainedDomain(b.domain, b.input.all_relu_cons), b.output, b.inheritance) for b in branches]
 end
 
 """
@@ -109,7 +109,7 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound,
     # this split only works for zonotope with one generator
     # because in general zonotope after split is no longer zonotope
     @assert size(input.generators,4) == 1 
-    split_method.num_split <= 0 && return [(input, output)]
+    split_method.num_split <= 0 && return [Branch(input, output)]
     input1, input2 = split_interval(input)
     subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, model_info, batch_info)
     subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
@@ -149,7 +149,7 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     bound1, bound2 = ImageStarBound(input.center, input.generators, input.A, input.b), ImageStarBound(input.center, input.generators, input.A, input.b)
     bound1.b[max_idx] = l[max_idx] + max_radius/2 # set new upper bound
     bound2.b[max_idx + n] = -(l[max_idx] + max_radius/2) # set new lower bound
-    return [(bound1, output), (bound2, output)]
+    return [Branch(bound1, output), Branch(bound2, output)]
 end
 
 
@@ -218,7 +218,7 @@ function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_inde
             # println(length(copy_relu_con_dict[node].val_list))
             # println(length(copy_relu_con_dict[node].history_split))
         end
-        return [(ReLUConstrainedDomain(input, copy_relu_con_dict), output)]
+        return [Branch(ReLUConstrainedDomain(input, copy_relu_con_dict), output)]
     end
     j > length(split_neurons_index_in_node[i]) && return split_beta(relu_con_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output)
     relu_con_dict[split_relu_node[i]].val_list[j] = 1 # make relu < 0, beta_S[j,j] = 1

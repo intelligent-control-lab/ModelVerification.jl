@@ -10,10 +10,11 @@ mutable struct BetaCrown <: BatchBackwardProp
     bound_upper::Bool
     optimizer
     train_iteration::Int
+    inherit_pre_bound::Bool
 end
-BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10)
-BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10) =
-    BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration)
+BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
+BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true) =
+    BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
 
 """
     BetaCrownBound <: Bound
@@ -69,20 +70,20 @@ function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, ba
 end
 
 """
-    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 """
-function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
     out_specs = get_linear_spec(batch_output)
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
-    return prepare_method(prop_method, batch_input, out_specs, model_info)
+    return prepare_method(prop_method, batch_input, out_specs, batch_inheritance, model_info)
 end
 
 """
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
 """
-function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, batch_inheritance::AbstractVector, model_info)
     #batch_input : (input, S_dict)
     batch_size = length(batch_input)
     if prop_method.use_gpu
@@ -153,11 +154,12 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             
             batch_info[node][:pre_bound] = sub_batch_bound
             pre_bounds[node] = sub_batch_bound
-
-            # println(node)
-            # println(prev_node)
-            # println(sub_batch_info[prev_node][:bound])
         end
+
+        if prop_method.inherit_pre_bound # all future branches will not do joint optimization
+            prop_method.pre_bound_method = pre_bounds # convert the pred_bound to dict
+        end
+
     elseif !isnothing(prop_method.pre_bound_method)
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
@@ -181,10 +183,6 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # println(model_info.activation_nodes)
     # @assert false
     for node in model_info.activation_nodes
-        # println("=====")
-        # println("node")
-        # println(node)
-        # println(model_info.node_layer[node])
         batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
     end
@@ -257,12 +255,12 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
 
     input_dim = size(batch_info[node][:pre_lower])[1:end-1]
     batch_size = size(batch_info[node][:pre_lower])[end] # TODO: need to be replaced for batched input
-    # println("node")
-    # println(node)
-    # println("input_dim")
-    # println(input_dim)
-    # println("batch_size")
-    # println(batch_size)
+    println("node")
+    println(node)
+    println("input_dim")
+    println(input_dim)
+    println("batch_size")
+    println(batch_size)
     # @assert false
     batch_info[node][:beta_lower] =  zeros(input_dim..., batch_size) # reach_dim x batch 
     batch_info[node][:beta_upper] =  zeros(input_dim..., batch_size)
@@ -270,7 +268,6 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
     batch_info[node][:beta_upper_index] =  []
     batch_info[node][:beta_lower_S] =  zeros(input_dim..., batch_size)
     batch_info[node][:beta_upper_S] =  zeros(input_dim..., batch_size)
-    
     for (i,input) in enumerate(batch_input)
         relu_con_dict = input.all_relu_cons
         if haskey(relu_con_dict,node) && !isnothing(relu_con_dict[node].history_split)
@@ -279,6 +276,8 @@ function init_beta(layer::typeof(relu), node, batch_info, batch_input)
             # println(relu_con_dict[node].history_split)
             # sleep(0.1)
             # @assert false
+            println("size(batch_info[node][:beta_lower_S][:,i])")
+            println(size(batch_info[node][:beta_lower_S][:,i]))
             batch_info[node][:beta_lower_S][:,i] = relu_con_dict[node].history_split
             batch_info[node][:beta_upper_S][:,i] = relu_con_dict[node].history_split
         end

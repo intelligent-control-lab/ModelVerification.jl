@@ -110,34 +110,39 @@ of verification procedures, the model is verified to be valid and returns
 - `CounterExampleResult(:violated, x)` if a reachable set is not within the 
     corresponding output specification and there is a counterexample found.
 """
+struct Branch
+    input
+    output
+    inheritance::Dict
+end
+Branch(input, output) = Branch(input, output, Dict())
+
+function unpack_batch_branch(batch_branch)
+    batch_input = [branch.input for branch in batch_branch]
+    batch_output = [branch.output for branch in batch_branch]
+    batch_inheritance = [branch.inheritance for branch in batch_branch]
+    return batch_input, batch_output, batch_inheritance
+end
+
 function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; collect_bound=false, pre_split=nothing)
     to = get_timer("Shared")
-    branches = [(problem.input, problem.output)]
+    branches = [Branch(problem.input, problem.output)]
     if !isnothing(pre_split)
         @timeit to "advance_split" branches = advance_split(pre_split, search_method, split_method, prop_method, problem, model_info)
     end 
-    batch_input = []
-    batch_output = []
+    
+    batch_branch = []
     @timeit to "test" current_time = 0
     verified_bound = []
     for iter in 1:search_method.max_iter # BFS with max iteration
         length(branches) == 0 && break
-        input, output = popfirst!(branches)
-        # println(input)
-        # println("=================================")
-        # println("iter: ", iter)
-        # println("input domain: ", input.domain)
-        # if haskey(input.all_relu_cons, "dense_0_relu")
-        #     println("input relu con: ", input.all_relu_cons["dense_0_relu"])
-        # end
-        # sleep(0.01)
-
-        push!(batch_input, input)
-        push!(batch_output, output)
-        if length(batch_input) >= search_method.batch_size || length(branches) == 0
+        branch = popfirst!(branches)
+        push!(batch_branch, branch) 
+        
+        if length(batch_branch) >= search_method.batch_size || length(branches) == 0
             
-            # println(batch_input)
-            @timeit to "prepare_method" batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, model_info)
+            batch_input, batch_output, batch_inheritance = unpack_batch_branch(batch_branch)
+            @timeit to "prepare_method" batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, batch_inheritance, model_info)
             
             # println(typeof(batch_output[1]))
             # println(typeof(batch_out_spec[1]))

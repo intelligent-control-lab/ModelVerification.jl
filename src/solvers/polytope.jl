@@ -84,7 +84,7 @@ Initialize the bound of the start node of the computational graph for the
 - `batch_info`: Dictionary containing information of each node in the model.
 """
 function prepare_method(prop_method::StarSet, batch_input::AbstractVector, 
-                        batch_output::AbstractVector, model_info)
+                        batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, 
                     model_info)
     if (hasproperty(prop_method, :pre_bound_method) 

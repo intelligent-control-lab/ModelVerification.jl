@@ -187,7 +187,7 @@ function init_propagation(prop_method::BackwardProp, batch_input, batch_output, 
 end
  
 """
-    prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 
 Initialize the bound of the start node of the computational graph based on the 
 solver (`prop_method`).
@@ -196,6 +196,7 @@ solver (`prop_method`).
 - `prop_method` (`PropMethod`): Propagation method, i.e., the solver.
 - `batch_input` (`AbstractVector`): Batch of inputs.
 - `batch_output` (`AbstractVector`): Batch of outputs.
+- `batch_inheritance` (`AbstractVector`): Batch of inheritance, can be used to inheritate pre-act-bound from the parent branch
 - `model_info`: Structure containing the information of the neural network to
     be verified.
 
@@ -203,7 +204,7 @@ solver (`prop_method`).
 - `batch_output`: Batch of outputs.
 - `batch_info`: Dictionary containing information of each node in the model.
 """
-function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
     return batch_output, batch_info
 end
