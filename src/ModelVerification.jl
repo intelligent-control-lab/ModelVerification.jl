@@ -201,28 +201,64 @@ verification process, and whether to pre-split the problem.
     hours. If the timeout is reached, the function returns `:timeout`.
 - `attack_restart` (`Int`): The number of restarts for the attack. Defaults to 100.
 - `collect_bound` (`Bool`): Whether to collect the bounds for each branch.
+- `search_adv_bound` (`Bool`): Whether to search the maximal input bound that can 
+    pass the verification (get :holds) with the given setting.
 
 ## Returns
-- A tuple of `res` (the result) and `verified_bounds` (the verified bounds) if 
-    `collect_bound` is `true`. Otherwise, it returns `res`.
-- The result is either a `BasicResult`, `CounterExampleResult`, 
-    `AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
-    For each `Result`, the `status` field is either `:violated`, `:verified`, 
-    `:unknown`, or `:timeout`.
+- The result is ResultInfo, the `status` field is either `:violated`, `:verified`, 
+    `:unknown`, or `:timeout`. The info is a dictionary that contains other information.
 """
-function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; time_out=86400, attack_restart=100, collect_bound=false, summary=false, pre_split=nothing)
+function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; 
+                time_out=86400, 
+                attack_restart=100, 
+                collect_bound=false, 
+                summary=false, 
+                pre_split=nothing,
+                search_adv_bound=false)
     to = get_timer("Shared")
     reset_timer!(to)
     # @timeit to "attack" res = attack(problem; restart=attack_restart)
     # (res.status == :violated) && (return res)
-    @timeit to "prepare_problem" model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
+    @timeit to "prepare_problem" model_info, prepared_problem = prepare_problem(search_method, split_method, prop_method, problem)
     # println(time_out)   
-    @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
-    if summary
-        show(to) # to is TimerOutput(), used to profiling the code
-    end
-    return collect_bound ? (res, verified_bounds) : res
+    @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
+    # println(res.status)
+    info = Dict()
+    (res.status == :violated && res isa CounterExampleResult) && (res["counter_example"] = res.counter_example)
+    collect_bound && (info["verified_bounds"] = verified_bounds)
+    (res.status != :holds && search_adv_bound) && (info["adv_input_bound"] = search_adv_input_bound(search_method, split_method, prop_method, problem))# unknown or violated
+    summary && show(to) # to is TimerOutput(), used to profiling the code
+    return ResultInfo(res.status, info)
 end
+
+function search_adv_input_bound(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem;
+                        eps = 1e-3)
+    l = 0
+    r = 1
+    while (r-l) > eps
+        m = (l+r) / 2
+        new_input = scale_set(problem.input, m)
+        new_problem = Problem(problem.onnx_model_path, problem.Flux_model, new_input, problem.output)
+        res = verify(search_method, split_method, prop_method, new_problem)
+        if res.status == :holds
+            l = m
+            println("verified ratio: ",m)
+        else
+            println("falsified ratio: ",m)
+            r = m
+        end
+    end
+    return scale_set(problem.input, l)
+end
+function scale_set(set::Hyperrectangle, ratio)
+    return Hyperrectangle(center(set), radius_hyperrectangle(set) * ratio)
+end
+function scale_set(set::ImageConvexHull, ratio)
+    new_set = ImageConvexHull(copy(set.imgs))
+    new_set.imgs[2:end] = [set.imgs[1] + (img - set.imgs[1]) * ratio for img in set.imgs[2:end]]
+    return new_set
+end
+
 
 export verify
 

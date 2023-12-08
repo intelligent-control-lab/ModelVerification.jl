@@ -74,6 +74,7 @@ end
 function onnx_node_to_flux_layer(vertex)
     node_type = NaiveNASflux.layertype(vertex)
     # println("node_type: ",node_type)
+    # println(ONNXNaiveNASflux.var"#217#229"{typeof(relu)})
     if node_type == ONNXNaiveNASflux.Flatten
         return Flux.flatten
     elseif node_type == NaiveNASlib.var"#342#344"{typeof(+)}

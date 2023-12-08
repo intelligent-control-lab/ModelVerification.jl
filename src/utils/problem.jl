@@ -59,7 +59,7 @@ end
 
 function remove_flux_start_flatten(model::Chain)
     !isa(model[1], ONNXNaiveNASflux.Flatten) && return model
-    println("removing flux flatten")
+    println("removing starting flatten")
     return model[2:end]
 end
 function purify_flux_model(model::Chain)
@@ -104,8 +104,8 @@ struct Problem{P, Q}
 end
 Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
-Problem(model::Chain, input_data, output_data) = #If the Problem only have Flux_model input
-    Problem(build_onnx_model("tmp.onnx", model, input_data), model, input_data, output_data)
+Problem(model::Chain, input_data, output_data; save_onnx_path="tmp.onnx") = #If the Problem only have Flux_model input
+    Problem(build_onnx_model(save_onnx_path, model, input_data), model, input_data, output_data)
 
 """
     Result
@@ -127,6 +127,7 @@ function validate_status(st::Symbol)
     return st
 end
 
+
 """
     BasicResult(status::Symbol)
 
@@ -138,6 +139,18 @@ Possible status values:\n
 """
 struct BasicResult <: Result
     status::Symbol
+end
+
+
+"""
+ResultInfo(status, info)
+
+Like `BasicResult`, but also returns a `info` dictionary that contains other informations.
+This is designed to be the general result type.
+"""
+struct ResultInfo <: Result
+    status::Symbol
+    info::Dict
 end
 
 """

@@ -311,13 +311,7 @@ function branching_scores_kfsb(model_info, batch_info, input)
         @assert length(model_info.node_prevs[node]) == 1
         input_node = model_info.node_prevs[node][1]
         input_layer = model_info.node_layer[input_node]
-        if isa(input_layer, Flux.Conv)
-            if !isnothing(input_layer.bias)
-                b_temp = input_layer.bias
-            else
-                b_temp = 0
-            end
-        elseif isa(input_layer, Flux.Dense)
+        if isa(input_layer, Flux.Conv) || isa(input_layer, Flux.Dense)
             if !isnothing(input_layer.bias)
                 b_temp = input_layer.bias
             else
@@ -347,7 +341,8 @@ function branching_scores_kfsb(model_info, batch_info, input)
         else
             b_temp = 0
         end   
-        b_temp = fmap(cu, b_temp)
+        use_gpu = A isa CUDA.CuArray
+        b_temp = use_gpu ? b_temp |> gpu : b_temp
         b_temp = reshape(b_temp, (1, size(b_temp)...)) .* A
         upper_slope = reshape(upper_slope, (1, size(upper_slope)...))
         bias_candidate_1 = b_temp .* (upper_slope .- 1)
@@ -358,10 +353,12 @@ function branching_scores_kfsb(model_info, batch_info, input)
         score_candidate = mean(score_candidate, dims = ndims(score_candidate))
         #input.all_relu_cons is pre_relu_con_dict
         if length(input.all_relu_cons) == 0 || isnothing(input.all_relu_cons[node].not_splitted_mask)  #all relu node haven't splited || current relu node haven't splited
-            splited_neurons_mask = fmap(cu, ones(size(score_candidate)))
+            splited_neurons_mask = ones(size(score_candidate))
         else
-            splited_neurons_mask = fmap(cu, input.all_relu_cons[node].not_splitted_mask)
+            splited_neurons_mask = input.all_relu_cons[node].not_splitted_mask
         end
+        splited_neurons_mask = use_gpu ? splited_neurons_mask |> gpu : splited_neurons_mask
+
         score_candidate = splited_neurons_mask .* score_candidate #ensure that the neurons splitted in pre iter of propagation will not be split again
         # push!(score, score_candidate)
         score[node] = score_candidate

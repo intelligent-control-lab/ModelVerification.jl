@@ -585,6 +585,8 @@ function convert_vec_beta_to_original_size(beta, beta_S, beta_index)
 end
 
 function (f::BetaLayer)(x)
+    # to = get_timer("Shared")
+    
     A = x[1]
     b = x[2]
     # println("A: ", A)
@@ -593,6 +595,7 @@ function (f::BetaLayer)(x)
     if isnothing(A)
         return [nothing, nothing]
     end
+    # @timeit to "beta_layer" begin
     # lower_slop = alpha if unstable, 1 if active, 0 if inactive
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
     if f.lower 
@@ -616,7 +619,7 @@ function (f::BetaLayer)(x)
         # println("upper New_A: ", New_A)
         
     end
-    
+    # end
     return [New_A, New_b]
 end
 
