@@ -102,6 +102,38 @@ function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarB
 end
 
 """
+    propagate_linear_batch(prop_method::Crown, layer::Conv, 
+                           bound::CrownBound, batch_info)
+
+Propagates the bounds through the dense layer for `Crown` solver. It operates
+an affine transformation on the given input bound and returns the output bound.
+It first clamps the input bound and multiplies with the weight matrix using 
+`batch_interval_map` function. Then, it adds the bias to the output bound.
+The resulting bound is represented by `CrownBound` type.
+
+## Arguments
+- `prop_method` (`Crown`): `Crown` solver used for the verification process.
+- `layer` (`Dense`): Dense layer of the model.
+- `bound` (`CrownBound`): Bound of the input, represented by `CrownBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
+    which is represented by `CrownBound` type.
+"""
+function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+    # TODO: check how imagezono works for conv
+    # out_dim x in_dim * in_dim x X_dim x batch_size
+    output_Low, output_Up = prop_method.use_gpu ? batch_interval_map(fmap(cu, layer.weight), bound.batch_Low, bound.batch_Up) : batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
+    @assert !any(isnan, output_Low) "contains NaN"
+    @assert !any(isnan, output_Up) "contains NaN"
+    output_Low[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
+    output_Up[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
+    return new_bound
+end
+
+"""
     propagate_linear(prop_method::ImageZono, layer::ConvTranspose, 
                      bound::ImageZonoBound, batch_info)
 

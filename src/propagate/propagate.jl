@@ -128,7 +128,7 @@ layer.
 """
 function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
-
+    
     # dfs start from model.input_nodes
     #BFS
     queue = Queue{Any}()                            # Make an empty queue.
@@ -154,6 +154,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
             batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
         end
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
+        @assert false
     end
     batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
     return batch_bound, batch_info

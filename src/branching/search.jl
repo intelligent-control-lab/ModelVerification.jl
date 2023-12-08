@@ -139,10 +139,14 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             # println(batch_input)
             @timeit to "prepare_method" batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, model_info)
             
+            # @show batch_out_spec
+            
+            # @show batch_info
+            
             # println(typeof(batch_output[1]))
             # println(typeof(batch_out_spec[1]))
             # println(batch_out_spec[1])
-            # @assert false
+            
             
             @timeit to "propagate" batch_bound, batch_info = propagate(prop_method, model_info, batch_info)
             @timeit to "process_bound" batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec, model_info, batch_info)
