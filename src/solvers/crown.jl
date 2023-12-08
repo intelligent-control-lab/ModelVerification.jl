@@ -37,14 +37,14 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
     return model_info, Problem(problem.onnx_model_path, model, init_bound(prop_method, problem.input), problem.output)
 end
 
-prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, model_info) =
+prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) =
     prepare_method(prop_method, batch_input, get_linear_spec(batch_output), model_info)
 
 """
     prepare_method(prop_method::Crown, batch_input::AbstractVector, 
                    out_specs::LinearSpec, model_info)
 """    
-function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, batch_inheritance::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))

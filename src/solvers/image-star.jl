@@ -79,7 +79,7 @@ end
 
 """
     prepare_method(prop_method::ImageStar, batch_input::AbstractVector,
-                   batch_output::AbstractVector, model_info)
+                   batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 
 Initialize the bound of the start node of the computational graph based on the 
 `pre_bound_method` specified in the given ImageStar solver.
