@@ -18,8 +18,6 @@ The `split.jl` module includes algorithms to split an unknown branch, such as bi
 ```@docs
 SearchMethod
 BFS
-search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
-advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
 ```
 
 ## Split
