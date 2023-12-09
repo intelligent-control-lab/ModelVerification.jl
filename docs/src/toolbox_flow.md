@@ -42,9 +42,9 @@ Let's first create an instance. An instance contains all the information require
 - [`SearchMethod`](@ref): Algorithm for iterating through the branches, such as `BFS` (breadth-first search) and `DFS` (depth-first search).
 - [`SplitMethod`](@ref): Algorithm for splitting an unknown branch into smaller pieces for further refinement. This is also used in the first step of [`verify`](@ref) to populate the branches bank. In other words, it splits the input specification into branches to facilitate the propagation process.
 - [`PropMethod`](@ref): Solver used to verify the problem, such as `Ai2` and `Crown`.
-- [`Problem`](@ref): Problem to be verified. It is consisted of a [`Network`](@ref), and [input and output specifications](./safety_spec.md).
+- [`Problem`](@ref): Problem to be verified. It consists of a [`Network`](@ref), and [input and output specifications](./safety_spec.md).
 
-This toolbox design choice allows for extensive customization of methods and solvers by defining different search or split methods. The user simply needs to add their chosen methods in the specific files (`search.jl` and `split.jl`), which will then be automatically used by the solvers.
+This toolbox design choice allows for extensive customization of methods and solvers by defining different search or split methods. The user simply needs to add their chosen methods in the specific files (`search.jl` and `split.jl`), which the solvers will automatically use for the verification process.
 
 ### [`SearchMethod`](@ref)
 `SearchMethod` describes the strategy the solver uses when iterating through the branches. Currently, [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) only supports Breath-first Search (BFS). The solver can exploit parallel analysis of the nodes in the BaB by indicating a `batch_size` is greater than 1. 
@@ -95,11 +95,33 @@ verify
 ### `search_branches`
 
 
-
 ```@docs
 search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
 advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
 ```
+
+`search_branches` is the core method used for the verification process. It consists of several submethods that we are going to summarize in the following. In the first iteration, the method initializes the branches as the whole safety property's input-output domain and seeks to verify this instance. If the solver cannot provide a result (i.e., we obtain an `:unknown` answer), the method proceeds to split either the input space or the ReLU nodes (based on the solver chosen). To this end, the first submethod called is 
+
+1. `prepare_method`: this method retrieves all the information to perform either the forward or backward propagation of the input domain to compute the splitting phase. The result is stored in two variables called `batch_out_spec`, `batch_info`, which contain the batch of the outputs and a dictionary containing all the information of each node in the model.
+   
+2. The result of the previous method is then used in the `propagate` function. This latter
+
+3.  `process_bounds`
+4.  `check_inclusion`
+5.  `split_branch`
+
+   
+
+
+
+
+
+
+
+
+
+
+
 
 ## 3. Results and how to interpret them: _so is my model good to go?_
 The result is either a `BasicResult`, `CounterExampleResult`, 
