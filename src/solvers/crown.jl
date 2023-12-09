@@ -58,8 +58,10 @@ end
 function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
+    img_size = nothing
     if typeof(batch_input[1]) == ImageConvexHull
         # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
+        img_size = ModelVerification.get_size(batch_input[1])
         batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.imgs[1]), high = reduce(vcat,img_CH.imgs[2]))  for img_CH in batch_input]
     end
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])
@@ -71,7 +73,14 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
     batch_data_min = prop_method.use_gpu ? fmap(cu, [batch_data_min; ones(batch_size)']) : [batch_data_min; ones(batch_size)']# the last dimension is for bias
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, [batch_data_max; ones(batch_size)']) : [batch_data_max; ones(batch_size)']# the last dimension is for bias
+    if !isnothing(img_size) 
+        # restore the image size for lower and upper bounds
+        batch_Low = reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3]))
+        batch_Up = reshape(batch_Up, (img_size..., size(batch_Up)[2],size(batch_Up)[3]))
+    end
     bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    # @show bound
+    # @show size(reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3])))
     return bound
 end
 
@@ -95,8 +104,16 @@ function compute_bound(bound::CrownBound)
     #z =   fmap(cu, zeros(size(bound.batch_Low)))
     #l =   batched_vec(max.(bound.batch_Low, z), bound.batch_data_min) + batched_vec(min.(bound.batch_Low, z), bound.batch_data_max)
     #u =   batched_vec(max.(bound.batch_Up, z), bound.batch_data_max) + batched_vec(min.(bound.batch_Up, z), bound.batch_data_min)
-    l =   batched_vec(clamp.(bound.batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(bound.batch_Low, -Inf, 0), bound.batch_data_max)
-    u =   batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_min)
+    if length(size(bound.batch_Low)) > 3
+        img_size = size(bound.batch_Low)[1:3]
+        batch_Low= reshape(bound.batch_Low, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Low)[4],size(bound.batch_Low)[5]))
+        batch_Up= reshape(bound.batch_Up, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Up)[4],size(bound.batch_Up)[5]))
+        l =   batched_vec(clamp.(batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(batch_Low, -Inf, 0), bound.batch_data_max)
+        u =   batched_vec(clamp.(batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(batch_Up, -Inf, 0), bound.batch_data_min)
+    else
+        l =   batched_vec(clamp.(bound.batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(bound.batch_Low, -Inf, 0), bound.batch_data_max)
+        u =   batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_min)
+    end
     # @assert all(l.<=u) "lower bound larger than upper bound"
     return l, u
 end

@@ -105,8 +105,8 @@ end
     propagate_linear_batch(prop_method::Crown, layer::Conv, 
                            bound::CrownBound, batch_info)
 
-Propagates the bounds through the dense layer for `Crown` solver. It operates
-an affine transformation on the given input bound and returns the output bound.
+Propagates the bounds through the convolution layer for `Crown` solver. It operates
+an convolutional transformation on the given input bound and returns the output bound.
 It first clamps the input bound and multiplies with the weight matrix using 
 `batch_interval_map` function. Then, it adds the bias to the output bound.
 The resulting bound is represented by `CrownBound` type.
@@ -123,14 +123,34 @@ The resulting bound is represented by `CrownBound` type.
 """
 function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     # TODO: check how imagezono works for conv
+    @show size(layer.weight)
+    @show size(bound.batch_Low)
     # out_dim x in_dim * in_dim x X_dim x batch_size
-    output_Low, output_Up = prop_method.use_gpu ? batch_interval_map(fmap(cu, layer.weight), bound.batch_Low, bound.batch_Up) : batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
-    @assert !any(isnan, output_Low) "contains NaN"
-    @assert !any(isnan, output_Up) "contains NaN"
-    output_Low[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
-    output_Up[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
-    return new_bound
+    @assert length(size(bound.batch_Low)) > 3
+    img_size = size(bound.batch_Low)[1:3]
+    # batch_Low= reshape(bound.batch_Low, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Low)[4],size(bound.batch_Low)[5]))
+    # @show size(batch_Low)
+    l, u = compute_bound(bound)
+    # @show size(l)
+    # @show size(u)
+    # # l = reshape(l, (bound.img_size..., size(1)[2]))
+    # @show size(l)
+    img_low = reshape(l, (img_size..., size(l)[2]))
+    img_up = reshape(u, (img_size..., size(u)[2]))
+    new_low, new_up = batch_interval_map(layer, img_low, img_up)
+
+    batch_input = [ImageConvexHull([new_low[:,:,:,i], new_up[:,:,:,i]]) for i in size(new_low)[end]]
+    new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
+    # # @show new_crown_bound
+    # l, u = compute_bound(new_crown_bound)
+    # img_size = size(new_crown_bound.batch_Low)[1:3]
+    # img_low = reshape(l, (img_size..., size(l)[2]))
+    # img_up = reshape(u, (img_size..., size(u)[2]))
+    # @show size(new_low)
+    # @show size(img_up)
+    # @assert sum(img_low - new_low)<0.00001
+    # @show size(img_up)
+    return new_crown_bound
 end
 
 """
@@ -286,6 +306,23 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     upper = center + deviation
     lower = center - deviation
     return [lower, upper, nothing]
+end
+
+function batch_interval_map(layer::Conv, batch_low, batch_up) 
+    interval_low = batch_low
+    interval_high = batch_up
+    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    mid = (interval_low + interval_high) / 2.0
+    diff = (interval_high - interval_low) / 2.0
+    center_propagate_layer = Conv(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    center = center_propagate_layer(mid)
+    weight_abs = abs.(weight)
+    bias = zeros(size(weight)[4])
+    deviation_propagate_layer = Conv(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    deviation = deviation_propagate_layer(diff)
+    upper = center + deviation
+    lower = center - deviation
+    return lower, upper
 end
 
 """
