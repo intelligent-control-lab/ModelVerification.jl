@@ -113,7 +113,7 @@ of verification procedures, the model is verified to be valid and returns
 struct Branch
     input
     output
-    inheritance::Dict
+    inheritance::Union{Dict, Nothing}
 end
 Branch(input, output) = Branch(input, output, Dict())
 
@@ -126,7 +126,7 @@ end
 
 function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; collect_bound=false, pre_split=nothing)
     to = get_timer("Shared")
-    branches = [Branch(problem.input, problem.output)]
+    branches = [Branch(problem.input, problem.output, nothing)]
     if !isnothing(pre_split)
         @timeit to "advance_split" branches = advance_split(pre_split, search_method, split_method, prop_method, problem, model_info)
     end 
@@ -135,6 +135,7 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
     @timeit to "test" current_time = 0
     verified_bound = []
     for iter in 1:search_method.max_iter # BFS with max iteration
+        # println("iter: ", iter)
         length(branches) == 0 && break
         branch = popfirst!(branches)
         push!(batch_branch, branch) 
@@ -160,12 +161,11 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i], verified_bound
                 # batch_result[i].status == :unknown
-                @timeit to "split_branch" sub_branches = split_branch(split_method, problem.Flux_model, batch_input[i], batch_output[i], model_info, batch_info)
+                inheritance = get_inheritance(prop_method, batch_info, i, model_info)
+                @timeit to "split_branch" sub_branches = split_branch(split_method, problem.Flux_model, batch_input[i], batch_output[i], inheritance, model_info, batch_info)
                 branches = [branches; sub_branches]
             end
-            
-            batch_input = []
-            batch_output = []
+            batch_branch = []
         end
     end
     length(branches) == 0 && return BasicResult(:holds), verified_bound

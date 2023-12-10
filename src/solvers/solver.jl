@@ -235,3 +235,21 @@ function check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractA
     results = [check_inclusion(prop_method, model, batch_input[i], batch_reach[i], batch_output[i]) for i in eachindex(batch_reach)]
     return results
 end
+
+"""
+    get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
+
+Extract useful informations from batch_info.
+These information will later be inheritated by the new branch created by split.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver being used.
+- `batch_info` (`Dict`): all the information collected in propagation.
+- `batch_idx`: the index of the interested branch in the batch.
+
+## Returns
+- `inheritance`: a dict that contains all the information will be inheritated.
+"""
+function get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
+    return nothing
+end
