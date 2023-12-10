@@ -83,3 +83,22 @@ function propagate_linear(prop_method, layer::MeanPool, bound::ImageZonoBound, b
     new_generators = layer(bound.generators)
     return ImageZonoBound(new_center, new_generators)
 end
+
+function propagate_linear_batch(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info)
+    @assert length(size(bound.batch_Low)) > 3
+    img_size = size(bound.batch_Low)[1:3]
+    l, u = compute_bound(bound)
+    img_low = reshape(l, (img_size..., size(l)[2]))
+    img_up = reshape(u, (img_size..., size(u)[2]))
+    new_low = layer(img_low)
+    new_up = layer(img_up)
+    batch_input = [ImageConvexHull([new_low[:,:,:,i], new_up[:,:,:,i]]) for i in size(new_low)[end]]
+    new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
+    return new_crown_bound
+end
+
+function propagate_linear_batch(prop_method::Crown, layer::typeof(Flux.flatten), bound::CrownBound, batch_info)
+    bound, _ = convert_CROWN_Bound_batch(prop_method,bound)
+    return bound
+end
+

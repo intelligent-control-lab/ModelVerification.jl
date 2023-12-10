@@ -170,3 +170,29 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     
     return results
 end
+
+"""
+    convert the flatten Crown bound into a image-resized Crown bound
+"""
+function convert_CROWN_Bound_batch(prop_method::Crown, flatten_bound::CrownBound, img_size)
+    @assert length(size(flatten_bound.batch_Low)) ≤ 3
+    l, u = compute_bound(flatten_bound)
+    img_low = reshape(l, (img_size..., size(l)[2]))
+    img_up = reshape(u, (img_size..., size(u)[2]))
+    batch_input = [ImageConvexHull([img_low[:,:,:,i], img_up[:,:,:,i]]) for i in size(img_low)[end]]
+    new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
+    return new_crown_bound
+end
+
+"""
+    convert the image-resized  Crown bound into a flatten Crown bound
+"""
+function convert_CROWN_Bound_batch(prop_method::Crown, img_bound::CrownBound)
+    @assert length(size(img_bound.batch_Low)) > 3
+    img_size = size(img_bound.batch_Low)[1:3]
+    output_Low, output_Up = copy(img_bound.batch_Low), copy(img_bound.batch_Up) 
+    output_Low= reshape(output_Low, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Low)[4],size(img_bound.batch_Low)[5]))
+    output_Up= reshape(output_Up, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Up)[4],size(img_bound.batch_Up)[5]))
+    new_bound = CrownBound(output_Low, output_Up, img_bound.batch_data_min, img_bound.batch_data_max)
+    return new_bound, img_size
+end
