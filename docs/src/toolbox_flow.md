@@ -70,8 +70,8 @@ The following solvers are supported:
 - ImageStar
 - ImageZono
 - Crown
-- $\alpha$-Crown
-- $\beta$-Crown
+- Alpha-Crown
+- Beta-Crown
 
 ### [`Problem`](@ref)
 `Problem` is composed by the model to be verified and the input & output specifications. Specifically, this part of the "instance" encodes what we want to verify rather than how we achieve the formal verification results.
