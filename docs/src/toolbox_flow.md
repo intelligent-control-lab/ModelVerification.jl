@@ -24,6 +24,8 @@ Repeat or terminate the process based on the result.
 
 [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) uses a modularized code structure to support various combinations of search methods, split methods, and solvers for a variety of neural network architectures and geometric representations for the safety specifications. After reading through this section, the user should have an overall idea of the flow of the toolbox and the design philosophy behind it. Thanks to the highly modularized structure of the toolbox, the user can add additional functionalities at any layer of the verification process. 
 
+![](./assets/sequence_diagram_MV.png)
+
 ### Definition of Terms
 Here, we define some terms that are unique to the toolbox or are used differently compared to the typical usage.
 
