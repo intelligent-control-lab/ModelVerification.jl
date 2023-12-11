@@ -5,8 +5,8 @@ makedocs(sitename = "ModelVerification.jl",
          format = Documenter.HTML(prettyurls = false),
          pages = [
             "index.md", 
-            "Toolbox" => [
-                # "toolbox_flow.md",
+            "Toolbox Outline" => [
+                "toolbox_flow.md",
                 "Problem" => [
                     "problem.md",
                     "network.md",

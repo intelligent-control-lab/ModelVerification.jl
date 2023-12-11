@@ -237,7 +237,6 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
     return ResultInfo(res.status, info)
 end
 
-
 """
     search_adv_input_bound(search_method::SearchMethod, 
                            split_method::SplitMethod, 

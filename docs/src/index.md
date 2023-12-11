@@ -111,7 +111,7 @@ CROWN verifies that the input-output relationship holds!
 For detailed examples on how to use different functionalities provided by the toolbox, please refer to the [Tutorials](#tutorials). The pages below will direct you to the respective documentation for each category.
 
 ```@contents
-Pages = ["problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
+Pages = ["toolbox_flow.md", "problem.md", "network.md", "safety_spec.md", "branching.md", "propagate.md", "solvers.md", "attack.md", "utils.md"]
 Depth = 3
 ```
 
