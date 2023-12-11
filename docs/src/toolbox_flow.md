@@ -78,6 +78,10 @@ The following solvers are supported:
 ## 2. Verifying the instance: _spinning through the branches - where the magic happens!_
 [`verify`](@ref) is the main function called by [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) to start the verification process of the "instance" provided by the user.
 
+```@docs
+verify
+```
+
 ### `prepare_problem`
 The first step of [`verify`](@ref) is `prepare_problem` which preprocesses the `Problem` into a form that is compatible with the verification solver. Its main two functionalities are:
 
@@ -88,12 +92,8 @@ The result of `prepare_problem` are two variables:
 1. `model_info`: structure that contains information about the `Flux` model,
 2. `prepared_problem`: `Problem` with a processed input-output specification.
 
-```@docs
-verify
-```
 
 ### `search_branches`
-
 
 ```@docs
 search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
@@ -101,6 +101,8 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 ```
 
 `search_branches` is the core method used for the verification process. It consists of several submethods that we are going to summarize in the following. In the first iteration, the method initializes the branches as the whole safety property's input-output domain and seeks to verify this instance. If the solver cannot provide a result (i.e., we obtain an `:unknown` answer), the method proceeds to split either the input space or the ReLU nodes (based on the solver chosen). To this end, the first submethod called is 
+
+0. `advance_split`: 
 
 1. `prepare_method`: this method retrieves all the information to perform either the forward or backward propagation of the input domain to compute the splitting phase. The result is stored in two variables called `batch_out_spec`, `batch_info`, which contain the batch of the outputs and a dictionary containing all the information of each node in the model.
    
@@ -112,7 +114,12 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 
    
 
+### `search_adv_input_bound`
+If the verification result from `verify` is not `:holds`, i.e., either `:unknown` or `:violated`, then [`search_adv_input_bound`](@ref) searches for the maximul input bound that can pass the verification, i.e., retrieves `:holds`, with the given setting. This information is passed to the [`ResultInfo`](@ref) as a dictionary field so that the user can check.
 
+```@docs
+search_adv_input_bound
+```
 
 
 
