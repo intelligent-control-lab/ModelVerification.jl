@@ -250,7 +250,7 @@ informations. This is designed to be the general result type.
 - `status` (`Symbol`): Status of the result, can be `:holds`, `:violated`, or 
     `:unknown`.
 - `info` (`Dict`): A dictionary that contains information related to the result, 
-    such as the verified bounds, adversarial input bounds, etc.
+    such as the verified bounds, adversarial input bounds, counter example, etc.
 """
 struct ResultInfo <: Result
     status::Symbol

@@ -96,20 +96,20 @@ The propagation algorithm is as follows:
 1. Add the connecting nodes of the start nodes, i.e., nodes after the start 
 nodes, into a queue.
 2. While the queue is not empty:
-    a. Pop a node from the queue.
-    b. For each node connected from the current node, i.e., for each output 
+    1. Pop a node from the queue.
+    2. For each node connected from the current node, i.e., for each output 
         node:
-        i. Increment the visit count to the output node.
-        ii. If the visit count equals the number of nodes connected from the 
+        1. Increment the visit count to the output node.
+        2. If the visit count equals the number of nodes connected from the 
             output node, i.e., visit count == previous nodes of the output node, 
             add the output node to the queue.
-    c. Propagate through the current node accordingly.
-    d. Add information about the bound of the node to `batch_info`.
+    3. Propagate through the current node accordingly.
+    4. Add information about the bound of the node to `batch_info`.
 3. Return the bound of the output node(s).
 
-In step 2(a)(ii), the function adds the output node to the queue since all the 
+In step 2(1)(2), the function adds the output node to the queue since all the 
 previous nodes of the output node have been processed. Thus, the output node is 
-now the node of interest. In step 2(c), the propagation works based on the 
+now the node of interest. In step 2(3), the propagation works based on the 
 propagation method (`prop_method`), which depends on the geometric 
 representation of the safety specifications and the activation function of each 
 layer.

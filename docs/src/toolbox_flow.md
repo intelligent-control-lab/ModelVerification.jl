@@ -35,6 +35,7 @@ Repeat or terminate the process based on the result.
 - **Node**: (This is not equivalent to a "neuron" in a traditional deep learning sense.) This refers to a "node" in a computational-graph sense.
 - **Layer**: (This is not equivalent to a "layer" in a traditional deep learning sense.) This refers to an operation at a node, such as ReLU activation function.
 - **BaB**: "Branch-and-Bound" is a method that creates a binary tree for the search space where the verification is employed. 
+- **Set vs Bound**: One set is composed of bounds. E.g., for the output reachable set is a union of output bounds.
 
 ## 1. Creating an instance: _what kind of verification problem do you want to solve?_
 Let's first create an instance. An instance contains all the information required to run the [`verify`](@ref) function. This function does the heavy-lifting where the verification problem is solved. As long as the user properly defines the problem and solver methods, this is the only function the user has to call. To run [`verify`](@ref), the user has to provide the following arguments. These collectively define an "instance":
@@ -100,17 +101,23 @@ search_branches(search_method::BFS, split_method, prop_method, problem, model_in
 advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
 ```
 
-`search_branches` is the core method used for the verification process. It consists of several submethods that we are going to summarize in the following. In the first iteration, the method initializes the branches as the whole safety property's input-output domain and seeks to verify this instance. If the solver cannot provide a result (i.e., we obtain an `:unknown` answer), the method proceeds to split either the input space or the ReLU nodes (based on the solver chosen). To this end, the first submethod called is 
+`search_branches` is the core function used for the verification process. It consists of several subfunctions that we are going to summarize in the following. At first, the function initializes the branch bank for the entire safety property's input-output domain. The function seeks to verify all the branches and if it cannot provide a result (i.e., we obtain an `:unknown` answer), the function proceeds to split either the input space or the ReLU nodes (based on the solver chosen). If the function verifies all the branches within the given maximum number of iterations, then we obtain a `:holds` answer. If the function finds any branch that does not satisfy the safety property, then it returns `:violated`.
 
-0. `advance_split`: 
+For each iteration, i.e., for each branch, the function calls the following subfunctions to verify the branch:
 
-1. `prepare_method`: this method retrieves all the information to perform either the forward or backward propagation of the input domain to compute the splitting phase. The result is stored in two variables called `batch_out_spec`, `batch_info`, which contain the batch of the outputs and a dictionary containing all the information of each node in the model.
+1. `prepare_method`: this function retrieves all the information to perform either the forward or backward propagation of the input domain of the branch.  The result is stored in two variables called `batch_out_spec`, `batch_info`, which contain the batch of the outputs and a dictionary containing all the information of each node in the model. `prepare_method` calls the following functions in sequence:
+    - `init_propagation`: Differentiates between `ForwardProp` and `BackwardProp`. If the solver being used employs a forward propagation method, then we start propagating from the input nodes. If it employs a backward propagation method, then we start from the output nodes.
+    - `init_batch_bound`: Calls `init_bound`, which returns either the input or output geometry representation based on the type of propagation to perform.
    
-2. The result of the previous method is then used in the `propagate` function. This latter
+2. The result of the previous function is then used in the `propagate` function. This function propagates the starting bounds through the model using the specified propagation method, i.e., the solver. 
 
-3.  `process_bounds`
-4.  `check_inclusion`
-5.  `split_branch`
+3. Now, `process_bounds` returns the reachable bounds obtained from the `propagate` function. Depending on the solver, the reachable bounds may be post-processed to optimized the verification procedure.
+
+4.  Finally, `check_inclusion` checks for the overlapping between the reachable bounds obtained from the propagation and the safety property's output bounds. Since we are using overapproximation of the output reachable set, the only case in which we can obtain `:holds` result is when the output reachable set is fully contained in the user-specified output set. On the other hand, the `:violated` result is only possible when the sets are completely disjoint. In all other cases, we have an `:unknown` answer and we proceed with the branch splitting method below to populate the branch bank.
+
+5.  `split_branch` is used to split the current branch with `:unknown` answer into two separate branches which are split based on the `split_method`. The sub-branches are then added to the "branches" bank.
+
+We continue this loop until either get a `:violated` result, a `:hold` result for all the branches, or reach the maximum number of iterations.
 
 
 ### `search_adv_input_bound`
@@ -119,15 +126,6 @@ If the verification result from `verify` is not `:holds`, i.e., either `:unknown
 ```@docs
 search_adv_input_bound
 ```
-
-
-
-
-
-
-
-
-
 
 ## 3. Results and how to interpret them: _so is my model good to go?_
 Once the `verify` function is over, it returns a [`ResultInfo`](@ref) that contains the `status` (either `:hold`, `:violated`, `:unknown`) and a dictionary that contains any other additional information needed to understand the verification results in detail, such as the verified bounds, adversarial input bounds, etc.

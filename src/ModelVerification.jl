@@ -228,13 +228,12 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
     @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
     # println(res.status)
     info = Dict()
-    (res.status == :violated && res isa CounterExampleResult) && (res["counter_example"] = res.counter_example)
+    (res.status == :violated && res isa CounterExampleResult) && (info["counter_example"] = res.counter_example)
     collect_bound && (info["verified_bounds"] = verified_bounds)
     (res.status != :holds && search_adv_bound) && (info["adv_input_bound"] = search_adv_input_bound(search_method, split_method, prop_method, problem))# unknown or violated
     summary && show(to) # to is TimerOutput(), used to profiling the code
     return ResultInfo(res.status, info)
 end
-
 
 """
     search_adv_input_bound(search_method::SearchMethod, 
