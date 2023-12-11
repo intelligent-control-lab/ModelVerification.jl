@@ -112,7 +112,6 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 4.  `check_inclusion`
 5.  `split_branch`
 
-   
 
 ### `search_adv_input_bound`
 If the verification result from `verify` is not `:holds`, i.e., either `:unknown` or `:violated`, then [`search_adv_input_bound`](@ref) searches for the maximul input bound that can pass the verification, i.e., retrieves `:holds`, with the given setting. This information is passed to the [`ResultInfo`](@ref) as a dictionary field so that the user can check.
