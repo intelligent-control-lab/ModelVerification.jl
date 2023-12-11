@@ -47,23 +47,41 @@ generators) does not. The resulting bound is also of type `ImageZonoBound`.
 ## Returns
 - The convolved bound of the output layer represented in `ImageZonoBound` type.
 """
+# function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
+#     # copy a Conv and set activation to identity
+#     # println("layer.bias")
+#     to = get_timer("Shared")
+    
+#     @timeit to "create_cen_conv" cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+#     @timeit to "compute_cen_conv" new_center = cen_Conv(bound.center)
+#     # new_center = cen_Conv(bound.center |> gpu) |> cpu
+    
+#     # copy a Conv set bias to zeros
+#     # @timeit to "create_gen_conv" gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+#     @timeit to "create_gen_conv" gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) |> gpu
+#     # println("size(bound.generators): ", size(bound.generators))
+#     # @timeit to "compute_gen_conv" new_generators = gen_Conv(bound.generators)
+#     @timeit to "compute_gen_conv" new_generators = gen_Conv(bound.generators |> gpu) |> cpu
+#     # @timeit to "compute_gen_conv" new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
+    
+#     return ImageZonoBound(new_center, new_generators)
+# end
+
 function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
     # println("layer.bias")
-    to = get_timer("Shared")
+    cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
+    # copy a Conv set bias to zeros
+    gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     
-    @timeit to "create_cen_conv" cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
-    @timeit to "compute_cen_conv" new_center = cen_Conv(bound.center)
+    new_center = cen_Conv(bound.center)
     # new_center = cen_Conv(bound.center |> gpu) |> cpu
     
-    # copy a Conv set bias to zeros
-    # @timeit to "create_gen_conv" gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
-    @timeit to "create_gen_conv" gen_Conv = Conv(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) |> gpu
     # println("size(bound.generators): ", size(bound.generators))
-    # @timeit to "compute_gen_conv" new_generators = gen_Conv(bound.generators)
-    @timeit to "compute_gen_conv" new_generators = gen_Conv(bound.generators |> gpu) |> cpu
-    # @timeit to "compute_gen_conv" new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
-    
+    new_generators = gen_Conv(bound.generators)
+    # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
+    # new_generators = gen_Conv(bound.generators |> gpu) |> cpu
+    # new_generators = new_generators |> cpu
     return ImageZonoBound(new_center, new_generators)
 end
 
