@@ -224,7 +224,7 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
     @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
     # println(res.status)
     info = Dict()
-    (res.status == :violated && res isa CounterExampleResult) && (res["counter_example"] = res.counter_example)
+    (res.status == :violated && res isa CounterExampleResult) && (info["counter_example"] = res.counter_example)
     collect_bound && (info["verified_bounds"] = verified_bounds)
     (res.status != :holds && search_adv_bound) && (info["adv_input_bound"] = search_adv_input_bound(search_method, split_method, prop_method, problem))# unknown or violated
     summary && show(to) # to is TimerOutput(), used to profiling the code
@@ -242,17 +242,19 @@ function search_adv_input_bound(search_method::SearchMethod, split_method::Split
         res = verify(search_method, split_method, prop_method, new_problem)
         if res.status == :holds
             l = m
-            println("verified ratio: ",m)
+            # println("verified ratio: ",m)
         else
-            println("falsified ratio: ",m)
+            # println("falsified ratio: ",m)
             r = m
         end
     end
     return scale_set(problem.input, l)
 end
+
 function scale_set(set::Hyperrectangle, ratio)
     return Hyperrectangle(center(set), radius_hyperrectangle(set) * ratio)
 end
+
 function scale_set(set::ImageConvexHull, ratio)
     new_set = ImageConvexHull(copy(set.imgs))
     new_set.imgs[2:end] = [set.imgs[1] + (img - set.imgs[1]) * ratio for img in set.imgs[2:end]]
