@@ -12,7 +12,7 @@ _Please note that this page is under construction._
 # Flow
 ![](./assets/overview_mvflow.png)
 
-_This page serves to explain the overall flow of the toolbox. For examples and explanation on how to use specific methods (such as different [solvers](./solvers.md)), please refer to the [tutorials](./index.md#tutorials)._ 
+_This page serves to explain the overall flow of the toolbox. For examples and explanation on how to use specific verification functions, please refer to the [tutorials](./index.md#tutorials)._ 
 
 In general, verification algorithms follow the paradigm of _Branch and Bound_. This process can be summarized into three steps:
 
@@ -22,9 +22,11 @@ In general, verification algorithms follow the paradigm of _Branch and Bound_. T
 
 Repeat or terminate the process based on the result.
 
-[ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) uses a modularized code structure to support various combinations of search methods, split methods, and solvers for a variety of geometric representations for the safety specifications and neural network architectures. After reading through this section, the user should have an overall idea of the flow of the toolbox and the design philosophy behind it.
+[ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) uses a modularized code structure to support various combinations of search methods, split methods, and solvers for a variety of neural network architectures and geometric representations for the safety specifications. After reading through this section, the user should have an overall idea of the flow of the toolbox and the design philosophy behind it. Thanks to the highly modularized structure of the toolbox, the user can add additional functionalities at any layer of the verification process. 
 
 ### Definition of Terms
+Here, we define some terms that are unique to the toolbox or are used differently compared to the typical usage.
+
 - **Instance**: combination of all the necessary information to define an "instance" of neural network verification problem. This is consisted of: 
     - [problem](./problem.md)
     - [solver](./solvers.md)
@@ -35,7 +37,7 @@ Repeat or terminate the process based on the result.
 - **Node**: (This is not equivalent to a "neuron" in a traditional deep learning sense.) This refers to a "node" in a computational-graph sense.
 - **Layer**: (This is not equivalent to a "layer" in a traditional deep learning sense.) This refers to an operation at a node, such as ReLU activation function.
 - **BaB**: "Branch-and-Bound" is a method that creates a binary tree for the search space where the verification is employed. 
-- **Set vs Bound**: One set is composed of bounds. E.g., for the output reachable set is a union of output bounds.
+- **Set vs Bound**: One set is composed of bounds. E.g., for the output reachable set is a union of output bounds. But we use these terms interchangeably throughout the toolbox.
 
 ## 1. Creating an instance: _what kind of verification problem do you want to solve?_
 Let's first create an instance. An instance contains all the information required to run the [`verify`](@ref) function. This function does the heavy-lifting where the verification problem is solved. As long as the user properly defines the problem and solver methods, this is the only function the user has to call. To run [`verify`](@ref), the user has to provide the following arguments. These collectively define an "instance":
@@ -101,7 +103,7 @@ search_branches(search_method::BFS, split_method, prop_method, problem, model_in
 advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
 ```
 
-`search_branches` is the core function used for the verification process. It consists of several subfunctions that we are going to summarize in the following. At first, the function initializes the branch bank for the entire safety property's input-output domain. The function seeks to verify all the branches and if it cannot provide a result (i.e., we obtain an `:unknown` answer), the function proceeds to split either the input space or the ReLU nodes (based on the solver chosen). If the function verifies all the branches within the given maximum number of iterations, then we obtain a `:holds` answer. If the function finds any branch that does not satisfy the safety property, then it returns `:violated`.
+`search_branches` is the core function used for the verification process. It consists of several subfunctions that we are going to summarize in the following. At first, the function initializes the branch bank for the entire safety property's input-output domain. This can be done by `advance_split`, which splits the input-output domain using the given split method. Thus, each "branch" is a subpart of the input-output domain. The function seeks to verify all the branches and if it cannot provide a result (i.e., we obtain an `:unknown` answer), the function proceeds to split branch for a more refined verification process.. If the function verifies all the branches within the given maximum number of iterations, then we obtain a `:holds` answer. If the function finds any branch that does not satisfy the safety property, then it returns `:violated`.
 
 For each iteration, i.e., for each branch, the function calls the following subfunctions to verify the branch:
 
@@ -109,7 +111,7 @@ For each iteration, i.e., for each branch, the function calls the following subf
     - `init_propagation`: Differentiates between `ForwardProp` and `BackwardProp`. If the solver being used employs a forward propagation method, then we start propagating from the input nodes. If it employs a backward propagation method, then we start from the output nodes.
     - `init_batch_bound`: Calls `init_bound`, which returns either the input or output geometry representation based on the type of propagation to perform.
    
-2. The result of the previous function is then used in the `propagate` function. This function propagates the starting bounds through the model using the specified propagation method, i.e., the solver. 
+2. The result of the previous function is then used in the [`propagate`](@ref) function. This function propagates the starting bounds through the model using the specified propagation method, i.e., the solver. The `propagate` function acts as the overall logic for propagating the branch through the model and performs the propagation based on the layer operation (linear, ReLU, etc.) and the geometric representation for the bounds. The user can add additional layer operators in the `propagate/operators` folder. Moreover, the toolbox supports skip connections. The `propagate` function returns `batch_bound`, the bound of the output node, and an augmented `batch_info` dictionary with the output bound information added.
 
 3. Now, `process_bounds` returns the reachable bounds obtained from the `propagate` function. Depending on the solver, the reachable bounds may be post-processed to optimized the verification procedure.
 

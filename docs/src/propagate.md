@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = ModelVerification
+```
+
 ```@contents
 Pages=["propagation.md"]
 Depth = 3
@@ -10,15 +14,27 @@ The `propagate\propagate.jl` module defines algorithms for propagating bounds fr
 
 The `propagate\operators` folder contains specific propagation algorithms for different operators, such as ReLU, Dense, Identity, Convolution, Bivariate, etc.
 
-Note 
-
 ```@docs
-PropMethod
-```
-
-```@autodocs
-Modules=[ModelVerification]
-Pages=["propagate.jl"]
+propagate
+propagate_skip_method(prop_method::ForwardProp, model_info, batch_info, node)
+propagate_skip_method(prop_method::BackwardProp, model_info, batch_info, node)
+propagate_layer_method(prop_method::ForwardProp, model_info, batch_info, node)
+propagate_layer_method(prop_method::BackwardProp, model_info, batch_info, node)
+propagate_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info)
+propagate_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info)
+propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info)
+is_activation(l)
+propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
+enqueue_nodes!(prop_method::ForwardProp, queue, model_info)
+enqueue_nodes!(prop_method::BackwardProp, queue, model_info)
+output_node(prop_method::ForwardProp, model_info)
+next_nodes(prop_method::ForwardProp,  model_info, node)
+next_nodes(prop_method::BackwardProp, model_info, node)
+prev_nodes(prop_method::ForwardProp,  model_info, node)
+prev_nodes(prop_method::BackwardProp, model_info, node)
+all_nexts_in(prop_method, model_info, output_node, cnt)
+all_prevs_in(prop_method, model_info, output_node, cnt)
+has_two_reach_node(prop_method, model_info, node)
 ```
 
 ## Bivariate
