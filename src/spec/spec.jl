@@ -133,14 +133,14 @@ const OutputSpec = Union{LazySet, LinearSpec}
 """
     get_size(input_spec::LazySet)
 
-Given a `LazySet`, it determines the size.
+Given a `LazySet`, it determines the size of the set.
 """
 get_size(input_spec::LazySet) = size(LazySets.center(input_spec))
 
 """
     get_size(input_spec::ImageConvexHull)
 
-Given an `ImageConvexHull`, it determines the size.
+Given an `ImageConvexHull`, it determines the size of the image.
 """
 get_size(input_spec::ImageConvexHull) = size(input_spec.imgs[1])
 

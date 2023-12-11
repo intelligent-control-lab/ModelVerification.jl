@@ -21,10 +21,12 @@ BFS
 ```
 
 ## Split
+```@docs
+SplitMethod
+```
 
 ### Bisection
 ```@docs
-SplitMethod
 Bisect
 split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
 split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)

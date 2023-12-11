@@ -38,6 +38,11 @@ to_comment(txt)
 print_layer(file::IOStream, layer)
 print_header(file::IOStream, network; header_text="")
 write_nnet(filename, network; header_text)
+build_flux_model(onnx_model_path)
+get_chain(vertex)
+purify_flux_model(model::Chain)
+remove_flux_start_flatten(model::Chain)
+build_onnx_model(path, model::Chain, input::InputSpec)
 ```
 
 ### Network properties

@@ -180,10 +180,11 @@ verify(search_method::SearchMethod, split_method::SplitMethod,
 
 This is the main function for verification. It takes in a search method, 
 a split method, a propagation method, and a problem, and returns a result. 
-The result is either a `BasicResult`, `CounterExampleResult`, 
-`AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
-For each `Result`, the `status` field is either `:violated`, `:verified`, 
-`:unknown`, or `:timeout`. Optional arguments can be passed to the function 
+The result is of type `ResultInfo`, which is a wrapper for the following 
+`Result` types: `BasicResult`, `CounterExampleResult`, `AdversarialResult`, 
+`ReachabilityResult`, `EnumerationResult`, or timeout. 
+For each `Result`, the `status` field is either `:violated`, `:verified`, or 
+`:unknown`. Optional arguments can be passed to the function 
 to control the timeout, the number of restarts for the attack, whether 
 to collect the bounds for each branch, whether to print a summary of the 
 verification process, and whether to pre-split the problem.
@@ -201,11 +202,14 @@ verification process, and whether to pre-split the problem.
     hours. If the timeout is reached, the function returns `:timeout`.
 - `attack_restart` (`Int`): The number of restarts for the attack. Defaults to 100.
 - `collect_bound` (`Bool`): Whether to collect the bounds for each branch.
+- `summary` (`Bool`): Whether to print a summary of the verification process.
+- `pre_split`: A function that takes in a `Problem` and returns a 
+    `Problem` with the input set pre-split. Defaults to `nothing`.
 - `search_adv_bound` (`Bool`): Whether to search the maximal input bound that can 
     pass the verification (get :holds) with the given setting.
 
 ## Returns
-- The result is ResultInfo, the `status` field is either `:violated`, `:verified`, 
+- The result is `ResultInfo`, the `status` field is either `:violated`, `:verified`, 
     `:unknown`, or `:timeout`. The info is a dictionary that contains other information.
 """
 function verify(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem; 

@@ -124,16 +124,15 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 
 
 ## 3. Results and how to interpret them: _so is my model good to go?_
-The result is either a `BasicResult`, `CounterExampleResult`, 
-`AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
-For each `Result`, the `status` field is either `:violated`, `:verified`, 
-`:unknown`, or `:timeout`.
+Once the `verify` function is over, it returns a [`ResultInfo`](@ref) that contains the `status` (either `:hold`, `:violated`, `:unknown`) and a dictionary that contains any other additional information needed to understand the verification results in detail, such as the verified bounds, adversarial input bounds, etc.
+
+The following are the `Result` types used interally for the toolbox to differentiate between different verification results. The result is either a `BasicResult`, `CounterExampleResult`,  `AdversarialResult`, `ReachabilityResult`, or `EnumerationResult` (to-be-supported). The `status` field is either `:violated`, `:holds`, or `:unknown`.
 
 |        Output result       |  Explanation  | 
 |----------------------------|:-----------:|
-| [`BasicResult::hold`]      | The input-output constraint is always satisfied. |
+| [`BasicResult::holds`]      | The input-output constraint is always satisfied. |
 | [`BasicResult::violated`]  | The input-output constraint is violated, i.e., it exists a single point in the input constraint that violates the property.         |
-| [`BasicResult::timeout`]   | Could not be determined if the property holds due to timeout in the computation.        | 
+| [`BasicResult::unknown`]   | Could not be determined if the property holds due to timeout in the computation.        | 
 | [`CounterExampleResult`]   | Like BasicResult, but also returns a counter_example if one is found (if status = :violated). The counter_example is a point in the input set that, after the NN, lies outside the output constraint set.        |
 | [`AdversarialResult`]      | Like BasicResult, but also returns the maximum allowable disturbance in the input (if status = :violated).        | 
 | [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |

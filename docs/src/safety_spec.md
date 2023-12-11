@@ -129,4 +129,6 @@ The following are helper functions for retrieving information the specification 
 ```@docs
 get_size(input_spec::LazySet)
 get_size(input_spec::ImageConvexHull)
+get_shape(input::ImageConvexHull)
+get_shape(input::Hyperrectangle)
 ```
