@@ -7,7 +7,8 @@ branch bank.
 ## Fields
 - `max_iter` (`Int64`): Maximum number of iterations to go through the branches 
     in the branch bank.
-- `batch_size` (`Int64`): Size of the batch. Defaults to 1.
+- `batch_size` (`Int64`): Size of the batch. Defaults to 1. If `batch_size` is 
+    greater than 1, GPU is used for parallel analysis of the nodes in the BaB.
 """
 @with_kw struct BFS <: SearchMethod
     max_iter::Int64
