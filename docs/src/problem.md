@@ -30,11 +30,15 @@ _Details on [Network](./network.md)_
 *Details on [Input-Output Specification](./safety_spec.md)*
 
 ## Output (Verification Results)
+The following are the different result types used internally in the toolbox. We outline them here so that the user can have a better idea of what kind of conclusion the toolbox makes. 
+
+The user has to only interact with the wrapper [`ResultInfo`](@ref), which contains the [`status`](@ref) and any other additional information needed to help understand the verification result. 
+
 |        Output result       |  Explanation  | 
 |----------------------------|:-----------:|
-| [`BasicResult::hold`]      | The input-output constraint is always satisfied. |
+| [`BasicResult::holds`]      | The input-output constraint is always satisfied. |
 | [`BasicResult::violated`]  | The input-output constraint is violated, i.e., it exists a single point in the input constraint that violates the property.         |
-| [`BasicResult::timeout`]   | Could not be determined if the property holds due to timeout in the computation.        | 
+| [`BasicResult::unknown`]   | Could not be determined if the property holds due to timeout in the computation.        | 
 | [`CounterExampleResult`]   | Like BasicResult, but also returns a counter_example if one is found (if status = :violated). The counter_example is a point in the input set that, after the NN, lies outside the output constraint set.        |
 | [`AdversarialResult`]      | Like BasicResult, but also returns the maximum allowable disturbance in the input (if status = :violated).        | 
 | [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |
@@ -51,8 +55,11 @@ prepare_problem(search_method::SearchMethod, split_method::SplitMethod, prop_met
 ## Result
 ```@docs
 Result
+ResultInfo
 BasicResult
 CounterExampleResult
 AdversarialResult
 ReachabilityResult
+status
+validate_status
 ```

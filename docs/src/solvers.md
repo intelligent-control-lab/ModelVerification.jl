@@ -12,6 +12,17 @@ For most of the functions below, each solver has a unique dispatch defined.
 
 ## Variations of propagation methods
 All the solvers are based on one of the following propagation methods.
+```Julia
+    PropMethod
+```
+Algorithm to propagate the bounds through the computational graph. This is the 
+super-type for all the "solvers" used in the verification process, and is 
+different from the functions defined in `propagate` folder. In other words, 
+the `PropMethod` should be understood as the "solver" used in the verification 
+process, while the functions in `propagate` folder are the "propagation" 
+functions used in the verification process. The solvers include methods such as 
+`Ai2` and `Crown`. For an example, see the documentation on [`Ai2`](@ref).
+
 ```@docs
 ForwardProp
 BackwardProp

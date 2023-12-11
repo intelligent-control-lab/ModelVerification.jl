@@ -1,5 +1,15 @@
 """
     get_chain(vertex)
+
+Returns a `Flux.Chain` constructed from the given vertex. This is a helper 
+function for `build_flux_model`. 
+
+## Arguments
+- `vertex`: Vertex from the `NaiveNASflux` computation graph.
+
+## Returns
+- `model`: `Flux.Chain` constructed from the given vertex.
+- `curr_vertex`: The last vertex in the chain.
 """
 function get_chain(vertex)
     m = Any[]
@@ -56,20 +66,86 @@ function build_flux_model(onnx_model_path)
     return model
 end
 
+"""
+    remove_flux_start_flatten(model::Chain)
 
+Removes the starting `Flatten` layer from the model.
+
+## Arguments
+- `model` (`Chain`): `Flux.Chain` model.
+
+## Returns
+- `model` (`Chain`): `Flux.Chain` model with the starting `Flatten` layer 
+    removed.
+"""
 function remove_flux_start_flatten(model::Chain)
     !isa(model[1], ONNXNaiveNASflux.Flatten) && return model
     println("removing starting flatten")
     return model[2:end]
 end
+
+"""
+    purify_flux_model(model::Chain)
+
+Removes the starting `Flatten` layer from the model. This is a wrapper function 
+for `remove_flux_start_flatten`.
+
+## Arguments
+- `model` (`Chain`): `Flux.Chain` model.
+
+## Returns
+- `model` (`Chain`): `Flux.Chain` model with the starting `Flatten` layer 
+    removed.
+"""
 function purify_flux_model(model::Chain)
     model = remove_flux_start_flatten(model)
 end
  
+"""
+    get_shape(input::ImageConvexHull)
 
+Returns the shape of the given `ImageConvexHull` input set.
 
+## Arguments
+- `input` (`ImageConvexHull`): Input set.
+
+## Returns
+- `shape` (`Tuple`): Shape of the input set. The last dimension is always the 
+    number of the images. The first dimensions are the shape of the image. For 
+    example, if the input set is consisted of 10 images of size 128 x 128, then 
+    the shape is `(128, 128, 10)`.
+"""
 get_shape(input::ImageConvexHull) = (size(input.imgs[1])..., length(input.imgs))
+
+"""
+    get_shape(input::Hyperrectangle)
+
+Returns the shape of the given `Hyperrectangle` input set.
+
+## Arguments
+- `input` (`Hyperrectangle`): Input set.
+
+## Returns
+- `shape` (`Tuple`): Shape of the hyperrectangle. The last dimension is always 
+    1. For example, if the input set is a 2D hyperrectangle, then the shape is 
+    `(2, 1)`.
+"""
 get_shape(input::Hyperrectangle) = (size(LazySets.center(input))..., 1)
+
+"""
+    build_onnx_model(path, model::Chain, input::InputSpec)
+
+Builds an ONNX model from the given `Flux.Chain` model and input specification. 
+The ONNX model is saved to the given path.
+
+## Arguments
+- `path` (`String`): Path to save the ONNX model.
+- `model` (`Chain`): `Flux.Chain` model.
+- `input` (`InputSpec`): Input specification.
+
+## Returns
+- `path` (`String`): Path to the saved ONNX model.
+"""
 function build_onnx_model(path, model::Chain, input::InputSpec)
     ONNXNaiveNASflux.save(path, model, get_shape(input))
     return path
@@ -93,8 +169,8 @@ There are three ways to construct a `Problem`:
 ## Fields
 - `network` : `Network` that can be constructed either using the path to an onnx
     model or a `Flux.Chain` structure.
-- `input` : input specification defined using a LazySet.
-- `output` : output specification defined using a LazySet.
+- `input` : Input specification defined using a LazySet.
+- `output` : Output specification defined using a LazySet.
 """
 struct Problem{P, Q}
     onnx_model_path::String
@@ -120,8 +196,26 @@ See also:
 """
 abstract type Result end
 
+"""
+    status(result::Result)
+
+Returns the status of the result. Only (:holds, :violated, :unknown) are 
+accepted.
+"""
 status(result::Result) = result.status
 
+"""
+    validate_status(st)
+
+Validates the status code. Only (:holds, :violated, :unknown) are accepted.
+
+## Arguments
+- `st` (`Symbol`): Status code.
+
+## Returns
+- Assertion Error if the given `st` is not one of (:holds, :violated, :unknown).
+- Otherwise, returns the given `st`.
+"""
 function validate_status(st::Symbol)
     @assert st ∈ (:holds, :violated, :unknown) "unexpected status code: `:$st`.\nOnly (:holds, :violated, :unknown) are accepted"
     return st
@@ -129,13 +223,17 @@ end
 
 
 """
-    BasicResult(status::Symbol)
+    BasicResult(status)
 
 Result type that captures whether the input-output constraint is satisfied.
 Possible status values:\n
     :holds (io constraint is satisfied always)\n
     :violated (io constraint is violated)\n
     :unknown (could not be determined)
+
+## Fields
+- `status` (`Symbol`): Status of the result, can be `:holds`, `:violated`, or 
+    `:unknown`.
 """
 struct BasicResult <: Result
     status::Symbol
@@ -143,10 +241,16 @@ end
 
 
 """
-ResultInfo(status, info)
+    ResultInfo(status, info)
 
-Like `BasicResult`, but also returns a `info` dictionary that contains other informations.
-This is designed to be the general result type.
+Like `BasicResult`, but also returns a `info` dictionary that contains other 
+informations. This is designed to be the general result type. 
+
+## Fields
+- `status` (`Symbol`): Status of the result, can be `:holds`, `:violated`, or 
+    `:unknown`.
+- `info` (`Dict`): A dictionary that contains information related to the result, 
+    such as the verified bounds, adversarial input bounds, etc.
 """
 struct ResultInfo <: Result
     status::Symbol

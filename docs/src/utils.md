@@ -9,5 +9,3 @@ CurrentModule = ModelVerification
 network(c::Chain)
 Flux.Chain(m::Network)
 ```
-
-## Testing Functions

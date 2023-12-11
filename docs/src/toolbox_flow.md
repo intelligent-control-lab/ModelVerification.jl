@@ -78,6 +78,10 @@ The following solvers are supported:
 ## 2. Verifying the instance: _spinning through the branches - where the magic happens!_
 [`verify`](@ref) is the main function called by [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) to start the verification process of the "instance" provided by the user.
 
+```@docs
+verify
+```
+
 ### `prepare_problem`
 The first step of [`verify`](@ref) is `prepare_problem` which preprocesses the `Problem` into a form that is compatible with the verification solver. Its main two functionalities are:
 
@@ -88,12 +92,8 @@ The result of `prepare_problem` are two variables:
 1. `model_info`: structure that contains information about the `Flux` model,
 2. `prepared_problem`: `Problem` with a processed input-output specification.
 
-```@docs
-verify
-```
 
 ### `search_branches`
-
 
 ```@docs
 search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
@@ -101,6 +101,8 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 ```
 
 `search_branches` is the core method used for the verification process. It consists of several submethods that we are going to summarize in the following. In the first iteration, the method initializes the branches as the whole safety property's input-output domain and seeks to verify this instance. If the solver cannot provide a result (i.e., we obtain an `:unknown` answer), the method proceeds to split either the input space or the ReLU nodes (based on the solver chosen). To this end, the first submethod called is 
+
+0. `advance_split`: 
 
 1. `prepare_method`: this method retrieves all the information to perform either the forward or backward propagation of the input domain to compute the splitting phase. The result is stored in two variables called `batch_out_spec`, `batch_info`, which contain the batch of the outputs and a dictionary containing all the information of each node in the model.
    
@@ -112,7 +114,12 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 
    
 
+### `search_adv_input_bound`
+If the verification result from `verify` is not `:holds`, i.e., either `:unknown` or `:violated`, then [`search_adv_input_bound`](@ref) searches for the maximul input bound that can pass the verification, i.e., retrieves `:holds`, with the given setting. This information is passed to the [`ResultInfo`](@ref) as a dictionary field so that the user can check.
 
+```@docs
+search_adv_input_bound
+```
 
 
 
@@ -124,16 +131,15 @@ advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, prob
 
 
 ## 3. Results and how to interpret them: _so is my model good to go?_
-The result is either a `BasicResult`, `CounterExampleResult`, 
-`AdversarialResult`, `ReachabilityResult`, `EnumerationResult`, or timeout. 
-For each `Result`, the `status` field is either `:violated`, `:verified`, 
-`:unknown`, or `:timeout`.
+Once the `verify` function is over, it returns a [`ResultInfo`](@ref) that contains the `status` (either `:hold`, `:violated`, `:unknown`) and a dictionary that contains any other additional information needed to understand the verification results in detail, such as the verified bounds, adversarial input bounds, etc.
+
+The following are the `Result` types used interally for the toolbox to differentiate between different verification results. The result is either a `BasicResult`, `CounterExampleResult`,  `AdversarialResult`, `ReachabilityResult`, or `EnumerationResult` (to-be-supported). The `status` field is either `:violated`, `:holds`, or `:unknown`.
 
 |        Output result       |  Explanation  | 
 |----------------------------|:-----------:|
-| [`BasicResult::hold`]      | The input-output constraint is always satisfied. |
+| [`BasicResult::holds`]      | The input-output constraint is always satisfied. |
 | [`BasicResult::violated`]  | The input-output constraint is violated, i.e., it exists a single point in the input constraint that violates the property.         |
-| [`BasicResult::timeout`]   | Could not be determined if the property holds due to timeout in the computation.        | 
+| [`BasicResult::unknown`]   | Could not be determined if the property holds due to timeout in the computation.        | 
 | [`CounterExampleResult`]   | Like BasicResult, but also returns a counter_example if one is found (if status = :violated). The counter_example is a point in the input set that, after the NN, lies outside the output constraint set.        |
 | [`AdversarialResult`]      | Like BasicResult, but also returns the maximum allowable disturbance in the input (if status = :violated).        | 
 | [`ReachabilityResult`]     | Like BasicResult, but also returns the output reachable set given the input constraint (if status = :violated).        |
