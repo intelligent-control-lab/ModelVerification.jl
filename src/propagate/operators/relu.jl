@@ -445,7 +445,7 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_b
     if length(size(original_bound.batch_Low)) > 3
         new_bound = convert_CROWN_Bound_batch(prop_method, new_bound, img_size)
     end
-    @show size(new_bound.batch_Low)
+    # @show size(new_bound.batch_Low)
     return new_bound
 end
 #initalize relu's alpha_lower and alpha_upper

@@ -78,11 +78,14 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
         batch_Low = reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3]))
         batch_Up = reshape(batch_Up, (img_size..., size(batch_Up)[2],size(batch_Up)[3]))
     end
+    # @show size(batch_data_min)
     bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
     # @show bound
     # @show size(reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3])))
     return bound
 end
+
+
 
 """   
     compute_bound(bound::CrownBound)
@@ -131,6 +134,7 @@ end
 function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
     l, u = compute_bound(bound)
+    # @show size(l)
     batch_size = size(l,2)
     #pos_A = max.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A)))) # spec_dim x out_dim x batch_size
     #neg_A = min.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A))))
@@ -144,9 +148,25 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     # println("typeof(model)")
     # println(typeof(model))
     model = prop_method.use_gpu ? model |> gpu : model
-    out_center = model(center)
-    # println("typeof(out_center)")
-    # println(typeof(out_center))
+    # @show model[end-3:end]
+
+    # TODO: fix bug, batch_data_min is not updated in dense layers, in CrownBound
+    num_last_dense=0
+    for i = 1:length(model)
+        if model[length(model)+1-i] isa Dense
+            num_last_dense += 1
+        else
+            break
+        end
+    end
+    
+    if num_last_dense == length(model)
+        dense_model = model
+    else
+        dense_model = model[end-num_last_dense:end]
+    end
+    out_center = dense_model(center)
+
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
@@ -169,6 +189,10 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     end
     
     return results
+end
+
+function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::HPolyhedron)
+
 end
 
 """

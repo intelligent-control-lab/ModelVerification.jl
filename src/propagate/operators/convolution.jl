@@ -123,8 +123,8 @@ The resulting bound is represented by `CrownBound` type.
 """
 function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     # TODO: check how imagezono works for conv
-    @show size(layer.weight)
-    @show size(bound.batch_Low)
+    # @show size(layer.weight)
+    # @show size(bound.batch_Low)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     @assert length(size(bound.batch_Low)) > 3
     img_size = size(bound.batch_Low)[1:3]
