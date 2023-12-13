@@ -389,7 +389,7 @@ Propagate the `CrownBound` bound through a ReLU layer.
 function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_bound::CrownBound, batch_info)
     to = get_timer("Shared")
     if length(size(original_bound.batch_Low)) > 3
-        bound, img_size = convert_CROWN_Bound_batch(prop_method, original_bound)
+        bound, img_size = convert_CROWN_Bound_batch(original_bound)
     else
         bound = original_bound
     end
@@ -440,10 +440,10 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_b
     @assert !any(isnan, output_Low) "relu low contains NaN"
     @assert !any(isnan, output_Up) "relu up contains NaN"
     
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
     
     if length(size(original_bound.batch_Low)) > 3
-        new_bound = convert_CROWN_Bound_batch(prop_method, new_bound, img_size)
+        new_bound = convert_CROWN_Bound_batch(new_bound, img_size)
     end
     # @show size(new_bound.batch_Low)
     return new_bound

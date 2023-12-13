@@ -10,11 +10,15 @@ end
 """
     CrownBound <: Bound
 """
-struct CrownBound <: Bound
+mutable struct CrownBound <: Bound
     batch_Low    # reach_dim x input_dim+1 x batch_size
     batch_Up     # reach_dim x input_dim+1 x batch_size
     batch_data_min    # input_dim+1 x batch_size
     batch_data_max     # input_dim+1 x batch_size
+    img_size
+end
+function CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    return CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max, nothing)
 end
 
 """
@@ -79,7 +83,7 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
         batch_Up = reshape(batch_Up, (img_size..., size(batch_Up)[2],size(batch_Up)[3]))
     end
     # @show size(batch_data_min)
-    bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max, img_size)
     # @show bound
     # @show size(reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3])))
     return bound
@@ -149,23 +153,30 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     # println(typeof(model))
     model = prop_method.use_gpu ? model |> gpu : model
     # @show model[end-3:end]
+    # @show size(center)
+    if !isnothing(bound.img_size)
+        # resize input to match Conv for image
+        # @assert length(size(bound.img_size)) == 3
+        center = reshape(center, (bound.img_size..., size(center)[2]))
+    end
+    out_center = model(center)
 
-    # TODO: fix bug, batch_data_min is not updated in dense layers, in CrownBound
-    num_last_dense=0
-    for i = 1:length(model)
-        if model[length(model)+1-i] isa Dense
-            num_last_dense += 1
-        else
-            break
-        end
-    end
+    # TODO: uncomment the following if using Box Conv
+    # num_last_dense=0
+    # for i = 1:length(model)
+    #     if model[length(model)+1-i] isa Dense
+    #         num_last_dense += 1
+    #     else
+    #         break
+    #     end
+    # end
     
-    if num_last_dense == length(model)
-        dense_model = model
-    else
-        dense_model = model[end-num_last_dense:end]
-    end
-    out_center = dense_model(center)
+    # if num_last_dense == length(model)
+    #     dense_model = model
+    # else
+    #     dense_model = model[end-num_last_dense:end]
+    # end
+    # out_center = dense_model(center)
 
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
@@ -191,32 +202,27 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     return results
 end
 
-function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::HPolyhedron)
-
-end
-
 """
     convert the flatten Crown bound into a image-resized Crown bound
 """
-function convert_CROWN_Bound_batch(prop_method::Crown, flatten_bound::CrownBound, img_size)
-    @assert length(size(flatten_bound.batch_Low)) ≤ 3
-    l, u = compute_bound(flatten_bound)
-    img_low = reshape(l, (img_size..., size(l)[2]))
-    img_up = reshape(u, (img_size..., size(u)[2]))
-    batch_input = [ImageConvexHull([img_low[:,:,:,i], img_up[:,:,:,i]]) for i in size(img_low)[end]]
-    new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
-    return new_crown_bound
+function convert_CROWN_Bound_batch(flatten_bound::CrownBound, img_size)
+    @assert length(size(flatten_bound.batch_Low)) == 3
+    output_Low, output_Up = copy(flatten_bound.batch_Low), copy(flatten_bound.batch_Up) 
+    output_Low= reshape(output_Low, (img_size..., size(flatten_bound.batch_Low)[2],size(flatten_bound.batch_Low)[3]))
+    output_Up= reshape(output_Up, (img_size..., size(flatten_bound.batch_Up)[2],size(flatten_bound.batch_Up)[3]))
+    new_bound = CrownBound(output_Low, output_Up, flatten_bound.batch_data_min, flatten_bound.batch_data_max, flatten_bound.img_size)
+    return new_bound
 end
 
 """
     convert the image-resized  Crown bound into a flatten Crown bound
 """
-function convert_CROWN_Bound_batch(prop_method::Crown, img_bound::CrownBound)
+function convert_CROWN_Bound_batch(img_bound::CrownBound)
     @assert length(size(img_bound.batch_Low)) > 3
     img_size = size(img_bound.batch_Low)[1:3]
     output_Low, output_Up = copy(img_bound.batch_Low), copy(img_bound.batch_Up) 
     output_Low= reshape(output_Low, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Low)[4],size(img_bound.batch_Low)[5]))
     output_Up= reshape(output_Up, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Up)[4],size(img_bound.batch_Up)[5]))
-    new_bound = CrownBound(output_Low, output_Up, img_bound.batch_data_min, img_bound.batch_data_max)
+    new_bound = CrownBound(output_Low, output_Up, img_bound.batch_data_min, img_bound.batch_data_max, img_bound.img_size)
     return new_bound, img_size
 end

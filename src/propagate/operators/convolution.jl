@@ -102,14 +102,25 @@ function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarB
 end
 
 """
-    propagate_linear_batch(prop_method::Crown, layer::Conv, 
+    forward prop for CNN, Crown, box is not using symbolic bound
+"""
+function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info; box=false)
+    if box
+        return propagate_linear_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+    else
+        return propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+    end
+    
+end
+
+"""
+    propagate_linear_batch_box(prop_method::Crown, layer::Conv, 
                            bound::CrownBound, batch_info)
 
 Propagates the bounds through the convolution layer for `Crown` solver. It operates
 an convolutional transformation on the given input bound and returns the output bound.
-It first clamps the input bound and multiplies with the weight matrix using 
-`batch_interval_map` function. Then, it adds the bias to the output bound.
-The resulting bound is represented by `CrownBound` type.
+It first concretizes the bounds and forward pro asp using `batch_interval_map` function. 
+Then the bound is initalized again `CrownBound` type.
 
 ## Arguments
 - `prop_method` (`Crown`): `Crown` solver used for the verification process.
@@ -121,35 +132,47 @@ The resulting bound is represented by `CrownBound` type.
 - `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
     which is represented by `CrownBound` type.
 """
-function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
-    # TODO: check how imagezono works for conv
-    # @show size(layer.weight)
-    # @show size(bound.batch_Low)
-    # out_dim x in_dim * in_dim x X_dim x batch_size
+function propagate_linear_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     @assert length(size(bound.batch_Low)) > 3
     img_size = size(bound.batch_Low)[1:3]
-    # batch_Low= reshape(bound.batch_Low, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Low)[4],size(bound.batch_Low)[5]))
-    # @show size(batch_Low)
     l, u = compute_bound(bound)
-    # @show size(l)
-    # @show size(u)
-    # # l = reshape(l, (bound.img_size..., size(1)[2]))
-    # @show size(l)
     img_low = reshape(l, (img_size..., size(l)[2]))
     img_up = reshape(u, (img_size..., size(u)[2]))
-    new_low, new_up = batch_interval_map(layer, img_low, img_up)
-
+    new_low, new_up = batch_interval_map_box(layer, img_low, img_up)
     batch_input = [ImageConvexHull([new_low[:,:,:,i], new_up[:,:,:,i]]) for i in size(new_low)[end]]
     new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
-    # # @show new_crown_bound
-    # l, u = compute_bound(new_crown_bound)
-    # img_size = size(new_crown_bound.batch_Low)[1:3]
+    return new_crown_bound
+end
+
+"""
+    propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, 
+                           bound::CrownBound, batch_info)
+
+Propagates the bounds through the convolution layer for `Crown` solver. It operates
+an convolutional transformation on the given input bound and returns the output bound.
+It adopt symbolic forward prop using `batch_interval_map` function. 
+Then the bound is initalized again `CrownBound` type.
+
+## Arguments
+- `prop_method` (`Crown`): `Crown` solver used for the verification process.
+- `layer` (`Dense`): Dense layer of the model.
+- `bound` (`CrownBound`): Bound of the input, represented by `CrownBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
+    which is represented by `CrownBound` type.
+"""
+function propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+    @assert length(size(bound.batch_Low)) > 3
+    new_crown_bound = batch_interval_map(layer, bound)
+    # img_size = size(bound.batch_Low)[1:3]
+    # l, u = compute_bound(bound)
     # img_low = reshape(l, (img_size..., size(l)[2]))
     # img_up = reshape(u, (img_size..., size(u)[2]))
-    # @show size(new_low)
-    # @show size(img_up)
-    # @assert sum(img_low - new_low)<0.00001
-    # @show size(img_up)
+    # new_low, new_up = batch_interval_map(layer, img_low, img_up)
+    # batch_input = [ImageConvexHull([new_low[:,:,:,i], new_up[:,:,:,i]]) for i in size(new_low)[end]]
+    # new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
     return new_crown_bound
 end
 
@@ -308,7 +331,7 @@ function interval_propagate(layer::Conv{2, 4, typeof(identity), Array{Float32, 4
     return [lower, upper, nothing]
 end
 
-function batch_interval_map(layer::Conv, batch_low, batch_up) 
+function batch_interval_map_box(layer::Conv, batch_low, batch_up) 
     interval_low = batch_low
     interval_high = batch_up
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
@@ -375,4 +398,54 @@ function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vect
     ub = center_bias .+ deviation_bias
 
     return lw, lb, uw, ub
+end
+
+function batch_interval_map(layer::Conv, bound::CrownBound) 
+    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
+    upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
+    lower_bias = bound.batch_Low[:,:,:, end,:]
+    upper_bias = bound.batch_Up[:,:,:, end,:]
+    inpu_dim = size(lower_weight)[4]
+    batch_size = size(lower_weight)[5]
+    width = size(lower_weight)[1]
+    height = size(lower_weight)[2]
+    channel = size(lower_weight)[3]
+    lower_weight = reshape(lower_weight, (width,height,channel, inpu_dim*batch_size))
+    upper_weight = reshape(upper_weight, (width,height,channel, inpu_dim*batch_size))
+    # @show size(lower_weight), size(lower_bias)
+    
+    mid_weight = (lower_weight .+ upper_weight) / 2.0
+    mid_bias = (lower_bias .+ upper_bias) / 2.0
+    diff_weight = (upper_weight .- lower_weight) / 2.0
+    diff_bias = (upper_bias .- lower_bias) / 2.0
+    # @show size(lower_weight),(lower_bias[end])
+    weight_abs = abs.(weight)
+
+    center_bias_layer = Conv(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    center_bias = center_bias_layer(mid_bias)
+    
+    bias = zeros(size(weight)[4])
+
+    center_weight_layer = Conv(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    center_weight = center_weight_layer(mid_weight)
+
+    deviation_weight_layer = Conv(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    deviation_weight = deviation_weight_layer(diff_weight)
+
+    deviation_bias_layer = Conv(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    deviation_bias = deviation_bias_layer(diff_bias)
+    
+    lw = center_weight .- deviation_weight
+    lb = center_bias .- deviation_bias
+    uw = center_weight .+ deviation_weight
+    ub = center_bias .+ deviation_bias
+    lw = reshape(lw, (size(lw)[1:3]...,inpu_dim,batch_size))
+    uw = reshape(uw, (size(uw)[1:3]...,inpu_dim,batch_size))
+    lb = reshape(lb, (size(lb)[1:3]...,1,batch_size))
+    ub = reshape(ub, (size(ub)[1:3]...,1,batch_size))
+    # @show size(lw)
+    # @show size(cat(lw,lb, dims=4)), size(lb)
+    new_bound = CrownBound(cat(lw,lb, dims=4), cat(uw,ub, dims=4), bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return new_bound
 end
