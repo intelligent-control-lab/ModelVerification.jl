@@ -66,6 +66,7 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
     if typeof(batch_input[1]) == ImageConvexHull
         # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
         img_size = ModelVerification.get_size(batch_input[1])
+        @show all(>=(0), batch_input[1].imgs[1]-batch_input[1].imgs[2])
         batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.imgs[1]), high = reduce(vcat,img_CH.imgs[2]))  for img_CH in batch_input]
     end
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])
@@ -225,4 +226,10 @@ function convert_CROWN_Bound_batch(img_bound::CrownBound)
     output_Up= reshape(output_Up, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Up)[4],size(img_bound.batch_Up)[5]))
     new_bound = CrownBound(output_Low, output_Up, img_bound.batch_data_min, img_bound.batch_data_max, img_bound.img_size)
     return new_bound, img_size
+end
+
+function center(bound::CrownBound)
+    l, u = compute_bound(bound)
+    img_center = reshape((l+u)/2, (bound.img_size..., size(l)[2]))
+    return img_center
 end
