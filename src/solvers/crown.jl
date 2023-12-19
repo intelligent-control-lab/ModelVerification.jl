@@ -66,7 +66,7 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
     if typeof(batch_input[1]) == ImageConvexHull
         # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
         img_size = ModelVerification.get_size(batch_input[1])
-        @show all(>=(0), batch_input[1].imgs[1]-batch_input[1].imgs[2])
+        @assert all(<=(0), batch_input[1].imgs[1]-batch_input[1].imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
         batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.imgs[1]), high = reduce(vcat,img_CH.imgs[2]))  for img_CH in batch_input]
     end
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])

@@ -406,13 +406,13 @@ function batch_interval_map(layer::Conv, bound::CrownBound)
     upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
     lower_bias = bound.batch_Low[:,:,:, end,:]
     upper_bias = bound.batch_Up[:,:,:, end,:]
-    inpu_dim = size(lower_weight)[4]
+    input_dim = size(lower_weight)[4]
     batch_size = size(lower_weight)[5]
     width = size(lower_weight)[1]
     height = size(lower_weight)[2]
     channel = size(lower_weight)[3]
-    lower_weight = reshape(lower_weight, (width,height,channel, inpu_dim*batch_size))
-    upper_weight = reshape(upper_weight, (width,height,channel, inpu_dim*batch_size))
+    lower_weight = reshape(lower_weight, (width,height,channel, input_dim*batch_size))
+    upper_weight = reshape(upper_weight, (width,height,channel, input_dim*batch_size))
     # @show size(lower_weight), size(lower_bias)
     
     mid_weight = (lower_weight .+ upper_weight) / 2.0
@@ -440,8 +440,8 @@ function batch_interval_map(layer::Conv, bound::CrownBound)
     lb = center_bias .- deviation_bias
     uw = center_weight .+ deviation_weight
     ub = center_bias .+ deviation_bias
-    lw = reshape(lw, (size(lw)[1:3]...,inpu_dim,batch_size))
-    uw = reshape(uw, (size(uw)[1:3]...,inpu_dim,batch_size))
+    lw = reshape(lw, (size(lw)[1:3]...,input_dim,batch_size))
+    uw = reshape(uw, (size(uw)[1:3]...,input_dim,batch_size))
     lb = reshape(lb, (size(lb)[1:3]...,1,batch_size))
     ub = reshape(ub, (size(ub)[1:3]...,1,batch_size))
     # @show size(lw)

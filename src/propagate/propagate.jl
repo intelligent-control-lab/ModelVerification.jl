@@ -396,6 +396,11 @@ function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::Abs
     return batch_reach_info#map(first, batch_reach_info)
 end
 
+function propagate_skip_batch(prop_method::ForwardProp, layer, batch_reach1::Bound, batch_reach2::Bound, batch_info)
+    batch_reach_info = propagate_skip(prop_method, layer, batch_reach1, batch_reach2, batch_info)
+    return batch_reach_info#map(first, batch_reach_info)
+end
+
 """
     is_activation(l)
 

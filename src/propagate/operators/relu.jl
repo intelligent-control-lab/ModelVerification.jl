@@ -373,7 +373,7 @@ the `Star` bound through a ReLU layer, and converts the resulting bound back to
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     to = get_timer("Shared")
     sz = size(bound.generators)
-    println("generator size: ", sz)
+    # println("generator size: ", sz)
     @timeit to "ImageStar_to_Star" flat_bound = ImageStar_to_Star(bound)
     @timeit to "propagate_star" new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
     @timeit to "Star_to_ImageStar" new_bound = Star_to_ImageStar(new_flat_bound, sz)
