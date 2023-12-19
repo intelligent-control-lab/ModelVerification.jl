@@ -65,7 +65,7 @@ end
 #     end
 #     return AlphaCrownBound(New_Lower_A_bias, New_Upper_A_bias, nothing, nothing, bound1.batch_data_min, bound1.batch_data_max)
 # end
-function propagate_skip(prop_method::Crown, layer::typeof(+), bound1::CrownBound, bound2::CrownBound, batch_info)
+function propagate_skip_batch(prop_method::Crown, layer::typeof(+), bound1::CrownBound, bound2::CrownBound, batch_info)
     @assert bound1.batch_data_max == bound2.batch_data_max
     @assert bound1.batch_data_min == bound2.batch_data_min
     @assert bound1.img_size == bound2.img_size

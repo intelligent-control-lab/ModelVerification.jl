@@ -424,8 +424,9 @@ function batch_interval_map(layer::Conv, bound::CrownBound)
 
     center_bias_layer = Conv(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
     center_bias = center_bias_layer(mid_bias)
-    
-    bias = zeros(size(weight)[4])
+
+    # bias = zeros(size(weight)[4])
+    bias = zeros(size(bias))
 
     center_weight_layer = Conv(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
     center_weight = center_weight_layer(mid_weight)
@@ -434,6 +435,80 @@ function batch_interval_map(layer::Conv, bound::CrownBound)
     deviation_weight = deviation_weight_layer(diff_weight)
 
     deviation_bias_layer = Conv(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    deviation_bias = deviation_bias_layer(diff_bias)
+    
+    lw = center_weight .- deviation_weight
+    lb = center_bias .- deviation_bias
+    uw = center_weight .+ deviation_weight
+    ub = center_bias .+ deviation_bias
+    lw = reshape(lw, (size(lw)[1:3]...,input_dim,batch_size))
+    uw = reshape(uw, (size(uw)[1:3]...,input_dim,batch_size))
+    lb = reshape(lb, (size(lb)[1:3]...,1,batch_size))
+    ub = reshape(ub, (size(ub)[1:3]...,1,batch_size))
+    # @show size(lw)
+    # @show size(cat(lw,lb, dims=4)), size(lb)
+    new_bound = CrownBound(cat(lw,lb, dims=4), cat(uw,ub, dims=4), bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return new_bound
+end
+
+"""
+    propagate_linear(prop_method::Crown, layer::ConvTranspose, 
+                     bound::CrownBound, batch_info)
+
+Propagate the `CrownBound` bound through a convolutional transpose layer. 
+I.e., it applies the convolutional transpose operation to the `CrownBound` 
+bound. While a regular convolution reduces the spatial dimensions of an input, a 
+convolutional transpose expands the spatial dimensions of an input.
+ Using the `Flux.ConvTranspose`, a 
+convolutional tranpose layer is made in `Flux` with the given `layer` 
+properties. The resulting bound is also of type `CrownBound`.
+
+## Arguments
+- `prop_method` (`Crown`): The `Crown` propagation method used for the 
+    verification problem.
+- `layer` (`ConvTranspose`): The convolutional transpose operation to be used 
+    for propagation.
+- `bound` (`CrownBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The convolved bound of the output layer represented in `CrownBound` type.              
+"""
+function propagate_linear_batch(prop_method::Crown, layer::ConvTranspose, bound::CrownBound, batch_info)
+    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
+    upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
+    lower_bias = bound.batch_Low[:,:,:, end,:]
+    upper_bias = bound.batch_Up[:,:,:, end,:]
+    input_dim = size(lower_weight)[4]
+    batch_size = size(lower_weight)[5]
+    width = size(lower_weight)[1]
+    height = size(lower_weight)[2]
+    channel = size(lower_weight)[3]
+    lower_weight = reshape(lower_weight, (width,height,channel, input_dim*batch_size))
+    upper_weight = reshape(upper_weight, (width,height,channel, input_dim*batch_size))
+    # @show size(lower_weight), size(lower_bias)
+    
+    mid_weight = (lower_weight .+ upper_weight) / 2.0
+    mid_bias = (lower_bias .+ upper_bias) / 2.0
+    diff_weight = (upper_weight .- lower_weight) / 2.0
+    diff_bias = (upper_bias .- lower_bias) / 2.0
+    # @show size(lower_weight),(lower_bias[end])
+    weight_abs = abs.(weight)
+
+    center_bias_layer = ConvTranspose(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    center_bias = center_bias_layer(mid_bias)
+    # @show size(weight),size(bias)
+    
+    bias = zeros(size(bias))
+
+    center_weight_layer = ConvTranspose(weight, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    center_weight = center_weight_layer(mid_weight)
+
+    deviation_weight_layer = ConvTranspose(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+    deviation_weight = deviation_weight_layer(diff_weight)
+
+    deviation_bias_layer = ConvTranspose(weight_abs, bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
     deviation_bias = deviation_bias_layer(diff_bias)
     
     lw = center_weight .- deviation_weight
