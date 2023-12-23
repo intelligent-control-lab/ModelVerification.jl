@@ -141,8 +141,12 @@ end
 
 function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem, save_path; vis_center=true, save_bound=false)
     model_info, problem = prepare_problem(search_method, split_method, prop_method, problem)
-    batch_out_spec, batch_info = prepare_method(prop_method, [problem.input], [problem.output], model_info)
+    batch_out_spec, batch_info = prepare_method(prop_method, [problem.input], [problem.output], [nothing], model_info)
     batch_info = propagate_once(prop_method, model_info, batch_info, save_path; vis_center=vis_center, save_bound=save_bound)
+    batch_bound = batch_info[output_node(prop_method, model_info)][:bound]
+    batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
+    println("results:")
+    println(batch_result)
 end
 
 function center(bound::LazySet)

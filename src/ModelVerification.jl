@@ -214,14 +214,15 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
                 collect_bound=false, 
                 summary=false, 
                 pre_split=nothing,
-                search_adv_bound=false)
+                search_adv_bound=false,
+                verbose=false)
     to = get_timer("Shared")
     reset_timer!(to)
     # @timeit to "attack" res = attack(problem; restart=attack_restart)
     # (res.status == :violated) && (return res)
     @timeit to "prepare_problem" model_info, prepared_problem = prepare_problem(search_method, split_method, prop_method, problem)
     # println(time_out)   
-    @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, pre_split=pre_split)
+    @timeit to "search_branches" res, verified_bounds = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, pre_split=pre_split, verbose=verbose)
     # println(res.status)
     info = Dict()
     (res.status == :violated && res isa CounterExampleResult) && (res["counter_example"] = res.counter_example)

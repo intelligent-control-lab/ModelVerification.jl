@@ -42,10 +42,10 @@ bank with initial branches.
     specification.
 """
 function advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
-    branches = [(problem.input, problem.output)]
+    branches = [Branch(problem.input, problem.output, nothing)]
     for iter in 1:max_iter # BFS with max iteration
-        input, output = popfirst!(branches)
-        sub_branches = split_branch(split_method, problem.Flux_model, input, output, model_info, nothing)
+        branch = popfirst!(branches)
+        sub_branches = split_branch(split_method, problem.Flux_model, branch.input, branch.output, nothing, model_info, nothing)
         branches = [branches; sub_branches]
     end
     return branches
@@ -124,7 +124,7 @@ function unpack_batch_branch(batch_branch)
     return batch_input, batch_output, batch_inheritance
 end
 
-function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; collect_bound=false, pre_split=nothing)
+function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; collect_bound=false, pre_split=nothing, verbose=false)
     to = get_timer("Shared")
     branches = [Branch(problem.input, problem.output, nothing)]
     if !isnothing(pre_split)
@@ -135,7 +135,7 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
     @timeit to "test" current_time = 0
     verified_bound = []
     for iter in 1:search_method.max_iter # BFS with max iteration
-        # println("iter: ", iter)
+        verbose && println("iter: ", iter, "   remaining branches: ", length(branches))
         length(branches) == 0 && break
         branch = popfirst!(branches)
         push!(batch_branch, branch) 

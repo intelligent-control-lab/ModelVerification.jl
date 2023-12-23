@@ -262,7 +262,10 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
         @timeit to "over_approx" box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)
     end
-    
+
+    # println("length(constraints_list(bound.P)): ", length(constraints_list(bound.P)))
+    # println("size: ", size([con.a for con in constraints_list(bound.P)]))
+    # println("size 1: ", size(constraints_list(bound.P)[1].a))
     bA = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
     
