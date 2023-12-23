@@ -262,7 +262,10 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
         @timeit to "over_approx" box = overapproximate(bound, Hyperrectangle)
         l, u = low(box), high(box)
     end
-    
+
+    # println("length(constraints_list(bound.P)): ", length(constraints_list(bound.P)))
+    # println("size: ", size([con.a for con in constraints_list(bound.P)]))
+    # println("size 1: ", size(constraints_list(bound.P)[1].a))
     bA = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
     
@@ -656,6 +659,8 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
 
     lower_A = bound.lower_A_x
     upper_A = bound.upper_A_x
+
+    # println("lower_A: ", lower_A)
     # println("before lower_A: ")
     # print_beta_layers(lower_A, batch_info[:init_A_b])
     # println("before upper_A: ")
@@ -680,6 +685,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
 
+    # println("lower_A: ", lower_A)
     # println("after lower_A: ")
     # print_beta_layers(lower_A, batch_info[:init_A_b])
     # println("after upper_A: ")

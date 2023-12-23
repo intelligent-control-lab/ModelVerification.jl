@@ -79,7 +79,7 @@ end
 
 """
     prepare_method(prop_method::ImageStar, batch_input::AbstractVector,
-                   batch_output::AbstractVector, model_info)
+                   batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 
 Initialize the bound of the start node of the computational graph based on the 
 `pre_bound_method` specified in the given ImageStar solver.
@@ -88,6 +88,7 @@ Initialize the bound of the start node of the computational graph based on the
 - `prop_method` (`ImageStar`): ImageStar solver.
 - `batch_input` (`AbstractVector`): Batch of inputs.
 - `batch_output` (`AbstractVector`): Batch of outputs.
+- `batch_inheritance` (`AbstractVector`): Batch of inheritance, can be used to inheritate pre-act-bound from the parent branch
 - `model_info`: Structure containing the information of the neural network to
     be verified.
 
@@ -95,7 +96,7 @@ Initialize the bound of the start node of the computational graph based on the
 - `batch_output`: Batch of outputs.
 - `batch_info`: Dictionary containing information of each node in the model.
 """
-prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output, model_info)
+prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output, model_info)
 
 """
     init_bound(prop_method::ImageStar, ch::ImageConvexHull) 

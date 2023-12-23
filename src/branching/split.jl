@@ -52,27 +52,26 @@ Recursively bisects the hyperrectangle input specification at the center for
 ## Returns
 - List of subtrees split from the `input`.
 """
-function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, inheritance, model_info, batch_info)
     #input = fmap(cu, input)
     #output = fmap(cu, output)
-    split_method.num_split <= 0 && return [(input, output)]
+    split_method.num_split <= 0 && return [Branch(input, output, inheritance)]
     center, radius = LazySets.center(input), LazySets.radius_hyperrectangle(input)
     max_radius, max_idx = findmax(radius)
     input1, input2 = split_interval(input, max_idx)
-    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, model_info, batch_info)
-    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, inheritance, model_info, batch_info)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, inheritance, model_info, batch_info)
     return [subtree1; subtree2]
 end
 
 """
     split_branch(split_method::Bisect, model::Chain, 
-                 input::ReLUConstrainedDomain, output, model_info, batch_info)
-
-                 
+                 input::ReLUConstrainedDomain, output, model_info, batch_info)                 
 """
-function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
-    branches = split_branch(split_method, model, input.domain, output, model_info, batch_info)
-    return [(ReLUConstrainedDomain(domain, input.all_relu_cons), output) for (domain,output) in branches]
+
+function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info)
+    branches = split_branch(split_method, model, input.domain, output, inheritance, model_info, batch_info)
+    return [Branch(ReLUConstrainedDomain(b.domain, b.input.all_relu_cons), b.output, b.inheritance) for b in branches]
 end
 
 """
@@ -96,23 +95,23 @@ input::Hyperrectangle, ...)` to recursively bisect the input specification for a
 ## Returns
 - List of subtrees split from the `input`.
 """
-function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, model_info, batch_info)
-    return split_branch(split_method, model, box_approximation(input), output, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::LazySet, output, inheritance, model_info, batch_info)
+    return split_branch(split_method, model, box_approximation(input), output, inheritance, model_info, batch_info)
 end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, 
                  output, model_info, batch_info)
 """
-function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, inheritance, model_info, batch_info)
     # println("split image zono")
     # this split only works for zonotope with one generator
     # because in general zonotope after split is no longer zonotope
     @assert size(input.generators,4) == 1 
-    split_method.num_split <= 0 && return [(input, output)]
+    split_method.num_split <= 0 && return [Branch(input, output, inheritance)]
     input1, input2 = split_interval(input)
-    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, model_info, batch_info)
-    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, inheritance, model_info, batch_info)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, inheritance, model_info, batch_info)
     return [subtree1; subtree2]
 end
 
@@ -149,7 +148,7 @@ function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound,
     bound1, bound2 = ImageStarBound(input.center, input.generators, input.A, input.b), ImageStarBound(input.center, input.generators, input.A, input.b)
     bound1.b[max_idx] = l[max_idx] + max_radius/2 # set new upper bound
     bound2.b[max_idx + n] = -(l[max_idx] + max_radius/2) # set new lower bound
-    return [(bound1, output), (bound2, output)]
+    return [Branch(bound1, output), Branch(bound2, output)]
 end
 
 
@@ -159,7 +158,7 @@ end
 
 TO-BE-IMPLEMENTED
 """
-function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, inheritance, model_info, batch_info)
     input.A
 end
 
@@ -189,9 +188,9 @@ function split_interval(dom::Hyperrectangle, i::Int64)
 end
 
 """
-    split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+    split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output, inheritance)
 """
-function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output, inheritance)
     # relu_con_dict : {node => [idx_list, val_list, not_splitted_mask, history_split]}, such that we can do the following when propagate relu
     # batch_info[node][beta][relu_con_dict[node].idx_list] .= relu_con_dict[node].val_list
     if i > length(split_relu_node)
@@ -218,13 +217,13 @@ function split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_inde
             # println(length(copy_relu_con_dict[node].val_list))
             # println(length(copy_relu_con_dict[node].history_split))
         end
-        return [(ReLUConstrainedDomain(input, copy_relu_con_dict), output)]
+        return [Branch(ReLUConstrainedDomain(input, copy_relu_con_dict), output, inheritance)]
     end
-    j > length(split_neurons_index_in_node[i]) && return split_beta(relu_con_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output)
+    j > length(split_neurons_index_in_node[i]) && return split_beta(relu_con_dict, score, split_relu_node, i+1, split_neurons_index_in_node, 1, input, output, inheritance)
     relu_con_dict[split_relu_node[i]].val_list[j] = 1 # make relu < 0, beta_S[j,j] = 1
-    subtree1 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
+    subtree1 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output, inheritance)
     relu_con_dict[split_relu_node[i]].val_list[j] = -1 # make relu > 0, beta_S[j,j] = -1
-    subtree2 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output)
+    subtree2 = split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j+1, input, output, inheritance)
     return [subtree1; subtree2]
 end
 
@@ -232,7 +231,7 @@ end
     split_branch(split_method::BaBSR, model::Chain, 
                  input::ReLUConstrainedDomain, output, model_info, batch_info)
 """
-function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, model_info, batch_info)
+function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
     
@@ -253,7 +252,7 @@ function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedD
         relu_con_dict[node].idx_list = idx_list
         relu_con_dict[node].val_list = zeros(size(idx_list))
     end 
-    return split_beta(relu_con_dict, score, split_relu_node, 1, split_neurons_index_in_node, 1, input.domain, output)#from 1st node and 1st index
+    return split_beta(relu_con_dict, score, split_relu_node, 1, split_neurons_index_in_node, 1, input.domain, output, inheritance)#from 1st node and 1st index
 end
 
 """

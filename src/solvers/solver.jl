@@ -187,7 +187,7 @@ function init_propagation(prop_method::BackwardProp, batch_input, batch_output, 
 end
  
 """
-    prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+    prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 
 Initialize the bound of the start node of the computational graph based on the 
 solver (`prop_method`).
@@ -196,6 +196,7 @@ solver (`prop_method`).
 - `prop_method` (`PropMethod`): Propagation method, i.e., the solver.
 - `batch_input` (`AbstractVector`): Batch of inputs.
 - `batch_output` (`AbstractVector`): Batch of outputs.
+- `batch_inheritance` (`AbstractVector`): Batch of inheritance, can be used to inheritate pre-act-bound from the parent branch
 - `model_info`: Structure containing the information of the neural network to
     be verified.
 
@@ -203,7 +204,7 @@ solver (`prop_method`).
 - `batch_output`: Batch of outputs.
 - `batch_info`: Dictionary containing information of each node in the model.
 """
-function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, model_info)
+function prepare_method(prop_method::PropMethod, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, batch_output, model_info)
     return batch_output, batch_info
 end
@@ -233,4 +234,22 @@ List of a combination of the following components:
 function check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray)
     results = [check_inclusion(prop_method, model, batch_input[i], batch_reach[i], batch_output[i]) for i in eachindex(batch_reach)]
     return results
+end
+
+"""
+    get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
+
+Extract useful informations from batch_info.
+These information will later be inheritated by the new branch created by split.
+
+## Arguments
+- `prop_method` (`ForwardProp`): Solver being used.
+- `batch_info` (`Dict`): all the information collected in propagation.
+- `batch_idx`: the index of the interested branch in the batch.
+
+## Returns
+- `inheritance`: a dict that contains all the information will be inheritated.
+"""
+function get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
+    return nothing
 end
