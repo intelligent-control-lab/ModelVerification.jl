@@ -409,6 +409,9 @@ Returns true if the given layer `l` is an activation layer.
 - False otherwise.
 """
 function is_activation(l)
+    # fix bugs: there are no tanh and sigmod in NNlib.ACTIVATIONS
+    isa(l, typeof(@eval NNlib.tanh)) && (l = tanh_fast)
+    isa(l, typeof(@eval NNlib.sigmoid)) && (l = sigmoid_fast)
     for f in NNlib.ACTIVATIONS
         isa(l, typeof(@eval NNlib.$(f))) && return true
     end
