@@ -44,6 +44,42 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(tanh), bound::Cro
         lb = reshape(new_lb, (size(new_lb)[1:3]...,1,batch_size))
         ub = reshape(new_ub, (size(new_ub)[1:3]...,1,batch_size))
         new_bound = CrownBound(cat(lw,lb, dims=4), cat(uw,ub, dims=4), bound.batch_data_min, bound.batch_data_max, bound.img_size)     
+    else
+        # for dense networks
+        lower_weight = bound.batch_Low[:, 1:end-1,:]
+        upper_weight = bound.batch_Up[:, 1:end-1,:]
+        lower_bias = bound.batch_Low[:, end,:]
+        upper_bias = bound.batch_Up[:, end,:]
+        input_dim = size(lower_weight)[2]
+        batch_size = size(lower_weight)[3]
+        dense_size = size(lower_weight)[1]
+        lower_weight = reshape(lower_weight, (dense_size, input_dim*batch_size))
+        upper_weight = reshape(upper_weight, (dense_size, input_dim*batch_size))
+
+        relax_lw = reshape(relax_lw, (dense_size, batch_size))
+        relax_uw = reshape(relax_uw, (dense_size, batch_size))
+        relax_lb = reshape(relax_lb, (dense_size, batch_size))
+        relax_ub = reshape(relax_ub, (dense_size, batch_size))
+
+
+        pos_lw = clamp.(relax_lw, 0, Inf)
+        neg_lw = clamp.(relax_lw, -Inf, 0)
+        new_lw = lower_weight .* pos_lw + upper_weight .* neg_lw
+
+        pos_uw = clamp.(relax_uw, 0, Inf)
+        neg_uw = clamp.(relax_uw, -Inf, 0)
+        new_uw = upper_weight .* pos_uw + lower_weight .* neg_uw
+
+        
+        new_lb = lower_bias .* pos_lw + upper_bias .* neg_lw + relax_lb
+
+        
+        new_ub = upper_bias .* pos_uw + lower_bias .* neg_uw + relax_ub
+        lw = reshape(new_lw, (size(new_lw)[1],input_dim,batch_size))
+        uw = reshape(new_uw, (size(new_uw)[1],input_dim,batch_size))
+        lb = reshape(new_lb, (size(new_lb)[1],1,batch_size))
+        ub = reshape(new_ub, (size(new_ub)[1],1,batch_size))
+        new_bound = CrownBound(cat(lw,lb, dims=2), cat(uw,ub, dims=2), bound.batch_data_min, bound.batch_data_max, bound.img_size)    
     end
 
     return new_bound
