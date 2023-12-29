@@ -171,7 +171,7 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     batch_out_spec, batch_info = prepare_method(prop_method, [problem.input], [problem.output], [nothing], model_info)
     batch_info = propagate_once(prop_method, model_info, batch_info, save_path; vis_center=vis_center, save_bound=save_bound)
     batch_bound = batch_info[output_node(prop_method, model_info)][:bound]
-    batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
+    batch_result = check_inclusion(prop_method, problem.Flux_model, [problem.input], batch_bound, batch_out_spec)
     println("results:")
     println(batch_result)
 end

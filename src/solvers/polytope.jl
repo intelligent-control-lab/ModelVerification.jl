@@ -95,7 +95,7 @@ function prepare_method(prop_method::StarSet, batch_input::AbstractVector,
                             batch_input, batch_output, model_info)
         pre_batch_out_spec, pre_batch_info = 
             prepare_method(prop_method.pre_bound_method, batch_input, 
-                batch_output, model_info)
+                batch_output, batch_inheritance, model_info)
         pre_batch_bound, pre_batch_info = 
             propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes

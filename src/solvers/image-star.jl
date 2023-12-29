@@ -96,7 +96,7 @@ Initialize the bound of the start node of the computational graph based on the
 - `batch_output`: Batch of outputs.
 - `batch_info`: Dictionary containing information of each node in the model.
 """
-prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output, model_info)
+prepare_method(prop_method::ImageStar, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) = prepare_method(StarSet(prop_method.pre_bound_method), batch_input, batch_output,[nothing], model_info)
 
 """
     init_bound(prop_method::ImageStar, ch::ImageConvexHull) 

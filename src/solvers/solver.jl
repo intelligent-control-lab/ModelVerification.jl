@@ -250,6 +250,6 @@ These information will later be inheritated by the new branch created by split.
 ## Returns
 - `inheritance`: a dict that contains all the information will be inheritated.
 """
-function get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
+function get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int, model_info)
     return nothing
 end
