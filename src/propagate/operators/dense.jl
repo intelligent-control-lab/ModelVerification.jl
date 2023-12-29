@@ -144,7 +144,7 @@ function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBo
     @assert !any(isnan, output_Up) "contains NaN"
     output_Low[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
     output_Up[:, end, :] .+= prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
     return new_bound
 end
 

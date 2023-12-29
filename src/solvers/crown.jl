@@ -10,11 +10,15 @@ end
 """
     CrownBound <: Bound
 """
-struct CrownBound <: Bound
+mutable struct CrownBound <: Bound
     batch_Low    # reach_dim x input_dim+1 x batch_size
     batch_Up     # reach_dim x input_dim+1 x batch_size
     batch_data_min    # input_dim+1 x batch_size
     batch_data_max     # input_dim+1 x batch_size
+    img_size
+end
+function CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    return CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max, nothing)
 end
 
 """
@@ -58,6 +62,13 @@ end
 function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
+    img_size = nothing
+    if typeof(batch_input[1]) == ImageConvexHull
+        # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
+        img_size = ModelVerification.get_size(batch_input[1])
+        @assert all(<=(0), batch_input[1].imgs[1]-batch_input[1].imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
+        batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.imgs[1]), high = reduce(vcat,img_CH.imgs[2]))  for img_CH in batch_input]
+    end
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])
     I = prop_method.use_gpu ? fmap(cu, Matrix{Float64}(LinearAlgebra.I(n))) : Matrix{Float64}(LinearAlgebra.I(n))
     Z = prop_method.use_gpu ? fmap(cu, zeros(n)) : zeros(n)
@@ -67,9 +78,19 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
     batch_data_min = prop_method.use_gpu ? fmap(cu, [batch_data_min; ones(batch_size)']) : [batch_data_min; ones(batch_size)']# the last dimension is for bias
     batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)
     batch_data_max = prop_method.use_gpu ? fmap(cu, [batch_data_max; ones(batch_size)']) : [batch_data_max; ones(batch_size)']# the last dimension is for bias
-    bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
+    if !isnothing(img_size) 
+        # restore the image size for lower and upper bounds
+        batch_Low = reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3]))
+        batch_Up = reshape(batch_Up, (img_size..., size(batch_Up)[2],size(batch_Up)[3]))
+    end
+    # @show size(batch_data_min)
+    bound = CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max, img_size)
+    # @show bound
+    # @show size(reshape(batch_Low, (img_size..., size(batch_Low)[2],size(batch_Low)[3])))
     return bound
 end
+
+
 
 """   
     compute_bound(bound::CrownBound)
@@ -91,8 +112,16 @@ function compute_bound(bound::CrownBound)
     #z =   fmap(cu, zeros(size(bound.batch_Low)))
     #l =   batched_vec(max.(bound.batch_Low, z), bound.batch_data_min) + batched_vec(min.(bound.batch_Low, z), bound.batch_data_max)
     #u =   batched_vec(max.(bound.batch_Up, z), bound.batch_data_max) + batched_vec(min.(bound.batch_Up, z), bound.batch_data_min)
-    l =   batched_vec(clamp.(bound.batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(bound.batch_Low, -Inf, 0), bound.batch_data_max)
-    u =   batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_min)
+    if length(size(bound.batch_Low)) > 3
+        img_size = size(bound.batch_Low)[1:3]
+        batch_Low= reshape(bound.batch_Low, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Low)[4],size(bound.batch_Low)[5]))
+        batch_Up= reshape(bound.batch_Up, (img_size[1]*img_size[2]*img_size[3], size(bound.batch_Up)[4],size(bound.batch_Up)[5]))
+        l =   batched_vec(clamp.(batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(batch_Low, -Inf, 0), bound.batch_data_max)
+        u =   batched_vec(clamp.(batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(batch_Up, -Inf, 0), bound.batch_data_min)
+    else
+        l =   batched_vec(clamp.(bound.batch_Low, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(bound.batch_Low, -Inf, 0), bound.batch_data_max)
+        u =   batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_max) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_min)
+    end
     # @assert all(l.<=u) "lower bound larger than upper bound"
     return l, u
 end
@@ -110,6 +139,7 @@ end
 function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, bound::CrownBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
     l, u = compute_bound(bound)
+    # @show size(l)
     batch_size = size(l,2)
     #pos_A = max.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A)))) # spec_dim x out_dim x batch_size
     #neg_A = min.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A))))
@@ -123,9 +153,32 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     # println("typeof(model)")
     # println(typeof(model))
     model = prop_method.use_gpu ? model |> gpu : model
+    # @show model[end-3:end]
+    # @show size(center)
+    if !isnothing(bound.img_size)
+        # resize input to match Conv for image
+        # @assert length(size(bound.img_size)) == 3
+        center = reshape(center, (bound.img_size..., size(center)[2]))
+    end
     out_center = model(center)
-    # println("typeof(out_center)")
-    # println(typeof(out_center))
+
+    # TODO: uncomment the following if using Box Conv
+    # num_last_dense=0
+    # for i = 1:length(model)
+    #     if model[length(model)+1-i] isa Dense
+    #         num_last_dense += 1
+    #     else
+    #         break
+    #     end
+    # end
+    
+    # if num_last_dense == length(model)
+    #     dense_model = model
+    # else
+    #     dense_model = model[end-num_last_dense:end]
+    # end
+    # out_center = dense_model(center)
+
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
@@ -148,4 +201,35 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     end
     
     return results
+end
+
+"""
+    convert the flatten Crown bound into a image-resized Crown bound
+"""
+function convert_CROWN_Bound_batch(flatten_bound::CrownBound, img_size)
+    @assert length(size(flatten_bound.batch_Low)) == 3
+    output_Low, output_Up = copy(flatten_bound.batch_Low), copy(flatten_bound.batch_Up) 
+    output_Low= reshape(output_Low, (img_size..., size(flatten_bound.batch_Low)[2],size(flatten_bound.batch_Low)[3]))
+    output_Up= reshape(output_Up, (img_size..., size(flatten_bound.batch_Up)[2],size(flatten_bound.batch_Up)[3]))
+    new_bound = CrownBound(output_Low, output_Up, flatten_bound.batch_data_min, flatten_bound.batch_data_max, flatten_bound.img_size)
+    return new_bound
+end
+
+"""
+    convert the image-resized  Crown bound into a flatten Crown bound
+"""
+function convert_CROWN_Bound_batch(img_bound::CrownBound)
+    @assert length(size(img_bound.batch_Low)) > 3
+    img_size = size(img_bound.batch_Low)[1:3]
+    output_Low, output_Up = copy(img_bound.batch_Low), copy(img_bound.batch_Up) 
+    output_Low= reshape(output_Low, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Low)[4],size(img_bound.batch_Low)[5]))
+    output_Up= reshape(output_Up, (img_size[1]*img_size[2]*img_size[3], size(img_bound.batch_Up)[4],size(img_bound.batch_Up)[5]))
+    new_bound = CrownBound(output_Low, output_Up, img_bound.batch_data_min, img_bound.batch_data_max, img_bound.img_size)
+    return new_bound, img_size
+end
+
+function center(bound::CrownBound)
+    l, u = compute_bound(bound)
+    img_center = reshape((l+u)/2, (bound.img_size..., size(l)[2]))
+    return img_center
 end
