@@ -128,7 +128,7 @@ layer.
 """
 function propagate(prop_method::PropMethod, model_info, batch_info)
     # input: batch x ... x ...
-
+    
     # dfs start from model.input_nodes
     #BFS
     queue = Queue{Any}()                            # Make an empty queue.
@@ -154,6 +154,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
             batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
         end
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
+        # @assert false
     end
     batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
     return batch_bound, batch_info
@@ -408,6 +409,9 @@ Returns true if the given layer `l` is an activation layer.
 - False otherwise.
 """
 function is_activation(l)
+    # fix bugs: there are no tanh and sigmod in NNlib.ACTIVATIONS
+    isa(l, typeof(@eval NNlib.tanh)) && (l = tanh_fast)
+    isa(l, typeof(@eval NNlib.sigmoid)) && (l = sigmoid_fast)
     for f in NNlib.ACTIVATIONS
         isa(l, typeof(@eval NNlib.$(f))) && return true
     end

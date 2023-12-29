@@ -132,6 +132,8 @@ include("propagate/operators/identity.jl")
 include("propagate/operators/convolution.jl")
 include("propagate/operators/bivariate.jl")
 include("propagate/operators/util.jl")
+include("propagate/operators/tanh.jl")
+include("propagate/operators/sigmoid.jl")
 
 include("attack/pgd.jl")
 

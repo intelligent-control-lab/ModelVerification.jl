@@ -67,9 +67,23 @@ function propagate_once(prop_method::PropMethod, model_info, batch_info, save_pa
         
         if !isnothing(save_path)
             println("saving visualized bound: ", save_path * string(i) * "_" * node * ".png")
-            stats = @timed l, u = compute_bound(batch_bound[1])
+            if typeof(batch_bound) <: Vector
+                @assert length(batch_bound) == 1
+                stats = @timed l, u = compute_bound(batch_bound[1])
+                
+            else
+                stats = @timed l, u = compute_bound(batch_bound)
+            end
+            # stats = @timed l, u = compute_bound(batch_bound[1])
             println("bound time:", stats.time) 
-
+            if (ndims(batch_out) == 4) && (ndims(l) == 2)
+                # @assert ndims(batch_out) == 4 ndims(batch_out)
+                # @assert ndims(l) == 2 ndims(l)
+                # @show size(batch_out)
+                # @show batch_bound.img_size
+                l = reshape(l, (size(batch_out)[1:3]..., size(l)[2]))
+                u = reshape(u, (size(batch_out)[1:3]..., size(u)[2]))
+            end
             batch_info[node][:l] = l
             batch_info[node][:u] = u
             
@@ -135,7 +149,20 @@ end
 
 function compute_out_layer(prop_method::ForwardProp, model_info, batch_info, node)
     input_node1 = model_info.node_prevs[node][1]
-    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
+    # @show typeof(batch_info[input_node1][:bound]) <: Vector
+    if haskey(batch_info[input_node1], :out)
+        batch_out1 = batch_info[input_node1][:out]
+    else
+        if typeof(batch_info[input_node1][:bound]) <: Vector
+            @assert length(batch_info[input_node1][:bound]) == 1
+            batch_out1 = center(batch_info[input_node1][:bound][1])
+            
+        else
+            batch_out1 = center(batch_info[input_node1][:bound])
+        end
+    end
+    # batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
+    @show size(batch_out1)
     return model_info.node_layer[node](batch_out1)
 end
 

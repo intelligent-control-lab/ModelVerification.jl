@@ -376,7 +376,7 @@ the `Star` bound through a ReLU layer, and converts the resulting bound back to
 function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     to = get_timer("Shared")
     sz = size(bound.generators)
-    println("generator size: ", sz)
+    # println("generator size: ", sz)
     @timeit to "ImageStar_to_Star" flat_bound = ImageStar_to_Star(bound)
     @timeit to "propagate_star" new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
     @timeit to "Star_to_ImageStar" new_bound = Star_to_ImageStar(new_flat_bound, sz)
@@ -389,10 +389,15 @@ end
 
 Propagate the `CrownBound` bound through a ReLU layer.
 """
-function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::CrownBound, batch_info)
+function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_bound::CrownBound, batch_info)
     to = get_timer("Shared")
-    
+    if length(size(original_bound.batch_Low)) > 3
+        bound, img_size = convert_CROWN_Bound_batch(original_bound)
+    else
+        bound = original_bound
+    end
     output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
+
 
     # If the lower bound of the lower bound is positive,
     # No change to the linear bounds.
@@ -438,7 +443,12 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), bound::Cro
     @assert !any(isnan, output_Low) "relu low contains NaN"
     @assert !any(isnan, output_Up) "relu up contains NaN"
     
-    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max)
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    
+    if length(size(original_bound.batch_Low)) > 3
+        new_bound = convert_CROWN_Bound_batch(new_bound, img_size)
+    end
+    # @show size(new_bound.batch_Low)
     return new_bound
 end
 #initalize relu's alpha_lower and alpha_upper

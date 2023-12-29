@@ -114,3 +114,81 @@ function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, ba
     end
     return batch_reach, batch_bias
 end
+
+"""
+    propagate_linear(prop_method::Crown, layer::BatchNorm, 
+                     bound::CrownBound, batch_info)
+
+Propagate the `CrownBound` bound through a batch norm layer. I.e., it 
+applies the batch norm operation to the `CrownBound` bound. 
+The resulting bound is also of type `CrownBound`.
+
+## Arguments
+- `prop_method` (`Crown`): The `Crown` propagation method used for the 
+    verification problem.
+- `layer` (`BatchNorm`): The batch norm operation to be used for propagation.
+- `bound` (`CrownBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The batch normed bound of the output layer represented in `CrownBound` 
+    type.
+"""
+function propagate_linear_batch(prop_method::Crown, layer::BatchNorm, bound::CrownBound, batch_info)
+    # @show size(bound.batch_Low)
+    β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
+    # @show size(μ)
+    # @show size(σ²)
+    lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
+    upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
+    lower_bias = bound.batch_Low[:,:,:, end,:]
+    upper_bias = bound.batch_Up[:,:,:, end,:]
+    input_dim = size(lower_weight)[4]
+    batch_size = size(lower_weight)[5]
+    width = size(lower_weight)[1]
+    height = size(lower_weight)[2]
+    channel = size(lower_weight)[3]
+    lower_weight = reshape(lower_weight, (width,height,channel, input_dim*batch_size))
+    upper_weight = reshape(upper_weight, (width,height,channel, input_dim*batch_size))
+
+    channels = size(lower_weight)[end-1] #number of channels
+
+    β = affine ? β : 1.0
+    γ = affine ? γ : 0.0
+    μ = track_stats ? μ : zeros(channels)
+    σ² = track_stats ? σ² : ones(channels)
+
+    tmp_β = β .- μ ./ sqrt.(σ² .+ ϵ) .* γ
+    tmp_γ = γ ./ sqrt.(σ² .+ ϵ)
+
+
+    tmp_γ = reshape(tmp_γ, (channels, 1)) 
+    #reshape the tmp_γ for ".* batch_reach"
+    for i in 1:(ndims(lower_weight)-2)
+        tmp_γ = reshape(tmp_γ, (1, size(tmp_γ)...))
+    end
+    # @show size(tmp_γ)
+    # @show size(lower_weight .* pos_γ)
+    # @show size(lower_weight .* pos_γ)
+    pos_γ = clamp.(tmp_γ, 0, Inf)
+    neg_γ = clamp.(tmp_γ, -Inf, 0)
+    lw = lower_weight .* pos_γ + upper_weight .* neg_γ
+    uw = upper_weight .* pos_γ + lower_weight .* neg_γ
+
+    tmp_β = reshape(tmp_β, size(tmp_γ))
+    # @show size(lower_bias)
+    # @show size(tmp_β)
+    # @show size(lower_bias .* pos_γ)
+    lb = lower_bias .* pos_γ + upper_bias .* neg_γ .+ tmp_β
+    ub = upper_bias .* pos_γ + lower_bias .* neg_γ .+ tmp_β
+
+    lw = reshape(lw, (size(lw)[1:3]...,input_dim,batch_size))
+    uw = reshape(uw, (size(uw)[1:3]...,input_dim,batch_size))
+    lb = reshape(lb, (size(lb)[1:3]...,1,batch_size))
+    ub = reshape(ub, (size(ub)[1:3]...,1,batch_size))
+    # @show size(lw)
+    # @show size(cat(lw,lb, dims=4)), size(lb)
+    new_bound = CrownBound(cat(lw,lb, dims=4), cat(uw,ub, dims=4), bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    # @show size(new_bound.batch_Low)
+    return new_bound
+end 

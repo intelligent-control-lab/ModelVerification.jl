@@ -83,3 +83,47 @@ function propagate_linear(prop_method, layer::MeanPool, bound::ImageZonoBound, b
     new_generators = layer(bound.generators)
     return ImageZonoBound(new_center, new_generators)
 end
+
+function propagate_linear_batch(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info,box=false)
+    if box
+        return propagate_linear_batch_box(prop_method, layer, bound, batch_info)
+    else
+        return propagate_linear_batch_symbolic(layer, bound)
+    end
+end
+
+function propagate_linear_batch(prop_method::Crown, layer::typeof(Flux.flatten), bound::CrownBound, batch_info)
+    bound, _ = convert_CROWN_Bound_batch(bound)
+    return bound
+end
+
+function propagate_linear_batch_box(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info)
+    @assert length(size(bound.batch_Low)) > 3
+    img_size = size(bound.batch_Low)[1:3]
+    l, u = compute_bound(bound)
+    img_low = reshape(l, (img_size..., size(l)[2]))
+    img_up = reshape(u, (img_size..., size(u)[2]))
+    new_low = layer(img_low)
+    new_up = layer(img_up)
+    batch_input = [ImageConvexHull([new_low[:,:,:,i], new_up[:,:,:,i]]) for i in size(new_low)[end]]
+    new_crown_bound = init_batch_bound(prop_method, batch_input,nothing)
+    return new_crown_bound
+end
+
+function propagate_linear_batch_symbolic(layer::MeanPool, bound::CrownBound)
+    # width × height × channel × (input_dim+1) * batch_size
+    batch_Low = reshape(bound.batch_Low, (size(bound.batch_Low)[1],size(bound.batch_Low)[2],size(bound.batch_Low)[3], size(bound.batch_Low)[4]*size(bound.batch_Low)[5]))
+    batch_Up = reshape(bound.batch_Up, (size(bound.batch_Up)[1],size(bound.batch_Up)[2],size(bound.batch_Up)[3], size(bound.batch_Up)[4]*size(bound.batch_Up)[5]))
+    
+    new_low = layer(batch_Low)
+    new_up = layer(batch_Up)
+    
+    
+    new_low = reshape(new_low, (size(new_low)[1:3]...,size(bound.batch_Low)[4],size(bound.batch_Low)[5]))
+    new_up = reshape(new_up, (size(new_up)[1:3]...,size(bound.batch_Up)[4],size(bound.batch_Up)[5]))
+
+    # @show size(lw)
+    # @show size(cat(lw,lb, dims=4)), size(lb)
+    new_bound = CrownBound(new_low, new_up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return new_bound
+end
