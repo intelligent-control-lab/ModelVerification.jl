@@ -13,6 +13,14 @@ Abstract type representing solvers that use backward propagation.
 abstract type BackwardProp <: PropMethod end
 
 """
+    ODEProp <: PropMethod
+
+Abstract type representing solvers that use backward propagation.
+"""
+abstract type ODEProp <: ForwardProp end
+
+
+"""
     SequentialForwardProp <: ForwardProp
 """
 abstract type SequentialForwardProp <: ForwardProp end

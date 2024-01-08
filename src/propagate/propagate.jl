@@ -1,4 +1,77 @@
 """
+    propagate(prop_method::PropMethod, model_info, batch_info)
+
+Propagates through the model using the specified `prop_method`. 
+The propagation algorithm is as follows:
+
+1. Add the connecting nodes of the start nodes, i.e., nodes after the start 
+nodes, into a queue.
+2. While the queue is not empty:
+    1. Pop a node from the queue.
+    2. For each node connected from the current node, i.e., for each output 
+        node:
+        1. Increment the visit count to the output node.
+        2. If the visit count equals the number of nodes connected from the 
+            output node, i.e., visit count == previous nodes of the output node, 
+            add the output node to the queue.
+    3. Propagate through the current node accordingly.
+    4. Add information about the bound of the node to `batch_info`.
+3. Return the bound of the output node(s).
+
+In step 2(1)(2), the function adds the output node to the queue since all the 
+previous nodes of the output node have been processed. Thus, the output node is 
+now the node of interest. In step 2(3), the propagation works based on the 
+propagation method (`prop_method`), which depends on the geometric 
+representation of the safety specifications and the activation function of each 
+layer.
+
+## Arguments
+- `prop_method` (`PropMethod`): Propagation method used for the verification 
+    process. This is one of the solvers used to verify the given model.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `batch_bound`: Bound of the output node, i.e., the final bound.
+- `batch_info`: Same as the input `batch_info`, with additional information on 
+    the bound of each node in the model.
+"""
+function propagate(prop_method::PropMethod, model_info, batch_info)
+    # input: batch x ... x ...
+    
+    # dfs start from model.input_nodes
+    #BFS
+    queue = Queue{Any}()                            # Make an empty queue.
+    enqueue_nodes!(prop_method, queue, model_info)  # Insert connecting nodes from the start nodes (there's only one start node).
+    visit_cnt = Dict(node => 0 for node in model_info.all_nodes)    # Dictionary for the number of visits (cnt) for all nodes. 
+    batch_bound = nothing                           # ?
+    while !isempty(queue)                           # If queue is not empty!
+        node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
+        batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
+       
+        for output_node in next_nodes(prop_method, model_info, node)    # For each node connected from the current node.
+            visit_cnt[output_node] += 1             # The output node is visited one more time!
+            if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])   # If all the previous nodes has been led to the `output_node`.
+                enqueue!(queue, output_node)        # Add the `output_node` to the queue.
+                                                    # We're essentially moving the propagation to the `output_node` since all the previous connecting nodes
+                                                    # have been "processed"/propagated through. 
+            end
+        end
+
+        if has_two_reach_node(prop_method, model_info, node)    # If there are two previous nodes connecting to the `node`.
+            batch_bound = propagate_skip_method(prop_method, model_info, batch_info, node)
+        else
+            batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
+        end
+        batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
+        # @assert false
+    end
+    batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
+    return batch_bound, batch_info
+end
+
+"""
     enqueue_nodes!(prop_method::ForwardProp, queue, model_info)
 
 Inserts the nodes connected from the starting node into the given `queue` for 
@@ -87,78 +160,6 @@ connections.
 """
 has_two_reach_node(prop_method, model_info, node) = (length(prev_nodes(prop_method, model_info, node)) == 2)
 
-"""
-    propagate(prop_method::PropMethod, model_info, batch_info)
-
-Propagates through the model using the specified `prop_method`. 
-The propagation algorithm is as follows:
-
-1. Add the connecting nodes of the start nodes, i.e., nodes after the start 
-nodes, into a queue.
-2. While the queue is not empty:
-    1. Pop a node from the queue.
-    2. For each node connected from the current node, i.e., for each output 
-        node:
-        1. Increment the visit count to the output node.
-        2. If the visit count equals the number of nodes connected from the 
-            output node, i.e., visit count == previous nodes of the output node, 
-            add the output node to the queue.
-    3. Propagate through the current node accordingly.
-    4. Add information about the bound of the node to `batch_info`.
-3. Return the bound of the output node(s).
-
-In step 2(1)(2), the function adds the output node to the queue since all the 
-previous nodes of the output node have been processed. Thus, the output node is 
-now the node of interest. In step 2(3), the propagation works based on the 
-propagation method (`prop_method`), which depends on the geometric 
-representation of the safety specifications and the activation function of each 
-layer.
-
-## Arguments
-- `prop_method` (`PropMethod`): Propagation method used for the verification 
-    process. This is one of the solvers used to verify the given model.
-- `model_info`: Structure containing the information of the neural network to be 
-    verified.
-- `batch_info`: Dictionary containing information of each node in the model.
-
-## Returns
-- `batch_bound`: Bound of the output node, i.e., the final bound.
-- `batch_info`: Same as the input `batch_info`, with additional information on 
-    the bound of each node in the model.
-"""
-function propagate(prop_method::PropMethod, model_info, batch_info)
-    # input: batch x ... x ...
-    
-    # dfs start from model.input_nodes
-    #BFS
-    queue = Queue{Any}()                            # Make an empty queue.
-    enqueue_nodes!(prop_method, queue, model_info)  # Insert connecting nodes from the start nodes (there's only one start node).
-    visit_cnt = Dict(node => 0 for node in model_info.all_nodes)    # Dictionary for the number of visits (cnt) for all nodes. 
-    batch_bound = nothing                           # ?
-    while !isempty(queue)                           # If queue is not empty!
-        node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
-        batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
-       
-        for output_node in next_nodes(prop_method, model_info, node)    # For each node connected from the current node.
-            visit_cnt[output_node] += 1             # The output node is visited one more time!
-            if all_prevs_in(prop_method, model_info, output_node, visit_cnt[output_node])   # If all the previous nodes has been led to the `output_node`.
-                enqueue!(queue, output_node)        # Add the `output_node` to the queue.
-                                                    # We're essentially moving the propagation to the `output_node` since all the previous connecting nodes
-                                                    # have been "processed"/propagated through. 
-            end
-        end
-
-        if has_two_reach_node(prop_method, model_info, node)    # If there are two previous nodes connecting to the `node`.
-            batch_bound = propagate_skip_method(prop_method, model_info, batch_info, node)
-        else
-            batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
-        end
-        batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
-        # @assert false
-    end
-    batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
-    return batch_bound, batch_info
-end
 
 """
     propagate_skip_method(prop_method::ForwardProp, model_info, 
@@ -448,75 +449,3 @@ function propagate_layer_batch(prop_method, layer, batch_bound, batch_info)
     return batch_bound
 end
 
-"""
-    backward_layer(prop_method, layer, batch_bound)
-
-(DEPRECATED)
-"""
-function backward_layer(prop_method, layer, batch_bound)
-    batch_bound = backward_linear(prop_method, layer, batch_bound)
-    if hasfield(typeof(layer), :σ)
-        batch_bound = backward_act(prop_method, layer.σ, batch_bound)
-    end
-    return batch_bound
-end
-
-"""
-    forward_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info::AbstractArray)
-
-(DEPRECATED)
-"""
-function forward_linear_batch(prop_method::ForwardProp, layer, batch_reach::AbstractArray, batch_info::AbstractArray)
-    batch_reach_info = [forward_linear(prop_method, layer, reach, info) for (reach, info) in zip(batch_reach, batch_info)]
-    return map(first, batch_reach_info), map(last, batch_reach_info)
-end
-
-"""
-    forward_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info::AbstractArray)
-
-    (DEPRECATED)
-"""
-function forward_act_batch(prop_method::ForwardProp, σ, batch_reach::AbstractArray, batch_info::AbstractArray)
-    batch_reach_info = [forward_act(prop_method, σ, reach, info) for (reach, info) in zip(batch_reach, batch_info)]
-    return map(first, batch_reach_info), map(last, batch_reach_info)
-end
-
-"""
-    forward_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info1::AbstractArray, batch_info2::AbstractArray)
-
-(DEPRECATED)
-"""
-function forward_skip_batch(prop_method::ForwardProp, layer, batch_reach1::AbstractArray, batch_reach2::AbstractArray, batch_info1::AbstractArray, batch_info2::AbstractArray)
-    batch_reach_info = [forward_skip(prop_method, layer, batch_reach1[i], batch_reach2[i], batch_info1[i], batch_info2[i]) for i in eachindex(batch_reach1)]
-    return map(first, batch_reach_info), map(last, batch_reach_info)
-end
-
-"""
-    forward_layer(prop_method, layer, batch_bound, batch_info)
-
-(DEPRECATED)
-"""
-function forward_layer(prop_method, layer, batch_bound, batch_info)
-    if is_activation(layer)
-        batch_bound, batch_info = forward_act_batch(prop_method, layer, batch_bound, batch_info)
-    else
-        batch_bound, batch_info = forward_linear_batch(prop_method, layer, batch_bound, batch_info)
-        if hasfield(typeof(layer), :σ)
-            batch_bound, batch_info = forward_act_batch(prop_method, layer.σ, batch_bound, batch_info)
-        end
-    end
-    return batch_bound, batch_info
-end
-
-"""
-    backward_layer(prop_method, layer, batch_bound, batch_info)
-
-(DEPRECATED)
-"""
-function backward_layer(prop_method, layer, batch_bound, batch_info)
-    batch_bound, batch_info = backward_linear(prop_method, layer, batch_bound, batch_info)
-    if hasfield(typeof(layer), :σ)
-        batch_bound, batch_info = backward_act(prop_method, layer.σ, batch_bound, batch_info)
-    end
-    return batch_bound, batch_info
-end
