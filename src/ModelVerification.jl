@@ -150,6 +150,7 @@ export ImageStar, ImageZono
 export Crown, AlphaCrown, BetaCrown
 export ODETaylor
 
+const tol = sqrt(eps())
 const TOL = Ref(sqrt(eps()))
 set_tolerance(x::Real) = (TOL[] = x)
 export set_tolerance

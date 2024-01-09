@@ -42,7 +42,7 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
 end
 
 prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) =
-    prepare_method(prop_method, batch_input, get_linear_spec(batch_output), model_info)
+    prepare_method(prop_method, batch_input, get_linear_spec(batch_output), batch_inheritance, model_info)
 
 """
     prepare_method(prop_method::Crown, batch_input::AbstractVector, 
@@ -190,13 +190,13 @@ function check_inclusion(prop_method::Crown, model, batch_input::AbstractArray, 
     if batch_out_spec.is_complement 
         # A x < b descript the unsafe set, violated if exist x such that max spec ai x - bi <= 0    
         for i in 1:batch_size
-            CUDA.@allowscalar center_res[i] <= 0 && (results[i] = BasicResult(:violated))
-            CUDA.@allowscalar spec_l[i] > 0 && (results[i] = BasicResult(:holds))
+            CUDA.@allowscalar center_res[i] <= -tol && (results[i] = BasicResult(:violated))
+            CUDA.@allowscalar spec_l[i] > -tol && (results[i] = BasicResult(:holds))
         end
-    else # holds if forall x such that max spec ai x - bi <= 0
+    else # holds if forall x such that max spec ai x - bi <= tol
         for i in 1:batch_size
-            CUDA.@allowscalar spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
-            CUDA.@allowscalar center_res[i] > 0 && (results[i] = BasicResult(:violated))
+            CUDA.@allowscalar spec_u[i] <= tol && (results[i] = BasicResult(:holds))
+            CUDA.@allowscalar center_res[i] > tol && (results[i] = BasicResult(:violated))
         end
     end
     
