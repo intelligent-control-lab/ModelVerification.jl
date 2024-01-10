@@ -42,7 +42,7 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
 end
 
 prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info) =
-    prepare_method(prop_method, batch_input, get_linear_spec(batch_output), batch_inheritance, model_info)
+    prepare_method(prop_method, batch_input, get_linear_spec(batch_output),[nothing], model_info)
 
 """
     prepare_method(prop_method::Crown, batch_input::AbstractVector, 

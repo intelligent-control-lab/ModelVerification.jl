@@ -94,6 +94,7 @@ function prepare_method(prop_method::StarSet, batch_input::AbstractVector,
         pre_batch_info = init_propagation(prop_method.pre_bound_method, batch_input, batch_output, model_info)
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, batch_output, batch_inheritance, model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
+
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]

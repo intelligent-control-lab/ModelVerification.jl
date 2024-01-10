@@ -167,16 +167,14 @@ end
     split_branch(split_method::Bisect, model::Chain, input::ImageConvexHull, 
                  output, model_info, batch_info)
 
-Given an input specification represented with ImageConvexHull, this function 
-converts it to a hyperrectangle. Then, it calls `split_branch(..., 
-input::Hyperrectangle, ...)` to recursively bisect the input specification for a 
-`split_method.num_split` number of times. The first image of ImageConvexHull must
-lower bound the second image of ImageConvexHull.
+Recursively bisects the ImageConvexHull input specification at the center for 
+`split_method.num_split` number of times.
 
 ## Arguments
 - `split_method` (`Bisect`): Bisection split method.
 - `model` (`Chain`): Model to be verified.
-- `input` (`ImageConvexHull`): Input specification represented with any `ImageConvexHull`.
+- `input` (`ImageConvexHull`): Input specification represented with a 
+    `ImageConvexHull`.
 - `output`: Output specification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
@@ -185,12 +183,12 @@ lower bound the second image of ImageConvexHull.
 ## Returns
 - List of subtrees split from the `input`.
 """
-function split_branch(split_method::Bisect, model::Chain, input::ImageConvexHull, output, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageConvexHull, output,inheritance, model_info, batch_info)
     # img_size = ModelVerification.get_size(input)
-    split_method.num_split <= 0 && return [(input, output)]
+    split_method.num_split <= 0 && return [Branch(input, output, inheritance)]
     input1, input2 = split_interval(input)
-    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output, model_info, batch_info)
-    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output, model_info, batch_info)
+    subtree1 = split_branch(Bisect(split_method.num_split-1), model, input1, output,inheritance, model_info, batch_info)
+    subtree2 = split_branch(Bisect(split_method.num_split-1), model, input2, output,inheritance, model_info, batch_info)
     return [subtree1; subtree2]
 end
 
