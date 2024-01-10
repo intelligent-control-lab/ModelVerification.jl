@@ -110,21 +110,21 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
 
     batch_inheritance = batchify_inheritance(prop_method, inheritance_list, model_info)
 
-    println("batch_inheritance: ", batch_inheritance)
+    # println("batch_inheritance: ", batch_inheritance)
 
     if prop_method.inherit_pre_bound && !isnothing(batch_inheritance) # pre_bound can be inherited from the parent branch 
-        println("inheritating pre bound ...")
+        # println("inheritating pre bound ...")
         for node in model_info.activation_nodes
-            println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
+            # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batch_inheritance[node][:pre_lower]
             batch_info[node][:pre_upper] = batch_inheritance[node][:pre_upper]
         end
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
-        println("computing pre bound ...")
+        # println("---computing pre bound ---")
         # need forward BFS to compute pre_bound of all, 
         pre_bounds = Dict()
         for node in model_info.activation_nodes
-            println("node: ", node)
+            # println("node: ", node)
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
             
@@ -138,9 +138,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             
             sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [pre_bounds], sub_model_info)
             # println("keys: ", keys(sub_batch_info))
-            if haskey(sub_batch_info, "dense_0_relu")
-                println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
-            end
+            # if haskey(sub_batch_info, "dense_0_relu")
+            #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
+            # end
             # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
             sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
             # println("1 sub_batch_bound:", typeof(sub_batch_bound.lower_A_x))
@@ -154,6 +154,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
 
         end
+        # println("=== Done computing pre bound ===")
     elseif !isnothing(prop_method.pre_bound_method)
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, [nothing], model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
@@ -197,6 +198,7 @@ These information will later be inheritated by the new branch created by split.
 - `prop_method` (`ForwardProp`): Solver being used.
 - `batch_info` (`Dict`): all the information collected in propagation.
 - `batch_idx`: the index of the interested branch in the batch.
+- `model_info`: the general computational graph
 
 ## Returns
 - `inheritance`: a dict that contains all the information will be inheritated.
@@ -412,8 +414,8 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
-    println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
-    println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
+    # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
+    # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
@@ -485,6 +487,8 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
+    # @show lower_spec_l
+    # @show upper_spec_u
     # println("spec")
     # println("batch_bound.lower_A_x")
     # println(batch_bound.lower_A_x)
@@ -589,6 +593,7 @@ function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArr
     center = (bound.batch_data_min .+ bound.batch_data_max) ./ 2 # out_dim x batch_size
     model = prop_method.use_gpu ? fmap(cu, model) : model
     out_center = model(center)
+    
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
     center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
     results = [BasicResult(:unknown) for _ in 1:batch_size]
@@ -598,15 +603,15 @@ function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArr
         @assert prop_method.bound_lower 
         spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
         for i in 1:batch_size
-            CUDA.@allowscalar center_res[i] <= 0 && (results[i] = BasicResult(:violated))
-            CUDA.@allowscalar spec_l[i] > 0 && (results[i] = BasicResult(:holds))
+            CUDA.@allowscalar center_res[i] < -tol && (results[i] = BasicResult(:violated))
+            CUDA.@allowscalar spec_l[i] >= -tol && (results[i] = BasicResult(:holds))
         end
     else # polytope out spec: holds if all y such that Ay-b < 0. Need to make sure upper bound of Ay-b < 0 to hold.
         @assert prop_method.bound_upper
         spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
         for i in 1:batch_size
-            CUDA.@allowscalar spec_u[i] <= 0 && (results[i] = BasicResult(:holds))
-            CUDA.@allowscalar center_res[i] > 0 && (results[i] = BasicResult(:violated))
+            CUDA.@allowscalar spec_u[i] <= tol && (results[i] = BasicResult(:holds))
+            CUDA.@allowscalar center_res[i] > tol && (results[i] = BasicResult(:violated))
         end
     end
     return results

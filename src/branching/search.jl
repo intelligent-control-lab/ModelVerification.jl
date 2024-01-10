@@ -144,22 +144,12 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
         if length(batch_branch) >= search_method.batch_size || length(branches) == 0
             
             batch_input, batch_output, batch_inheritance = unpack_batch_branch(batch_branch)
+            
             @timeit to "prepare_method" batch_out_spec, batch_info = prepare_method(prop_method, batch_input, batch_output, batch_inheritance, model_info)
-            
-            
-            # @show size(batch_out_spec.A)
-            
-            # println(typeof(batch_output[1]))
-            # println(typeof(batch_out_spec))
-            # println(batch_out_spec[1])
-            
-            
             @timeit to "propagate" batch_bound, batch_info = propagate(prop_method, model_info, batch_info)
             @timeit to "process_bound" batch_bound, batch_info = process_bound(prop_method, batch_bound, batch_out_spec, model_info, batch_info)
-            # println(typeof(batch_out_spec[1]))
             @timeit to "check_inclusion" batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
-            # println("batch_bound")
-            # println(batch_bound)
+            
             for i in eachindex(batch_input)
                 batch_result[i].status == :holds && collect_bound && (push!(verified_bound, batch_bound[i]))
                 batch_result[i].status == :holds && continue

@@ -13,6 +13,14 @@ Abstract type representing solvers that use backward propagation.
 abstract type BackwardProp <: PropMethod end
 
 """
+    ODEProp <: PropMethod
+
+Abstract type representing solvers that use backward propagation.
+"""
+abstract type ODEProp <: ForwardProp end
+
+
+"""
     SequentialForwardProp <: ForwardProp
 """
 abstract type SequentialForwardProp <: ForwardProp end
@@ -246,6 +254,7 @@ These information will later be inheritated by the new branch created by split.
 - `prop_method` (`ForwardProp`): Solver being used.
 - `batch_info` (`Dict`): all the information collected in propagation.
 - `batch_idx`: the index of the interested branch in the batch.
+- `model_info`: the general computational graph
 
 ## Returns
 - `inheritance`: a dict that contains all the information will be inheritated.

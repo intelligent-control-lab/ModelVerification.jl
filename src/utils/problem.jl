@@ -182,6 +182,7 @@ Problem(path::String, input_data, output_data) = #If the Problem only have onnx 
     Problem(path, build_flux_model(path), input_data, output_data)
 Problem(model::Chain, input_data, output_data; save_onnx_path="tmp.onnx") = #If the Problem only have Flux_model input
     Problem(build_onnx_model(save_onnx_path, model, input_data), model, input_data, output_data)
+ODEProblem(model::Chain, input, output) = Problem("", model, input, output)
 
 """
     Result
