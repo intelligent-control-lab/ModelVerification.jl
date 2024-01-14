@@ -90,7 +90,7 @@ function warmup()
     result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
 end
 
-function run_acas(vnncomp_path)
+function run_acas()
     search_method = BFS(max_iter=3e5, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
