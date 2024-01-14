@@ -5,7 +5,7 @@ using CSV
 using Flux
 using DataFrames
 using ONNXNaiveNASflux 
-include("ModelVerification.jl/vnncomp_scripts/vnnlib_parser.jl")
+include("vnnlib_parser.jl")
 
 function onnx_to_nnet(onnx_file)
     # ACASXU onnx file considers constants as pseudo-input nodes with given parameters.
