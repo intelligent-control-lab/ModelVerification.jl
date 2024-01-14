@@ -77,12 +77,27 @@ function run_all(instance_csv, result_csv, search_method, split_method, prop_met
         result = @timed verify_an_instance(onnx_file, vnnlib_file, search_method, split_method, prop_method, timeout)
         println(result)
         push!(df, result)
+        index > 2 && break
     end
     CSV.write(result_csv, df)
 end
 
-# expect violated
-timeout = 116
-onnx_file = "vnncomp2023_benchmarks/benchmarks/acasxu/onnx/ACASXU_run2a_1_2_batch_2000.onnx"
-spec_file = "vnncomp2023_benchmarks/benchmarks/acasxu/vnnlib/prop_2.vnnlib"
-result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
+function warmup()
+    # expect violated
+    timeout = 116
+    onnx_file = "vnncomp2023_benchmarks/benchmarks/acasxu/onnx/ACASXU_run2a_1_2_batch_2000.onnx"
+    spec_file = "vnncomp2023_benchmarks/benchmarks/acasxu/vnnlib/prop_2.vnnlib"
+    result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
+end
+
+function run_acas()
+    search_method = BFS(max_iter=3e5, batch_size=512)
+    split_method = Bisect(1)
+    prop_method = Ai2z()
+    instance_csv = "vnncomp2023_benchmarks/benchmarks/acasxu/instances.csv"
+    result_csv = "mv_ai2z.csv"
+    run_all(instance_csv, result_csv, search_method, split_method, prop_method)
+end
+
+warmup()
+run_acas()
