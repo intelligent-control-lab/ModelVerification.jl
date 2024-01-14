@@ -77,7 +77,7 @@ function run_all(instance_csv, result_csv, search_method, split_method, prop_met
         result = @timed verify_an_instance(onnx_file, vnnlib_file, search_method, split_method, prop_method, timeout)
         println(result)
         push!(df, result)
-        index > 2 && break
+        index > 4 && break
     end
     CSV.write(result_csv, df)
 end
@@ -90,7 +90,7 @@ function warmup()
     result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
 end
 
-function run_acas()
+function run_acas(vnncomp_path)
     search_method = BFS(max_iter=3e5, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
