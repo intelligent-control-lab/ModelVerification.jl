@@ -82,22 +82,24 @@ function run_all(instance_csv, result_csv, search_method, split_method, prop_met
     CSV.write(result_csv, df)
 end
 
-function warmup()
+function warmup(benchmark_dir)
     # expect violated
     timeout = 116
-    onnx_file = "vnncomp2023_benchmarks/benchmarks/acasxu/onnx/ACASXU_run2a_1_2_batch_2000.onnx"
-    spec_file = "vnncomp2023_benchmarks/benchmarks/acasxu/vnnlib/prop_2.vnnlib"
+    onnx_file = benchmark_dir * "onnx/ACASXU_run2a_1_2_batch_2000.onnx"
+    spec_file = benchmark_dir * "vnnlib/prop_2.vnnlib"
     result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
 end
 
-function run_acas()
+function run_acas(benchmark_dir, save_dir)
     search_method = BFS(max_iter=3e5, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
-    instance_csv = "vnncomp2023_benchmarks/benchmarks/acasxu/instances.csv"
-    result_csv = "mv_ai2z.csv"
+    instance_csv = benchmark_dir * "instances.csv"
+    result_csv = save_dir * "mv_ai2z.csv"
     run_all(instance_csv, result_csv, search_method, split_method, prop_method)
 end
 
-warmup()
-run_acas()
+benchmark_dir = "/home/ubuntu/vnncomp2023_benchmarks/benchmarks/acasxu/"
+save_dir = "/home/ubuntu/"
+warmup(benchmark_dir)
+run_acas(benchmark_dir, save_dir)
