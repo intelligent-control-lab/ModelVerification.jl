@@ -25,7 +25,7 @@ sleep 0.1
 # Wait for the output file to contain "Done"
 while true; do
     current_mod_time=$(stat -c %Y "$RESULTS_FILE")
-    if [[ $current_mod_time -ne $last_mod_time ]]; then
+    if [ $current_mod_time -ne $last_mod_time ]; then
         echo "Function has completed."
         break
     fi
