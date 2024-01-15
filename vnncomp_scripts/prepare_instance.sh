@@ -26,8 +26,7 @@ script_name=$0
 script_path=$(dirname "$0")
 project_path=$(dirname "$script_path")
 # julia --project="${project_path}" "${script_path}/prepare_instance.jl"  "$ONNX_FILE"
-
-tmux send-keys -t MV:0 "using include(\"ModelVerification.jl/vnncomp_scripts/run_instance.jl\")" C-m
-
+tmux send-keys -t MV:0 "onnx_to_nnet(\"$ONNX_FILE\")" C-m
+sleep 1
 # script returns a 0 exit code if successful. If you want to skip a benchmark category you can return non-zero.
 exit 0
