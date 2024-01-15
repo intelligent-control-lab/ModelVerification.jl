@@ -16,17 +16,16 @@ echo "Running benchmark instance in category '$CATEGORY' with onnx file '$ONNX_F
 
 echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
 touch "$RESULTS_FILE"
-sleep 0.1
+sleep 1
 last_mod_time=$(stat -c %Y "$RESULTS_FILE")
 echo "$RESULTS_FILE Last modified time: $last_mod_time"
-sleep 0.1
+sleep 1
 # run the tool to produce the results file
-script_name=$0
-script_path=$(dirname "$0")
-project_path=$(dirname "$script_path")
+# script_name=$0
+# script_path=$(dirname "$0")
+# project_path=$(dirname "$script_path")
 tmux send-keys -t MV:0 "vnn_verify(\"$CATEGORY\", \"$ONNX_FILE\", \"$VNNLIB_FILE\", \"$RESULTS_FILE\", \"$TIMEOUT\")" C-m
-sleep 0.1
-sleep 0.1
+sleep 1
 echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
 # Wait for the output file to contain "Done"
 while true; do
@@ -37,5 +36,5 @@ while true; do
     fi
     sleep 0.1
 done
-echo "$RESULTS_FILE Last modified time: $last_mod_time"
+echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
 exit 0
