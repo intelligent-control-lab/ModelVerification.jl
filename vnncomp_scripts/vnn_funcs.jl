@@ -80,11 +80,17 @@ end
 function warmup(benchmark_dir)
     # expect violated
     timeout = 116
-    search_method = BFS(max_iter=1e6, batch_size=512)
-    split_method = Bisect(1)
-    prop_method = Ai2z()
+    
     onnx_file = benchmark_dir * "onnx/ACASXU_run2a_1_2_batch_2000.onnx"
     spec_file = benchmark_dir * "vnnlib/prop_2.vnnlib"
+    
+    search_method = BFS(max_iter=1e6, batch_size=512)
+    split_method = Bisect(1)
+    
+    prop_method = Ai2z()
+    result = verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
+
+    prop_method = Crown(true, true, true)
     result = verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
 end
 
