@@ -97,8 +97,7 @@ function run_acas(benchmark_dir, save_dir)
     run_all(instance_csv, result_csv, search_method, split_method, prop_method)
 end
 
-function vnn_verify(args)
-    benchmark, onnx_path, vnnlib_path, result_path, timeout = args[1], args[2], args[3], args[4], args[5]
+function vnn_verify(benchmark, onnx_path, vnnlib_path, result_path, timeout)
     search_method = BFS(max_iter=3e5, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
