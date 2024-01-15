@@ -21,7 +21,7 @@ end
 
 function verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
     use_gz = split(onnx_file, ".")[end] == "gz"
-    onnx_to_nnet(onnx_file)
+    # onnx_to_nnet(onnx_file)
     nnet_file = use_gz ? onnx_file[1:end-7] * "nnet" : onnx_file[1:end-4] * "nnet"
     net = ModelVerification.read_nnet(nnet_file)
     ###### TODO: change this ad-hoc remedy for nnet read ######
