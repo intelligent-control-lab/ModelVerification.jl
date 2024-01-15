@@ -31,5 +31,5 @@ while true; do
     sleep 0.1
 done
 rm tmp.txt
-echo "Updated content of the result file: $RESULTS_FILE"
+echo "Updated content of the result file: (cat $RESULTS_FILE)"
 exit 0
