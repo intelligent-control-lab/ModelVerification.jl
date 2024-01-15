@@ -28,7 +28,7 @@ while true; do
         echo "Function has completed."
         break
     fi
-    sleep 0.01
+    sleep 0.05
 done
 rm tmp.txt
 echo "Updated content of the result file: (cat $RESULTS_FILE)"
