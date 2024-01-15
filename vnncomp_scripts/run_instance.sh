@@ -14,27 +14,21 @@ TIMEOUT=$6
 
 echo "Running benchmark instance in category '$CATEGORY' with onnx file '$ONNX_FILE', vnnlib file '$VNNLIB_FILE', results file $RESULTS_FILE, and timeout $TIMEOUT"
 
-echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
-touch "$RESULTS_FILE"
-sleep 1
-last_mod_time=$(stat -c %Y "$RESULTS_FILE")
-echo "$RESULTS_FILE Last modified time: $last_mod_time"
-sleep 1
+DEFAULT_RESULT=$(cat $RESULTS_FILE)
+echo "Original content of the result file: $DEFAULT_RESULT"
 # run the tool to produce the results file
 # script_name=$0
 # script_path=$(dirname "$0")
 # project_path=$(dirname "$script_path")
 tmux send-keys -t MV:0 "vnn_verify(\"$CATEGORY\", \"$ONNX_FILE\", \"$VNNLIB_FILE\", \"$RESULTS_FILE\", \"$TIMEOUT\")" C-m
-sleep 1
-echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
+
 # Wait for the output file to contain "Done"
 while true; do
-    current_mod_time=$(stat -c %Y "$RESULTS_FILE")
-    if [ $current_mod_time -ne $last_mod_time ]; then
+    if ! cmp -s <(echo "$DEFAULT_RESULT") $RESULTS_FILE; then
         echo "Function has completed."
         break
     fi
     sleep 0.1
 done
-echo "$RESULTS_FILE Last modified time: $(stat -c %Y "$RESULTS_FILE")"
+echo "Updated content of the result file: $RESULTS_FILE"
 exit 0
