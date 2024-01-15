@@ -14,8 +14,8 @@ TIMEOUT=$6
 
 echo "Running benchmark instance in category '$CATEGORY' with onnx file '$ONNX_FILE', vnnlib file '$VNNLIB_FILE', results file $RESULTS_FILE, and timeout $TIMEOUT"
 
-DEFAULT_RESULT=$(cat $RESULTS_FILE)
-echo "Original content of the result file: $DEFAULT_RESULT"
+cp $RESULTS_FILE tmp.txt
+echo "Original content of the result file: $(cat tmp.txt)"
 # run the tool to produce the results file
 # script_name=$0
 # script_path=$(dirname "$0")
@@ -24,11 +24,12 @@ tmux send-keys -t MV:0 "vnn_verify(\"$CATEGORY\", \"$ONNX_FILE\", \"$VNNLIB_FILE
 
 # Wait for the output file to contain "Done"
 while true; do
-    if ! cmp -s <(echo "$DEFAULT_RESULT") $RESULTS_FILE; then
+    if ! cmp -s tmp.txt $RESULTS_FILE; then
         echo "Function has completed."
         break
     fi
     sleep 0.1
 done
+rm tmp.txt
 echo "Updated content of the result file: $RESULTS_FILE"
 exit 0
