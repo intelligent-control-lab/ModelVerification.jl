@@ -40,8 +40,8 @@ script_path=$(dirname "$0")
 chmod +x ${script_path}/*.sh
 pip3 install -r "${script_path}/NNet/test_requirements.txt"
 cd ~/vnncomp2023_benchmarks
-tmux new -s -d MV
+tmux new-session -d -s MV
 tmux send-keys -t MV:0 "julia" C-m
 tmux send-keys -t MV:0 "include(\"/home/ubuntu/ModelVerification.jl/vnncomp_scripts/vnn_funcs.jl\")" C-m
 tmux send-keys -t MV:0 "warmup(\"/home/ubuntu/vnncomp2023_benchmarks/benchmarks/acasxu/\")" C-m
-sleep 180
+sleep 120

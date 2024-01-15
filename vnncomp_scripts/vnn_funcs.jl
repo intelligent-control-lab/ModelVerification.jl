@@ -80,7 +80,7 @@ end
 function warmup(benchmark_dir)
     # expect violated
     timeout = 116
-    search_method = BFS(max_iter=3e5, batch_size=512)
+    search_method = BFS(max_iter=1e6, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
     onnx_file = benchmark_dir * "onnx/ACASXU_run2a_1_2_batch_2000.onnx"
@@ -89,7 +89,7 @@ function warmup(benchmark_dir)
 end
 
 function run_acas(benchmark_dir, save_dir)
-    search_method = BFS(max_iter=3e5, batch_size=512)
+    search_method = BFS(max_iter=1e6, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
     instance_csv = benchmark_dir * "instances.csv"
@@ -100,13 +100,13 @@ end
 function vnn_verify(benchmark, onnx_path, vnnlib_path, result_path, timeout)
     timeout = parse(Float64, timeout)
 
-    search_method = BFS(max_iter=3e5, batch_size=512)
+    search_method = BFS(max_iter=1e6, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
     
     if benchmark == "acasxu"
-        search_method = BFS(max_iter=3e5, batch_size=512)
-        split_method = Bisect(1)
+        search_method = BFS(max_iter=1e6, batch_size=512)
+        split_method = Bisect(3)
         prop_method = Ai2z()
     end
 
