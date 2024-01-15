@@ -105,9 +105,12 @@ function vnn_verify(benchmark, onnx_path, vnnlib_path, result_path, timeout)
     prop_method = Ai2z()
     
     if benchmark == "acasxu"
-        search_method = BFS(max_iter=1e6, batch_size=512)
+        # search_method = BFS(max_iter=1e6, batch_size=512)
+        # split_method = Bisect(3)
+        # prop_method = Ai2z()
+        search_method = BFS(max_iter=1e6, batch_size=1024)
         split_method = Bisect(3)
-        prop_method = Ai2z()
+        prop_method = Crown(true, true, true)
     end
 
     result = @timed verify_an_instance(onnx_path, vnnlib_path, search_method, split_method, prop_method, timeout)
