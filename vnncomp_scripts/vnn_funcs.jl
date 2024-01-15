@@ -98,6 +98,8 @@ function run_acas(benchmark_dir, save_dir)
 end
 
 function vnn_verify(benchmark, onnx_path, vnnlib_path, result_path, timeout)
+    timeout = parse(Float64, timeout)
+
     search_method = BFS(max_iter=3e5, batch_size=512)
     split_method = Bisect(1)
     prop_method = Ai2z()
