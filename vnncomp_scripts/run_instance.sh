@@ -14,6 +14,7 @@ TIMEOUT=$6
 
 echo "Running benchmark instance in category '$CATEGORY' with onnx file '$ONNX_FILE', vnnlib file '$VNNLIB_FILE', results file $RESULTS_FILE, and timeout $TIMEOUT"
 
+touch "$RESULTS_FILE"
 last_mod_time=$(stat -c %Y "$RESULTS_FILE")
 
 # run the tool to produce the results file
