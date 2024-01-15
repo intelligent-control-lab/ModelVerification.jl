@@ -16,7 +16,7 @@ echo "Running benchmark instance in category '$CATEGORY' with onnx file '$ONNX_F
 
 touch "$RESULTS_FILE"
 last_mod_time=$(stat -c %Y "$RESULTS_FILE")
-
+echo "$RESULTS_FILE Last modified time: $last_mod_time"
 # run the tool to produce the results file
 script_name=$0
 script_path=$(dirname "$0")
@@ -32,4 +32,5 @@ while true; do
     fi
     sleep 0.1
 done
+echo "$RESULTS_FILE Last modified time: $last_mod_time"
 exit 0
