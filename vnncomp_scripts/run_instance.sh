@@ -20,7 +20,7 @@ last_mod_time=$(stat -c %Y "$RESULTS_FILE")
 script_name=$0
 script_path=$(dirname "$0")
 project_path=$(dirname "$script_path")
-tmux send-keys -t MV:0 "vnn_verify(\"$CATEGORY\", \"$CATEGORY\", \"$ONNX_FILE\", \"$VNNLIB_FILE\", \"$RESULTS_FILE\", \"$TIMEOUT\")" C-m
+tmux send-keys -t MV:0 "vnn_verify(\"$CATEGORY\", \"$ONNX_FILE\", \"$VNNLIB_FILE\", \"$RESULTS_FILE\", \"$TIMEOUT\")" C-m
 sleep 0.1
 # Wait for the output file to contain "Done"
 while true; do
