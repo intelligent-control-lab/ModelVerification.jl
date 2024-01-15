@@ -237,10 +237,14 @@ function check_inclusion(prop_method::ForwardProp, model, input::LazySet,
                          reach::LazySet, output::Complement)
     x = LazySets.center(input)
     unsafe_output = Complement(output)
+    
+    # isdisjoint(reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+
     box_reach = box_approximation(reach)
     isdisjoint(box_reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+
     ∈(model(x), unsafe_output) && return CounterExampleResult(:violated, x)
     return CounterExampleResult(:unknown)
     # to = get_timer("Shared")
-    # @timeit to "attack" return attack(model, input, output; restart=1)
+    # @timeit to "attack" return attack(model, input, output; restart=100)
 end

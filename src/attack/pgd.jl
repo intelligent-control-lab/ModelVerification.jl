@@ -139,7 +139,7 @@ function attack(model, input, output; restart=100)
         # println("PGD loss:", loss(x_adv)) 
         x_adv = APGD(model |> cpu, loss, x, input; step_size=ϵ)
         # println("APGD loss:", loss(x_adv))
-        loss(x_adv) > 0 && println("attack success:",i)
+        # loss(x_adv) > 0 && println("attack success at iter:",i)
         loss(x_adv) > 0 && return CounterExampleResult(:violated, x_adv)
     end
     return BasicResult(:unknown)
