@@ -19,13 +19,17 @@ BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCro
 """
     BetaCrownBound <: Bound
 """
-struct BetaCrownBound <: Bound
+mutable struct BetaCrownBound <: Bound
     lower_A_x
     upper_A_x
     lower_A_W
     upper_A_W
     batch_data_min
     batch_data_max
+    img_size
+end
+function BetaCrownBound(lower_A_x, upper_A_x, lower_A_W, upper_A_W, batch_data_min, batch_data_max)
+    return BetaCrownBound(lower_A_x, upper_A_x, lower_A_W, upper_A_W, batch_data_min, batch_data_max, nothing)
 end
 
 """
@@ -63,22 +67,33 @@ end
     init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
 """
 function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, batch_output::LinearSpec)
-    batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h.domain) for h in batch_input]..., dims=2)) : cat([low(h.domain) for h in batch_input]..., dims=2)
-    batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h.domain) for h in batch_input]..., dims=2)) : cat([high(h.domain) for h in batch_input]..., dims=2)
-    bound = BetaCrownBound([], [], nothing, nothing, batch_data_min, batch_data_max)
+    img_size = nothing
+    if typeof(batch_input[1].domain) == ImageConvexHull
+        # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
+        img_size = ModelVerification.get_size(batch_input[1].domain)
+        @assert all(<=(0), batch_input[1].domain.imgs[1]-batch_input[1].domain.imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
+        batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.domain.imgs[1]), high = reduce(vcat,img_CH.domain.imgs[2]))  for img_CH in batch_input]
+        batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
+        batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)    
+    else
+        batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h.domain) for h in batch_input]..., dims=2)) : cat([low(h.domain) for h in batch_input]..., dims=2)
+        batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h.domain) for h in batch_input]..., dims=2)) : cat([high(h.domain) for h in batch_input]..., dims=2)
+    end
+    bound = BetaCrownBound([], [], nothing, nothing, batch_data_min, batch_data_max,img_size)
     return bound
 end
 
 """
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 """
-function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info, sub=false)
+    println("start prepare method")
     out_specs = get_linear_spec(batch_output)
-
+    
     if prop_method.use_gpu
         out_specs = LinearSpec(fmap(cu, out_specs.A), fmap(cu, out_specs.b), fmap(cu, out_specs.is_complement))
     end
-    return prepare_method(prop_method, batch_input, out_specs, batch_inheritance, model_info)
+    return prepare_method(prop_method, batch_input, out_specs, batch_inheritance, model_info,sub)
 end
 
 function batchify_inheritance(prop_method::BetaCrown, inheritance_list::AbstractVector, model_info)
@@ -101,11 +116,29 @@ end
 """
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
 """
-function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info)
-    
+function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info, sub=false)
+    println("start prepare method, out_specs is already linear")
     batch_size = length(batch_input)
-    
+
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
+    # @show reverse(model_info.all_nodes)
+    # @show batch_info
+    if !isnothing(batch_info[model_info.final_nodes[1]][:bound].img_size)
+        size_after_layer = (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size)
+    else
+        size_after_layer = (size(batch_info[model_info.final_nodes[1]][:bound].batch_data_min)[1], batch_size)
+    end
+    # @show model_info.all_nodes == data
+    forward_nodes = (sub ? reverse(model_info.all_nodes) : model_info.all_nodes)
+    for each_node in forward_nodes
+        # @show each_node
+        # @show batch_info[each_node][:size_after_layer] 
+        isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose}) || continue
+        size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
+        batch_info[each_node][:size_after_layer] = size_after_layer
+        # @show size_after_layer
+    end
+    # @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
 
     batch_inheritance = batchify_inheritance(prop_method, inheritance_list, model_info)
@@ -113,31 +146,65 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # println("batch_inheritance: ", batch_inheritance)
 
     if prop_method.inherit_pre_bound && !isnothing(batch_inheritance) # pre_bound can be inherited from the parent branch 
-        # println("inheritating pre bound ...")
+        println("inheritating pre bound ...")
         for node in model_info.activation_nodes
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batch_inheritance[node][:pre_lower]
             batch_info[node][:pre_upper] = batch_inheritance[node][:pre_upper]
         end
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
-        # println("---computing pre bound ---")
+        println("---computing pre bound ---")
         # need forward BFS to compute pre_bound of all, 
         pre_bounds = Dict()
+        # input_lower = batch_info[model_info.final_nodes[1]][:bound].batch_data_min
+        # input_lower = reshape(input_lower, (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size))
+        # @show size(lw)
+        # @show model_info.node_layer[prev_node]
+        # @show model_info.node_layer[prev_node](input_lower) |> size
+        # if !isnothing(batch_info[model_info.final_nodes[1]][:bound].img_size)
+        #     size_after_layer = (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size)
+        # else
+        #     size_after_layer = (size(batch_info[model_info.final_nodes[1]][:bound].batch_data_min)[1], batch_size)
+        # end
+        # for each_node in model_info.all_nodes
+        #     # @show each_node, each_node==node, each_node == prev_node
+        #     # c = Conv((3, 3), 1 => 5, relu, stride=2)
+        #     # @show isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose})
+        #     isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose}) || continue
+        #     size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
+        #     # @show each_node, size_after_layer
+        #     batch_info[each_node][:size_after_layer] = size_after_layer
+        #     # @show model_info.node_layer[each_node](input_lower) |> size
+        # end
+        # @show length(model_info.activation_nodes)
         for node in model_info.activation_nodes
             # println("node: ", node)
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
             
             sub_model_info = get_sub_model(model_info, prev_node)
-            n_out = size(model_info.node_layer[prev_node].weight)[1]
-            
+            # @show sub_model_info.all_nodes
+            if length(size(model_info.node_layer[prev_node].weight)) == 4
+                n_out = batch_info[prev_node][:size_after_layer][1:3]
+                # @show n_out
+                n_out = n_out[1]*n_out[2]*n_out[3]
+                
+            else
+                # dense weight, TODO: merge this else into if
+                @assert length(size(model_info.node_layer[prev_node].weight)) == 2
+                @assert batch_info[prev_node][:size_after_layer][1] == size(model_info.node_layer[prev_node].weight)[1]
+                n_out = batch_info[prev_node][:size_after_layer][1]
+            end
+            # @show n_out
             I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+            # @show size(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size))
+            # @show size(zeros(n_out, batch_size))
             if prop_method.use_gpu
                 I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
             end
-            
-            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [pre_bounds], sub_model_info)
-            # println("keys: ", keys(sub_batch_info))
+            # @show size(I_spec.A)
+            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [pre_bounds], sub_model_info, true)
+            println("keys: ", keys(sub_batch_info))
             # if haskey(sub_batch_info, "dense_0_relu")
             #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
             # end
@@ -154,8 +221,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
 
         end
-        # println("=== Done computing pre bound ===")
+        println("=== Done computing pre bound ===")
     elseif !isnothing(prop_method.pre_bound_method)
+        # println("---computing pre bound ---")
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, [nothing], model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes
@@ -165,6 +233,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             batch_info[node][:pre_lower], batch_info[node][:pre_upper] = compute_bound(pre_bound) # reach_dim x batch 
             # println("assigning", node," ", prev_node)
         end
+        # println("=== Done computing pre bound ===")
     end
     
     batch_info[:batch_size] = length(batch_input)
@@ -183,7 +252,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
     end
     n = size(out_specs.A, 2)
+
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
+
     batch_info[:Beta_Lower_Layer_node] = []#store the order of the node which has AlphaBetaLayer
     return out_specs, batch_info
 end 
@@ -414,7 +485,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
-    # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
+    println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
@@ -484,7 +555,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         end
     end
 
-    
+    # @show size(batch_info[:spec_A_b][1])
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
     # @show lower_spec_l
