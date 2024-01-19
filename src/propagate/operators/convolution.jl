@@ -548,10 +548,10 @@ end
                            bound::BetaCrownBound, batch_info)
 
 Propagates the bounds through the Conv layer for `BetaCrown` solver. It 
-operates an affine transformation on the given input bound and returns the
+operates an conv transformation on the given input bound and returns the
 output bound. It first preprocesses the lower- and upper-bounds of the bias of 
 the node using `_preprocess`. Then, it computes the interval map of the 
-resulting lower- and upper-bounds using `dense_bound_oneside` function. The 
+resulting lower- and upper-bounds using `conv_bound_oneside` function. The 
 resulting bound is represented by `BetaCrownBound` type.
 
 ## Arguments
@@ -605,61 +605,35 @@ end
 
 """
 function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, batch_data_min, batch_data_max,size_after_conv, batch_size)
-
-    #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
-    # weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
-    #size(batch_reach) = (weight, hight, channel, batch*spec)
-    # @show size(weight) # (5, 5, 1, 6)
-    # @show size(bias) # (6,)
-    # @show last_A
-    
-    # weight = reverse(weight, dims=2) # flip the first two dimensions of weight(left to right)
-    # weight = reverse(weight, dims=1) # flip the first two dimensions of weight(upside down)
-    # @show size(weight) 
     function find_w_b(x)
-        # @show size(x[1]), size(x[2])
-        # # spec: A x - b <= 0 is the safe set or unsafe set
-        # A::AbstractArray{Float64, 3} # spec_dim x out_dim x batch_size
-        # b::AbstractArray{Float64, 2} # spec_dim x batch_size
         x_weight = x[1]
-        # x_weight = cat(x_weight, x_weight, dims=(3,3))
         # @show size(x_weight)
         x_bias = x[2]
-        # lb, ub = Compute_bound(batch_data_min,batch_data_max)(x)
+        # @show size(x_bias)
         zero_bias = zeros(size(weight)[3])  #bias need to be zero
         backward = ConvTranspose(weight, zero_bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
         x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
         spec_dim = size(x_weight)[2]
         b_size = size(x_weight)[3]
         x_weight = reshape(x_weight, (size_after_conv..., spec_dim*b_size))
-        # x_bias = reshape(x_bias, size(x_bias)[1]*size(x_bias)[2])
-        # (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size)
-        # @show size(x_weight)
-        # @show size(x_bias)
-        # @show size(x_weight, 2)
+
         batch_reach = backward(x_weight)
         # @show size(x_weight)[1], 
         output_padding1 = Int(size(batch_reach)[1]) - (Int(size(x_weight)[1]) - 1) * stride[1] + 2 * pad[1] - 1 - (Int(size(weight)[1] - 1) * dilation[1])
         output_padding2 = Int(size(batch_reach)[2]) - (Int(size(x_weight)[2]) - 1) * stride[2] + 2 * pad[2] - 1 - (Int(size(weight)[2] - 1) * dilation[2])
         if(output_padding1 != 0 || output_padding2 != 0) #determine the output size of the ConvTranspose
-            # println("check output size")
-            # @show output_padding1, output_padding2
             batch_reach = PaddedView(0, batch_reach, (size(batch_reach)[1] + output_padding1, size(batch_reach)[2] + output_padding2, size(batch_reach)[3], size(batch_reach)[4]))
         end
-        # @show size(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)))
-        # @show size(x_weight)
+
         batch_bias = sum(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)) .* bias, dims = 1) # compute the output bias
         
         batch_reach = reshape(batch_reach, (size(batch_reach)[1]*size(batch_reach)[2]*size(batch_reach)[3],spec_dim, b_size))
         batch_reach = permutedims(batch_reach,(2,1,3))
         @assert size(batch_bias)[1] == 1
         batch_bias = reshape(batch_bias, (spec_dim, b_size))
-        @show size(batch_reach), size(batch_bias)
+        # @show size(batch_reach), size(batch_bias)
         return [batch_reach, batch_bias]
     end
-    # when (W−F+2P)%S != 0, construct the output_padding
-    # println("-----")
     push!(last_A, find_w_b)
-    # println("=====")
     return last_A
 end

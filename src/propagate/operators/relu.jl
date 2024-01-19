@@ -693,7 +693,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
         push!(upper_A, Beta_Upper_Layer)
     end
     push!(batch_info[:Beta_Lower_Layer_node], node)
-    New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
+    New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 
     # println("lower_A: ", lower_A)
     # println("after lower_A: ")

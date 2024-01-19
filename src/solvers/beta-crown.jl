@@ -87,7 +87,7 @@ end
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
 """
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info, sub=false)
-    println("start prepare method")
+    # println("start prepare method")
     out_specs = get_linear_spec(batch_output)
     
     if prop_method.use_gpu
@@ -117,7 +117,7 @@ end
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
 """
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info, sub=false)
-    println("start prepare method, out_specs is already linear")
+    # println("start prepare method, out_specs is already linear")
     batch_size = length(batch_input)
 
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
@@ -131,12 +131,12 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # @show model_info.all_nodes == data
     forward_nodes = (sub ? reverse(model_info.all_nodes) : model_info.all_nodes)
     for each_node in forward_nodes
-        # @show each_node
+        batch_info[each_node][:size_before_layer] = size_after_layer
         # @show batch_info[each_node][:size_after_layer] 
         isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose}) || continue
         size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
         batch_info[each_node][:size_after_layer] = size_after_layer
-        # @show size_after_layer
+        # @show each_node, batch_info[each_node][:size_before_layer], batch_info[each_node][:size_after_layer]
     end
     # @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
@@ -146,14 +146,14 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # println("batch_inheritance: ", batch_inheritance)
 
     if prop_method.inherit_pre_bound && !isnothing(batch_inheritance) # pre_bound can be inherited from the parent branch 
-        println("inheritating pre bound ...")
+        # println("inheritating pre bound ...")
         for node in model_info.activation_nodes
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batch_inheritance[node][:pre_lower]
             batch_info[node][:pre_upper] = batch_inheritance[node][:pre_upper]
         end
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
-        println("---computing pre bound ---")
+        # println("---computing pre bound ---")
         # need forward BFS to compute pre_bound of all, 
         pre_bounds = Dict()
         # input_lower = batch_info[model_info.final_nodes[1]][:bound].batch_data_min
@@ -204,7 +204,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             end
             # @show size(I_spec.A)
             sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [pre_bounds], sub_model_info, true)
-            println("keys: ", keys(sub_batch_info))
+            # println("keys: ", keys(sub_batch_info))
             # if haskey(sub_batch_info, "dense_0_relu")
             #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
             # end
@@ -221,7 +221,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
 
         end
-        println("=== Done computing pre bound ===")
+        # println("=== Done computing pre bound ===")
     elseif !isnothing(prop_method.pre_bound_method)
         # println("---computing pre bound ---")
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, [nothing], model_info)
@@ -449,7 +449,7 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
         @timeit to "forward" begin
             x = input
             for layer in model
-                # println(string(nameof(typeof(layer))))
+                # println("string(nameof(typeof(layer)))", string(nameof(typeof(layer))))
                 @timeit to string(nameof(typeof(layer))) x = layer(x)
                 # x = layer(x)
             end
@@ -485,7 +485,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
-    println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
+    # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
@@ -504,11 +504,12 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
 
     # loss_func = prop_method.bound_lower ?  x -> -maximum(x[1]) : x -> maximum(x[2]) # maximum leads to error in flux
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
+    
     loss_func = prop_method.bound_lower ?  x -> -sum(x[1].^2) : x -> sum(x[2].^2) # surrogate loss to minimize the max spec
 
     # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     # @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
-
+    # @show size(batch_info[:spec_A_b][1])
     if length(Flux.params(bound_lower_model)) > 0
         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
@@ -516,7 +517,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
 
-
+    # @show "here"
     # result = bound_lower_model(batch_info[:init_A_b] |> gpu) 
     # loss = loss_func(result)
     # println("result: ", result)
@@ -662,6 +663,10 @@ function check_inclusion(prop_method::BetaCrown, model, batch_input::AbstractArr
     batch_size = length(batch_input)
     #center = (bound.batch_data_min[1:end,:] + bound.batch_data_max[1:end,:])./2 # out_dim x batch_size
     center = (bound.batch_data_min .+ bound.batch_data_max) ./ 2 # out_dim x batch_size
+    if typeof(batch_input[1].domain) == ImageConvexHull
+        img_size = ModelVerification.get_size(batch_input[1].domain)
+        center = reshape(center, (img_size..., size(center)[2]))
+    end
     model = prop_method.use_gpu ? fmap(cu, model) : model
     out_center = model(center)
     
