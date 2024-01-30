@@ -229,7 +229,15 @@ function convert_CROWN_Bound_batch(img_bound::CrownBound)
 end
 
 function center(bound::CrownBound)
+    @show size(bound.batch_Low)
+    @show size(bound.batch_data_min)
     l, u = compute_bound(bound)
-    img_center = reshape((l+u)/2, (bound.img_size..., size(l)[2]))
-    return img_center
+    @show size(l)
+    @show size(u)
+    if isnothing(bound.img_size)
+        return (l+u)./2
+    else
+        img_center = reshape((l+u)./2, (bound.img_size..., size(l)[2]))
+        return img_center
+    end
 end

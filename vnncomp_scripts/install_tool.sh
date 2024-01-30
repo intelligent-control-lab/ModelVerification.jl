@@ -12,8 +12,29 @@ sudo apt-get install build-essential -y
 sudo apt-get install git -y
 sudo apt-get install python3 -y
 sudo apt-get install python3-pip -y
-sudo apt-get install psmisc
+sudo apt-get install psmisc -y
+sudo apt-get install aria2 -y
 source ~/.bashrc
+
+# # Install NVIDIA driver
+
+sudo apt-get upgrade -y linux-aws
+cat << EOF | sudo tee --append /etc/modprobe.d/blacklist.conf
+blacklist vga16fb
+blacklist nouveau
+blacklist rivafb
+blacklist nvidiafb
+blacklist rivatv
+EOF
+GRUB_CMDLINE_LINUX="rdblacklist=nouveau"
+sudo update-grub
+sudo apt  install awscli 
+aws s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+chmod +x NVIDIA-Linux-x86_64*.run
+sudo /bin/sh ./NVIDIA-Linux-x86_64*.run
+nvidia-smi -q | head
+sudo reboot
+
 
 git clone git@github.com:intelligent-control-lab/ModelVerification.jl.git
 
@@ -33,6 +54,9 @@ Pkg.add("LazySets")
 Pkg.add("PyCall")
 Pkg.add("CSV")
 Pkg.add("DataFrames")
+Pkg.add("CUDA")
+using CUDA
+CUDA.set_runtime_version!(v"12.2")
 ' | julia
 
 script_name=$0

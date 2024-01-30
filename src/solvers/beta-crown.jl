@@ -13,8 +13,14 @@ mutable struct BetaCrown <: BatchBackwardProp
     inherit_pre_bound::Bool
 end
 BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
-BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true) =
+BetaCrown(nothing; use_gpu=false) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
+function BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true)
+    if :use_gpu in fieldnames(typeof(pre_bound_method))
+        pre_bound_method.use_gpu = use_gpu
+    end
     BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
+end
+
 
 """
     BetaCrownBound <: Bound
@@ -27,6 +33,37 @@ struct BetaCrownBound <: Bound
     batch_data_min
     batch_data_max
 end
+
+function compute_bound(bound::BetaCrownBound)
+    compute_bound = Compute_bound(bound.batch_data_min, bound.batch_data_max)
+    bound_lower_model = Chain(push!(bound.lower_A_x, compute_bound)) 
+    bound_upper_model = Chain(push!(bound.upper_A_x, compute_bound)) 
+    use_gpu = any(param -> param isa CuArray, Flux.params(bound.upper_A_x))
+    bound_lower_model = use_gpu ? bound_lower_model |> gpu : bound_lower_model
+    bound_upper_model = use_gpu ? bound_upper_model |> gpu : bound_upper_model
+    
+    @show batch_size
+    @show n
+    @show size(bound.batch_data_min)
+    @show size(bound.lower_A_x[1])
+
+    batch_size = size(bound.batch_data_min)[end]
+    n = size(bound.lower_A_x[1])[end-1]
+
+    bound_A_b = init_A_b(n, batch_size)
+
+    if length(Flux.params(bound_lower_model)) > 0
+        loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min
+        @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
+    end
+    if length(Flux.params(bound_upper_model)) > 0
+        loss_func = x -> sum(x[2].^2) # surrogate loss to minimize the max
+        @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
+    end
+    lower_l, lower_u = bound_lower_model(bound_A_b)
+    upper_l, upper_u = bound_upper_model(bound_A_b)
+    return lower_l, upper_u
+end 
 
 """
     Compute_bound
@@ -81,6 +118,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
     return prepare_method(prop_method, batch_input, out_specs, batch_inheritance, model_info)
 end
 
+# merge a list of inheritance info into a batch
 function batchify_inheritance(prop_method::BetaCrown, inheritance_list::AbstractVector, model_info)
     eltype(inheritance_list) == Nothing && return nothing
     batch_inheritance = Dict()
@@ -143,11 +181,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             # end
             # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
             sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
-            # println("1 sub_batch_bound:", typeof(sub_batch_bound.lower_A_x))
-            # println("sub_batch_bound.lower_A_x: ", sub_batch_bound.lower_A_x)
-            # println("sub_batch_bound.upper_A_x: ", sub_batch_bound.upper_A_x)
             sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
-            # println("2 sub_batch_bound:", typeof(sub_batch_bound))
             l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
 
             batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
@@ -433,15 +467,16 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
 
     # loss_func = prop_method.bound_lower ?  x -> -maximum(x[1]) : x -> maximum(x[2]) # maximum leads to error in flux
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
-    loss_func = prop_method.bound_lower ?  x -> -sum(x[1].^2) : x -> sum(x[2].^2) # surrogate loss to minimize the max spec
-
+    
     # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     # @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
 
     if length(Flux.params(bound_lower_model)) > 0
+        loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min spec
         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
     if length(Flux.params(bound_upper_model)) > 0
+        loss_func = x -> sum(x[2].^2) # surrogate loss to minimize the max spec
         @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
 

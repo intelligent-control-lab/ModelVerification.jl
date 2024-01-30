@@ -225,3 +225,64 @@ function purify_model(model_info::Model)
     model_info = remove_start_flatten(model_info)
 end
  
+
+function compute_output(model_info, batch_input::AbstractArray)
+
+    batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
+    batch_info[model_info.start_nodes[1]][:out] = batch_input
+    # return compute_output(model_info, batch_info)
+# end
+
+# function compute_output(model_info, batch_info::Dict)
+    queue = Queue{Any}()
+    enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
+    
+    out_cnt = Dict(node => 0 for node in model_info.all_nodes)
+    visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
+    i = 0
+
+    SNRs = []
+    out_and_bounds = Dict()
+
+    while !isempty(queue)
+        i += 1
+        node = dequeue!(queue)
+        batch_info[:current_node] = node
+        for output_node in model_info.node_nexts[node]
+            visit_cnt[output_node] += 1
+            if visit_cnt[output_node] == length(model_info.node_prevs[output_node])
+                enqueue!(queue, output_node)
+            end
+        end
+
+        if length(model_info.node_nexts[node]) == 2
+            batch_out = compute_out_skip(model_info, batch_info, node)
+        else
+            batch_out = compute_out_layer(model_info, batch_info, node)
+        end
+        
+        batch_info[node][:out] = batch_out
+    end
+    
+    return batch_info
+end
+
+function compute_out_skip(model_info, batch_info, node)
+    input_node1 = model_info.node_prevs[node][1]
+    input_node2 = model_info.node_prevs[node][2]
+    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
+    batch_out2 = haskey(batch_info[input_node2], :out) ? batch_info[input_node2][:out] : center(batch_info[input_node2][:bound][1])
+    return model_info.node_layer[node](batch_out1 |> cpu, batch_out2 |> cpu)
+end
+
+function compute_out_layer(model_info, batch_info, node)
+    input_node1 = model_info.node_prevs[node][1]
+    # @show typeof(batch_info[input_node1][:bound]) <: Vector
+    batch_out1 = batch_info[input_node1][:out]
+    # batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
+    # @show size(batch_out1)
+    # @show model_info.node_layer[node]
+    # @show typeof(batch_out1)
+    # @show typeof(Flux.params(model_info.node_layer[node]))
+    return model_info.node_layer[node](batch_out1 |> cpu)
+end
