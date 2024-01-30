@@ -29,6 +29,9 @@ function compute_all_bound(prop_method::ForwardProp, batch_input, model_info, ou
         end
         all_bounds[node][:l] = l
         all_bounds[node][:u] = u
+        @show node
+        @show l
+        @show u
     end
     return all_bounds
 end
@@ -60,6 +63,9 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
         sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
         sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
         l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
+        @show node
+        @show l
+        @show u
         all_bounds[node][:l] = l
         all_bounds[node][:u] = u
         for next_node in model_info.node_nexts[node]
@@ -68,6 +74,7 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
                 all_bounds[next_node][:pre_upper] = u
             end
         end
+        # @show all_bounds
         # @show all_bounds
     end
     return all_bounds

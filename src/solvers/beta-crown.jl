@@ -14,9 +14,9 @@ mutable struct BetaCrown <: BatchBackwardProp
 end
 BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
 BetaCrown(nothing; use_gpu=false) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
-function BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=BetaCrown(nothing), bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true)
-    if :use_gpu in fieldnames(typeof(pre_bound_method))
-        pre_bound_method.use_gpu = use_gpu
+function BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=:BetaCrown, bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true)
+    if pre_bound_method == :BetaCrown
+        pre_bound_method = BetaCrown(use_alpha, use_beta, use_gpu, nothing, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
     end
     BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
 end
@@ -42,10 +42,10 @@ function compute_bound(bound::BetaCrownBound)
     bound_lower_model = use_gpu ? bound_lower_model |> gpu : bound_lower_model
     bound_upper_model = use_gpu ? bound_upper_model |> gpu : bound_upper_model
     
-    @show batch_size
-    @show n
-    @show size(bound.batch_data_min)
-    @show size(bound.lower_A_x[1])
+    # @show batch_size
+    # @show n
+    # @show size(bound.batch_data_min)
+    # @show size(bound.lower_A_x[1])
 
     batch_size = size(bound.batch_data_min)[end]
     n = size(bound.lower_A_x[1])[end-1]
@@ -215,6 +215,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     for node in model_info.activation_nodes
         batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
+        @show node,  batch_info[node][:alpha_lower], batch_info[node][:alpha_upper]
     end
     n = size(out_specs.A, 2)
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
@@ -455,6 +456,13 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
     bound_upper_model = prop_method.use_gpu ? bound_upper_model |> gpu : bound_upper_model
     # loss_func = prop_method.bound_lower ?  x -> - sum(x[1]) : x -> sum(x[2])
+
+    # @show batch_bound.lower_A_x
+    # @show batch_bound.lower_A_x
+    @show prop_method.use_alpha
+    @show prop_method.use_beta
+    train_params = Flux.params(bound_lower_model)
+    @show train_params
 
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension. therefore minimize maximum(spec_A x - b)
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)

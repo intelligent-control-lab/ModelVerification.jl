@@ -269,7 +269,6 @@ function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info
     bA = permutedims(cat([con.a for con in constraints_list(bound.P)]..., dims=2)) # n_con x n_alpha
     bb = vcat([con.b for con in constraints_list(bound.P)]...) # n_con
     
-    
     inactive_mask = u .<= 0
 
     cen[inactive_mask] .= 0
@@ -437,8 +436,8 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_b
         output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
     end
 
-    # output_Low[unstable_mask_ext] .*= broad_slope[:]
-    output_Low[unstable_mask_ext] .= 0
+    output_Low[unstable_mask_ext] .*= broad_slope[:]
+    # output_Low[unstable_mask_ext] .= 0
 
     @assert !any(isnan, output_Low) "relu low contains NaN"
     @assert !any(isnan, output_Up) "relu up contains NaN"
@@ -472,8 +471,21 @@ mutable struct BetaLayer
     upper_slope
     lower_bias
     upper_bias
+    use_alpha::Bool
+    use_beta::Bool
 end
 Flux.@functor BetaLayer (alpha, beta,) #only alpha/beta need to be trained
+
+Flux.trainable(bl::BetaLayer) = begin
+    params = NamedTuple()
+    if bl.use_alpha
+        params = merge(params, (; alpha = bl.alpha))
+    end
+    if bl.use_beta
+        params = merge(params, (; beta = bl.beta))
+    end
+    params
+end
 
 """
     relu_upper_bound(lower, upper)
@@ -681,14 +693,14 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
 
     if prop_method.bound_lower
         batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        Beta_Lower_Layer = BetaLayer(node, alpha_lower, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
+        Beta_Lower_Layer = BetaLayer(node, alpha_lower, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta)
         # println("Beta_Lower_Layer.beta_lower: ", Beta_Lower_Layer.beta)
         push!(lower_A, Beta_Lower_Layer)
     end
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        Beta_Upper_Layer = BetaLayer(node, alpha_upper, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
+        Beta_Upper_Layer = BetaLayer(node, alpha_upper, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta)
         # println("Beta_Upper_Layer.beta_lower: ", Beta_Upper_Layer.beta)
         push!(upper_A, Beta_Upper_Layer)
     end
