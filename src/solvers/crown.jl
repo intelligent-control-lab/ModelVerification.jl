@@ -1,3 +1,5 @@
+@enum CrownBoundHeuristics zero_slope parallel_slope adaptive_slope
+
 """
     Crown <: BatchForwardProp 
 """
@@ -5,7 +7,9 @@ struct Crown <: BatchForwardProp
     use_gpu
     bound_lower::Bool
     bound_upper::Bool
+    bound_heuristics::CrownBoundHeuristics
 end
+Crown(;use_gpu=true, bound_lower=true, bound_upper=true, bound_heuristics=zero_slope) = Crown(use_gpu, bound_lower, bound_upper, bound_heuristics)
 
 """
     CrownBound <: Bound

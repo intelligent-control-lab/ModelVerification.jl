@@ -35,6 +35,7 @@ struct BetaCrownBound <: Bound
 end
 
 function compute_bound(bound::BetaCrownBound)
+    @assert false
     compute_bound = Compute_bound(bound.batch_data_min, bound.batch_data_max)
     bound_lower_model = Chain(push!(bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(bound.upper_A_x, compute_bound)) 
@@ -215,7 +216,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     for node in model_info.activation_nodes
         batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
-        @show node,  batch_info[node][:alpha_lower], batch_info[node][:alpha_upper]
+        # @show node,  batch_info[node][:lower_bound_alpha], batch_info[node][:upper_bound_alpha]
     end
     n = size(out_specs.A, 2)
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
@@ -295,8 +296,8 @@ function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(l, u) #upper slope and upper bias
     # lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    lower_slope = copy(upper_slope) #lower slope
-    #lower_slope = zeros(size(upper_slope))
+    # lower_slope = copy(upper_slope) #lower slope
+    lower_slope = zeros(size(upper_slope))
     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
     #total_neuron_size = length(l) ÷ batch_size #number of the neuron of the pre_layer of relu
 
@@ -304,12 +305,14 @@ function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
     @assert ndims(l) == 2 || ndims(l) == 4 "pre_layer of relu should be dense or conv"
     #if(ndims(l) == 2) #pre_layer of relu is dense 
     #end
-    #alpha_lower is for lower bound, alpha_upper is for upper bound
-    alpha_lower = lower_slope .* unstable_mask
-    alpha_upper = upper_slope .* unstable_mask
-    batch_info[node][:alpha_lower] = alpha_lower #reach_dim x batch
-    batch_info[node][:alpha_upper] = alpha_upper #reach_dim x batch
-
+    #lower_bound_alpha is for lower bound, upper_bound_alpha is for upper bound
+    lower_bound_alpha = lower_slope .* unstable_mask
+    upper_bound_alpha = lower_slope .* unstable_mask
+    batch_info[node][:lower_bound_alpha] = lower_bound_alpha #reach_dim x batch
+    batch_info[node][:upper_bound_alpha] = upper_bound_alpha #reach_dim x batch
+    # @show node
+    # @show lower_bound_alpha
+    # @show upper_bound_alpha
     return batch_info
 end   
 
@@ -459,10 +462,10 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
 
     # @show batch_bound.lower_A_x
     # @show batch_bound.lower_A_x
-    @show prop_method.use_alpha
-    @show prop_method.use_beta
-    train_params = Flux.params(bound_lower_model)
-    @show train_params
+    # @show prop_method.use_alpha
+    # @show prop_method.use_beta
+    # train_params = Flux.params(bound_lower_model)
+    # @show train_params
 
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension. therefore minimize maximum(spec_A x - b)
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)
@@ -478,7 +481,14 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     
     # @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     # @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
-
+    
+    x = batch_info[:spec_A_b]
+    # @show x
+    # for l in bound_upper_model
+    #     x = l(x)
+    #     @show l
+    #     @show x
+    # end
     if length(Flux.params(bound_lower_model)) > 0
         loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min spec
         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
@@ -513,7 +523,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     for (index, params) in enumerate(Flux.params(bound_lower_model))
         relu_node = batch_info[:Beta_Lower_Layer_node][ceil(Int, index / 2)]
         if index % 2 == 1
-            batch_info[relu_node][:alpha_lower] = params
+            batch_info[relu_node][:lower_bound_alpha] = params
         else
             batch_info[relu_node][:beta_lower] = params
         end
@@ -521,7 +531,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     for (index, params) in enumerate(Flux.params(bound_upper_model))
         relu_node = batch_info[:Beta_Lower_Layer_node][ceil(Int, index / 2)]
         if index % 2 == 1
-            batch_info[relu_node][:alpha_upper] = params
+            batch_info[relu_node][:upper_bound_alpha] = params
         else
             batch_info[relu_node][:beta_upper] = params
         end
@@ -561,7 +571,6 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         # println(upper_spec_u)
     # end
 
-    
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension.
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension.
     
