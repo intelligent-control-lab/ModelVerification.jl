@@ -204,7 +204,7 @@ function process_bound(prop_method::AlphaCrown, batch_bound::AlphaCrownBound, ba
     
     for (index, params) in enumerate(Flux.params(bound_model))
         relu_node = batch_info[:Alpha_Lower_Layer_node][index]
-        batch_info[relu_node][prop_method.bound_lower ? :alpha_lower : :alpha_upper] = params
+        batch_info[relu_node][prop_method.bound_lower ? :alpha_lower : :upper_bound_alpha] = params
         #println(relu_node)
         #println(params)
     end
@@ -340,7 +340,7 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
     #end
 
     alpha_lower = batch_info[node][:alpha_lower]
-    alpha_upper = batch_info[node][:alpha_upper]
+    upper_bound_alpha = batch_info[node][:upper_bound_alpha]
     upper_slope, upper_bias = relu_upper_bound(lower, upper) #upper_slope:upper of slope  upper_bias:Upper of bias
     lower_bias = prop_method.use_gpu ? fmap(cu, zeros(size(upper_bias))) : zeros(size(upper_bias))
     active_mask = (lower .>= 0)
@@ -362,8 +362,8 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
 
     if prop_method.bound_upper
         batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        Alpha_Upper_Layer = AlphaLayer(node, alpha_upper, false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
-        push!(upper_A, Alpha_Upper_Layer)
+        upper_bound_alpha_Layer = AlphaLayer(node, upper_bound_alpha, false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias)
+        push!(upper_A, upper_bound_alpha_Layer)
     end
     push!(batch_info[:Alpha_Lower_Layer_node], node)
     New_bound = AlphaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)

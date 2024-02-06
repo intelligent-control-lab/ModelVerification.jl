@@ -1,3 +1,4 @@
+__precompile__()
 module ModelVerification
 
 using JuMP
@@ -147,7 +148,8 @@ include("attack/pgd.jl")
 export Ai2, Ai2h, Ai2z, Box, ExactReach
 export StarSet
 export ImageStar, ImageZono
-export Crown, AlphaCrown, BetaCrown
+export Crown, BetaCrown
+export CrownBoundHeuristics
 export ODETaylor
 
 const tol = sqrt(eps())

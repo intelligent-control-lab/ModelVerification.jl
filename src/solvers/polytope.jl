@@ -51,6 +51,23 @@ const Ai2z = Ai2{Zonotope}
 const Ai2s = Ai2{Star}
 const Box = Ai2{Hyperrectangle}  
 
+
+"""
+    compute_bound(bound::Hyperrectangle)
+
+Computes the lower- and upper-bounds of a Hyperrectangle. 
+This function is used when propagating through the layers of the model.
+Radius is the sum of the absolute value of the generators of the given Hyperrectangle.
+
+## Arguments
+- `bound` (`Hyperrectangle`) : Hyperrectangle of which the bounds need to be computed
+
+## Returns
+- Lower- and upper-bounds of the Hyperrectangle.
+"""
+function compute_bound(bound::Hyperrectangle)
+    return low(bound), high(bound)
+end
 """
     StarSet
 
@@ -237,10 +254,14 @@ function check_inclusion(prop_method::ForwardProp, model, input::LazySet,
                          reach::LazySet, output::Complement)
     x = LazySets.center(input)
     unsafe_output = Complement(output)
+    
+    # isdisjoint(reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+
     box_reach = box_approximation(reach)
     isdisjoint(box_reach, unsafe_output) && return ReachabilityResult(:holds, [reach])
+
     ∈(model(x), unsafe_output) && return CounterExampleResult(:violated, x)
     return CounterExampleResult(:unknown)
     # to = get_timer("Shared")
-    # @timeit to "attack" return attack(model, input, output; restart=1)
+    # @timeit to "attack" return attack(model, input, output; restart=100)
 end

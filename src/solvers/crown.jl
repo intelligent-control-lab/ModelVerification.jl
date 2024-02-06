@@ -1,3 +1,5 @@
+@enum CrownBoundHeuristics zero_slope parallel_slope adaptive_slope
+
 """
     Crown <: BatchForwardProp 
 """
@@ -5,7 +7,9 @@ struct Crown <: BatchForwardProp
     use_gpu
     bound_lower::Bool
     bound_upper::Bool
+    bound_heuristics::CrownBoundHeuristics
 end
+Crown(;use_gpu=true, bound_lower=true, bound_upper=true, bound_heuristics=zero_slope) = Crown(use_gpu, bound_lower, bound_upper, bound_heuristics)
 
 """
     CrownBound <: Bound
@@ -232,7 +236,15 @@ function convert_CROWN_Bound_batch(img_bound::CrownBound)
 end
 
 function center(bound::CrownBound)
+    @show size(bound.batch_Low)
+    @show size(bound.batch_data_min)
     l, u = compute_bound(bound)
-    img_center = reshape((l+u)/2, (bound.img_size..., size(l)[2]))
-    return img_center
+    @show size(l)
+    @show size(u)
+    if isnothing(bound.img_size)
+        return (l+u)./2
+    else
+        img_center = reshape((l+u)./2, (bound.img_size..., size(l)[2]))
+        return img_center
+    end
 end

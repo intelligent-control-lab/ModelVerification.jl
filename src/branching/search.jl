@@ -125,7 +125,11 @@ function unpack_batch_branch(batch_branch)
     return batch_input, batch_output, batch_inheritance
 end
 
-function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; collect_bound=false, pre_split=nothing, verbose=false)
+function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; 
+                        collect_bound=false, 
+                        pre_split=nothing, 
+                        verbose=false,
+                        time_out=nothing)
     to = get_timer("Shared")
     branches = [Branch(problem.input, problem.output, nothing)]
     if !isnothing(pre_split)
@@ -136,6 +140,9 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
     @timeit to "test" current_time = 0
     verified_bound = []
     for iter in 1:search_method.max_iter # BFS with max iteration
+        if !isnothing(time_out) && (TimerOutputs.tottime(to) / 1e9 > time_out)  # nano seconds to seconds
+            break
+        end
         verbose && println("iter: ", iter, "   remaining branches: ", length(branches))
         length(branches) == 0 && break
         branch = popfirst!(branches)
