@@ -436,10 +436,10 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_b
     else
         output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
     end
-    @show size(output_Low)
-    @show size(output_Low[unstable_mask_ext])
-    @show size(broad_slope[:])
-    @show size(broad_slope)
+    # @show size(output_Low)
+    # @show size(output_Low[unstable_mask_ext])
+    # @show size(broad_slope[:])
+    # @show size(broad_slope)
 
     if prop_method.bound_heuristics == zero_slope
         output_Low[unstable_mask_ext] .= 0

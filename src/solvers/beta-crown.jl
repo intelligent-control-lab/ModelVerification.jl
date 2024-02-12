@@ -172,7 +172,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     for each_node in forward_nodes
         batch_info[each_node][:size_before_layer] = size_after_layer
         # @show batch_info[each_node][:size_after_layer] 
-        isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose}) || continue
+        isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose, typeof(relu)}) || continue
         size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
         batch_info[each_node][:size_after_layer] = size_after_layer
         # @show each_node, batch_info[each_node][:size_before_layer], batch_info[each_node][:size_after_layer]
@@ -223,15 +223,15 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             
             sub_model_info = get_sub_model(model_info, prev_node)
             # @show sub_model_info.all_nodes
-            if length(size(model_info.node_layer[prev_node].weight)) == 4
+            if length(batch_info[prev_node][:size_after_layer]) == 4
                 n_out = batch_info[prev_node][:size_after_layer][1:3]
                 # @show n_out
                 n_out = n_out[1]*n_out[2]*n_out[3]
                 
             else
                 # dense weight, TODO: merge this else into if
-                @assert length(size(model_info.node_layer[prev_node].weight)) == 2
-                @assert batch_info[prev_node][:size_after_layer][1] == size(model_info.node_layer[prev_node].weight)[1]
+                @assert length(batch_info[prev_node][:size_after_layer]) == 2
+                # @assert batch_info[prev_node][:size_after_layer][1] == size(model_info.node_layer[prev_node].weight)[1]
                 n_out = batch_info[prev_node][:size_after_layer][1]
             end
             # @show n_out
