@@ -436,10 +436,10 @@ function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_b
     else
         output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
     end
-    @show size(output_Low)
-    @show size(output_Low[unstable_mask_ext])
-    @show size(broad_slope[:])
-    @show size(broad_slope)
+    # @show size(output_Low)
+    # @show size(output_Low[unstable_mask_ext])
+    # @show size(broad_slope[:])
+    # @show size(broad_slope)
 
     if prop_method.bound_heuristics == zero_slope
         output_Low[unstable_mask_ext] .= 0
@@ -711,7 +711,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
         push!(upper_A, Beta_Upper_Layer)
     end
     push!(batch_info[:Beta_Lower_Layer_node], node)
-    New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max)
+    New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 
     # println("lower_A: ", lower_A)
     # println("after lower_A: ")

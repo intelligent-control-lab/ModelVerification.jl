@@ -2,7 +2,7 @@ using Plots
 using JLD2
 using FileIO
 
-function compute_all_bound(prop_method::ForwardProp, batch_input, model_info, out_and_bounds)
+function compute_all_bound(prop_method::ForwardProp, batch_input,batch_output, model_info, out_and_bounds)
 
     batch_info = init_propagation(prop_method, batch_input, nothing, model_info)
     _, all_bounds = propagate(prop_method, model_info, batch_info)
@@ -34,12 +34,31 @@ function compute_all_bound(prop_method::ForwardProp, batch_input, model_info, ou
         # @show l
         # @show u
     end
-    return all_bounds
+    return all_bounds, batch_info
 end
 
-function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVector, model_info, nominal_outputs)
+function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVector,batch_output::AbstractVector, model_info, nominal_outputs)
     
     batch_size = length(batch_input)
+    # @show keys(nominal_outputs)
+    batch_info = init_propagation(prop_method, batch_input, get_linear_spec(batch_output), model_info)
+    # @show reverse(model_info.all_nodes)
+    # @show batch_info
+    if !isnothing(batch_info[model_info.final_nodes[1]][:bound].img_size)
+        size_after_layer = (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size)
+    else
+        size_after_layer = (size(batch_info[model_info.final_nodes[1]][:bound].batch_data_min)[1], batch_size)
+    end
+    # @show model_info.all_nodes == data
+    forward_nodes = model_info.all_nodes
+    for each_node in forward_nodes
+        batch_info[each_node][:size_before_layer] = size_after_layer
+        # @show batch_info[each_node][:size_after_layer] 
+        isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose, typeof(relu)}) || continue
+        size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
+        batch_info[each_node][:size_after_layer] = size_after_layer
+        # @show each_node, batch_info[each_node][:size_before_layer], batch_info[each_node][:size_after_layer]
+    end
     
     all_bounds = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
 
@@ -47,22 +66,62 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
         if node in model_info.start_nodes
             continue
         end
-        
+        # @assert length(model_info.node_prevs[node]) == 1
+        # prev_node = model_info.node_prevs[node][1]
         # @show node
 
         sub_model_info = get_sub_model(model_info, node)
 
         # need to revise the following for image inputs with Convolution layers
-        n_out = size(nominal_outputs[node][:out])[1]
-        I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
-        if prop_method.use_gpu
-            I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+        if isa(prop_method.pre_bound_method,BackwardProp)
+            # @show model_info.node_layer[node]
+            # @show keys(batch_info), keys(batch_info[node])
+            # @show batch_info[node][:size_after_layer]
+            
+            # if isa(model_info.node_layer[node],Union{typeof(relu), MeanPool})
+            #     n_out = batch_info[node][:size_after_layer]
+            if length(batch_info[node][:size_after_layer]) == 4
+                n_out = batch_info[node][:size_after_layer][1:3]
+                # @show n_out
+                n_out = n_out[1]*n_out[2]*n_out[3]
+                
+            else
+                # dense weight, TODO: merge this else into if
+                @assert length(batch_info[node][:size_after_layer]) == 2
+                # @assert batch_info[node][:size_after_layer][1] == size(model_info.node_layer[node].weight)[1]
+                n_out = batch_info[node][:size_after_layer][1]
+            end
+            I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+            # @show size(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size))
+            # @show size(zeros(n_out, batch_size))
+            if prop_method.use_gpu
+                I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+            end
+            # @show size(I_spec.A)
+            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [all_bounds], sub_model_info, true)
+            # println("keys: ", keys(sub_batch_info))
+            # if haskey(sub_batch_info, "dense_0_relu")
+            #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
+            # end
+            # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
+            sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
+            sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+            l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
+
+        else
+            # pre_bound_method is ForwardProp
+            n_out = size(nominal_outputs[node][:out])[1]
+            I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+            if prop_method.use_gpu
+                I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+            end
+            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [all_bounds], sub_model_info)
+            sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
+            sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+            l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
         end
         
-        sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [all_bounds], sub_model_info)
-        sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
-        sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
-        l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
+        
         # @show node
         # @show l
         # @show u
@@ -74,13 +133,13 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
                 all_bounds[next_node][:pre_upper] = u
             end
         end
-        # @show all_bounds
+        # @show keys(all_bounds[node])
         # @show all_bounds
     end
-    return all_bounds
+    return all_bounds, batch_info
 end
 
-function plot_bounds(all_bounds, model_info, save_path; vis_center=true, save_bound=false, plot_mode=:cr)
+function plot_bounds(all_bounds, model_info,batch_info, save_path; vis_center=true, save_bound=false, plot_mode=:cr)
 
     if !isnothing(save_path)
         dir = dirname(save_path)
@@ -100,6 +159,9 @@ function plot_bounds(all_bounds, model_info, save_path; vis_center=true, save_bo
             # @show node
             
             l, u = all_bounds[node][:l], all_bounds[node][:u]
+            # @show size(l),batch_info[node][:size_after_layer]
+            l = reshape(l, (batch_info[node][:size_after_layer]))
+            u = reshape(u, (batch_info[node][:size_after_layer]))
 
             println("saving visualized bound: ", save_path * string(i) * "_" * node * ".png")
             # @show size(l)
@@ -156,16 +218,24 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     processed_batch_input = [processed_problem.input]
     # processed_batch_outspec = [processed_problem.output]
 
-    sample = center(problem.input)
-    original_batch_input = reshape(sample, (size(sample)..., 1))
+    sample, input_size = center(problem.input)
+
+    original_batch_input = reshape(sample, (input_size..., 1))
     nominal_outputs = compute_output(model_info, original_batch_input) # useful for infer output shapes
 
-    all_bounds = compute_all_bound(prop_method, processed_batch_input, model_info, nominal_outputs)
+    all_bounds,batch_info = compute_all_bound(prop_method, processed_batch_input, [processed_problem.output], model_info, nominal_outputs)
 
-    plot_bounds(all_bounds, model_info, save_path; vis_center=true, save_bound=false, plot_mode=plot_mode)
+    plot_bounds(all_bounds, model_info,batch_info, save_path; vis_center=true, save_bound=false, plot_mode=plot_mode)
     return all_bounds
 end
 
 function center(bound::LazySet)
-    return LazySets.center(bound)
+    return LazySets.center(bound), size(sample)
+end
+
+function center(bound::ImageConvexHull)
+    img_size = ModelVerification.get_size(bound)
+    @assert all(<=(0), bound.imgs[1]-bound.imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
+    bound = Hyperrectangle(low = reduce(vcat,bound.imgs[1]), high = reduce(vcat,bound.imgs[2]))
+    return LazySets.center(bound), img_size
 end

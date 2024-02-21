@@ -67,6 +67,9 @@ function init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_sp
     # batch_input : list of Hyperrectangle
     batch_size = length(batch_input)
     img_size = nothing
+    if typeof(batch_input[1]) == ReLUConstrainedDomain
+        batch_input = [b.domain for b in batch_input]
+    end
     if typeof(batch_input[1]) == ImageConvexHull
         # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
         img_size = ModelVerification.get_size(batch_input[1])

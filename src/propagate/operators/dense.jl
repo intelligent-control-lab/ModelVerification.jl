@@ -197,7 +197,6 @@ function dense_bound_oneside(last_A, weight, bias, batch_size)
     end
     #weight = reshape(weight, (size(weight)..., 1)) 
     #weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
-    
     if !isnothing(bias)
         #bias = reshape(bias, (size(bias)..., 1))
         #bias = repeat(bias, 1, batch_size) 
@@ -254,7 +253,7 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
         end
         # println("lA_x: ", lA_x)
         # println("uA_x: ", uA_x)
-        New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max)
+        New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
         return New_bound
     end
 end 
