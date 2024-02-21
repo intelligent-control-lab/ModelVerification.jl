@@ -154,6 +154,7 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     
     model_info, processed_problem = prepare_problem(search_method, split_method, prop_method, problem)
     processed_batch_input = [processed_problem.input]
+    # processed_batch_outspec = [processed_problem.output]
 
     sample = center(problem.input)
     original_batch_input = reshape(sample, (size(sample)..., 1))

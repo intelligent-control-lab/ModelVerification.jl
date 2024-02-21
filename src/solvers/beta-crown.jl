@@ -157,6 +157,8 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batch_inheritance[node][:pre_lower]
             batch_info[node][:pre_upper] = batch_inheritance[node][:pre_upper]
+            batch_info[node][:lower_bound_alpha] = batch_inheritance[node][:lower_bound_alpha]
+            batch_info[node][:upper_bound_alpha] = batch_inheritance[node][:upper_bound_alpha]
         end
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
         # println("---computing pre bound ---")
@@ -213,15 +215,18 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # println("model_info.activation_nodes")
     # println(model_info.activation_nodes)
     # @assert false
+
     for node in model_info.activation_nodes
         batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
         # @show node,  batch_info[node][:lower_bound_alpha], batch_info[node][:upper_bound_alpha]
     end
+    
     n = size(out_specs.A, 2)
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
     batch_info[:Beta_Lower_Layer_node] = []#store the order of the node which has AlphaBetaLayer
     return out_specs, batch_info
+
 end 
 
 """
@@ -490,11 +495,11 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     #     @show x
     # end
     if length(Flux.params(bound_lower_model)) > 0
-        loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min spec
+        loss_func = lu -> -sum(lu[1]) # surrogate loss to maximize the min spec
         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
     if length(Flux.params(bound_upper_model)) > 0
-        loss_func = x -> sum(x[2].^2) # surrogate loss to minimize the max spec
+        loss_func = lu -> sum(lu[2]) # surrogate loss to minimize the max spec
         @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
 
