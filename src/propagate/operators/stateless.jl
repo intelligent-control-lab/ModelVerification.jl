@@ -128,6 +128,7 @@ function propagate_linear_batch_symbolic(layer::MeanPool, bound::CrownBound)
     return new_bound
 end
 
+# TODO: Ad-hoc solution, needs to be replaced to improve performance.
 function propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
     @assert all(x -> x == layer.k[1], layer.k)
     @assert all(x -> x == layer.stride[1], layer.stride)
