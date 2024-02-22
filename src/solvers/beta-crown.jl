@@ -16,7 +16,8 @@ BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(
 BetaCrown(nothing; use_gpu=false) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
 function BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=:BetaCrown, bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true)
     if pre_bound_method == :BetaCrown
-        pre_bound_method = BetaCrown(use_alpha, use_beta, use_gpu, nothing, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
+        # pre_bound_method method must inherit_pre_bound, otherwise bound of previous layer will not be memorized in pre-bounding.
+        pre_bound_method = BetaCrown(use_alpha, use_beta, use_gpu, nothing, bound_lower, bound_upper, optimizer, train_iteration, true)
     end
     BetaCrown(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
 end
@@ -109,7 +110,8 @@ function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, ba
     if typeof(batch_input[1].domain) == ImageConvexHull
         # convert batch_input from list of ImageConvexHull to list of Hyperrectangle
         img_size = ModelVerification.get_size(batch_input[1].domain)
-        @assert all(<=(0), batch_input[1].domain.imgs[1]-batch_input[1].domain.imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
+        # @assert all(<=(0), batch_input[1].domain.imgs[1]-batch_input[1].domain.imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
+
         batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.domain.imgs[1]), high = reduce(vcat,img_CH.domain.imgs[2]))  for img_CH in batch_input]
         batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
         batch_data_max = prop_method.use_gpu ? fmap(cu, cat([high(h) for h in batch_input]..., dims=2)) : cat([high(h) for h in batch_input]..., dims=2)    
@@ -135,23 +137,65 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, bat
 end
 
 # merge a list of inheritance info into a batch
-function batchify_inheritance(prop_method::BetaCrown, inheritance_list::AbstractVector, model_info)
+function batchify_inheritance(inheritance_list::AbstractVector, node, key, use_gpu)
     eltype(inheritance_list) == Nothing && return nothing
-    batch_inheritance = Dict()
-    for node in model_info.activation_nodes
-        l = cat([ih[node][:pre_lower] for ih in inheritance_list]..., dims=2)
-        u = cat([ih[node][:pre_upper] for ih in inheritance_list]..., dims=2)
-        # println("size(ih[node][:pre_upper]): ", size(inheritance_list[1][node][:pre_upper]))
-        # println("size(l): ", size(l))
-        batch_inheritance[node] = Dict(
-            :pre_lower => prop_method.use_gpu ? l |> gpu : l,
-            :pre_upper => prop_method.use_gpu ? u |> gpu : u
-        )
-    end
-    # length(batch_inheritance) == 0 && return nothing
-    return batch_inheritance
+    n_dim = ndims(inheritance_list[1][node][key])
+    batch_value = cat([ih[node][key] for ih in inheritance_list]..., dims=n_dim)
+    batch_value = use_gpu ? batch_value |> gpu : batch_value
+    return batch_value
 end
 
+# This function compute the pre-activation bound for a model iteratively from the first activation layer.
+function joint_optimization(pre_bound_method, batch_input::AbstractVector, model_info, batch_info)
+    # pre_bounds = Dict()
+    batch_size = length(batch_input)
+    for node in model_info.activation_nodes
+        println("sub model node: ", node)
+        @assert length(model_info.node_prevs[node]) == 1
+        prev_node = model_info.node_prevs[node][1]
+        
+        sub_model_info = get_sub_model(model_info, prev_node)
+        # @show sub_model_info.all_nodes
+        if length(batch_info[prev_node][:size_after_layer]) == 4
+            n_out = batch_info[prev_node][:size_after_layer][1:3]
+            # @show n_out
+            n_out = n_out[1]*n_out[2]*n_out[3]
+            
+        else
+            # dense weight, TODO: merge this else into if
+            @assert length(batch_info[prev_node][:size_after_layer]) == 2
+            # @assert batch_info[prev_node][:size_after_layer][1] == size(model_info.node_layer[prev_node].weight)[1]
+            n_out = batch_info[prev_node][:size_after_layer][1]
+        end
+        # @show n_out
+        I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
+        # @show size(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size))
+        # @show size(zeros(n_out, batch_size))
+        if pre_bound_method.use_gpu
+            I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
+        end
+        # @show size(I_spec.A)
+        
+        sub_out_spec, sub_batch_info = prepare_method(pre_bound_method, batch_input, I_spec, [batch_info], sub_model_info, true)
+        # println("keys: ", keys(sub_batch_info))
+        # if haskey(sub_batch_info, "dense_0_relu")
+        #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
+        # end
+        # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
+        sub_batch_bound, sub_batch_info = propagate(pre_bound_method, sub_model_info, sub_batch_info)
+        sub_batch_bound, sub_batch_info = process_bound(pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+        l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
+
+        batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
+        batch_info = init_node_alpha(model_info.node_layer[node], node, batch_info, batch_input)
+        println("node alpha initted:", node)
+        # pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
+        # println("sub model node: ", node)
+        # @show l
+        # @show batch_info[node][:pre_lower]
+    end
+    return batch_info
+end
 """
     prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
 """
@@ -180,23 +224,31 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     # @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
 
-    batch_inheritance = batchify_inheritance(prop_method, inheritance_list, model_info)
+    # println("list_inheritance: ", inheritance_list)
 
     # println("batch_inheritance: ", batch_inheritance)
 
-    if prop_method.inherit_pre_bound && !isnothing(batch_inheritance) # pre_bound can be inherited from the parent branch 
-        # println("inheritating pre bound ...")
+    if prop_method.inherit_pre_bound && eltype(inheritance_list) != Nothing # pre_bound can be inherited from the parent branch 
+        println("inheritating pre bound ...")
         for node in model_info.activation_nodes
+            @show node
+            # @show batch_inheritance[node]
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
-            batch_info[node][:pre_lower] = batch_inheritance[node][:pre_lower]
-            batch_info[node][:pre_upper] = batch_inheritance[node][:pre_upper]
-            batch_info[node][:lower_bound_alpha] = batch_inheritance[node][:lower_bound_alpha]
-            batch_info[node][:upper_bound_alpha] = batch_inheritance[node][:upper_bound_alpha]
+            batch_info[node][:pre_lower] = batchify_inheritance(inheritance_list, node, :pre_lower, prop_method.use_gpu)
+            batch_info[node][:pre_upper] = batchify_inheritance(inheritance_list, node, :pre_upper, prop_method.use_gpu)
+            if haskey(inheritance_list[1][node], :lower_bound_alpha)
+                batch_info[node][:lower_bound_alpha] = batchify_inheritance(inheritance_list, node, :lower_bound_alpha, prop_method.use_gpu)
+            end
+            if haskey(inheritance_list[1][node], :upper_bound_alpha)
+                batch_info[node][:upper_bound_alpha] = batchify_inheritance(inheritance_list, node, :upper_bound_alpha, prop_method.use_gpu)
+            end
         end
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
-        # println("---computing pre bound ---")
+
+        println("---computing pre bound ---")
+        batch_info = joint_optimization(prop_method.pre_bound_method, batch_input, model_info, batch_info)
         # need forward BFS to compute pre_bound of all, 
-        pre_bounds = Dict()
+        
         # input_lower = batch_info[model_info.final_nodes[1]][:bound].batch_data_min
         # input_lower = reshape(input_lower, (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size))
         # @show size(lw)
@@ -218,48 +270,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         #     # @show model_info.node_layer[each_node](input_lower) |> size
         # end
         # @show length(model_info.activation_nodes)
-        for node in model_info.activation_nodes
-            # println("node: ", node)
-            @assert length(model_info.node_prevs[node]) == 1
-            prev_node = model_info.node_prevs[node][1]
-            
-            sub_model_info = get_sub_model(model_info, prev_node)
-            # @show sub_model_info.all_nodes
-            if length(batch_info[prev_node][:size_after_layer]) == 4
-                n_out = batch_info[prev_node][:size_after_layer][1:3]
-                # @show n_out
-                n_out = n_out[1]*n_out[2]*n_out[3]
-                
-            else
-                # dense weight, TODO: merge this else into if
-                @assert length(batch_info[prev_node][:size_after_layer]) == 2
-                # @assert batch_info[prev_node][:size_after_layer][1] == size(model_info.node_layer[prev_node].weight)[1]
-                n_out = batch_info[prev_node][:size_after_layer][1]
-            end
-            # @show n_out
-            I_spec = LinearSpec(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size), zeros(n_out, batch_size), false)
-            # @show size(repeat(Matrix(1.0I, n_out, n_out),1,1,batch_size))
-            # @show size(zeros(n_out, batch_size))
-            if prop_method.use_gpu
-                I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
-            end
-            # @show size(I_spec.A)
-            sub_out_spec, sub_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, I_spec, [pre_bounds], sub_model_info, true)
-            # println("keys: ", keys(sub_batch_info))
-            # if haskey(sub_batch_info, "dense_0_relu")
-            #     println("dense_0_relu low A:", sub_batch_info["dense_0_relu"])
-            # end
-            # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
-            sub_batch_bound, sub_batch_info = propagate(prop_method.pre_bound_method, sub_model_info, sub_batch_info)
-            sub_batch_bound, sub_batch_info = process_bound(prop_method.pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
-            l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
-
-            batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
-            pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
-
-        end
+        
         # println("=== Done computing pre bound ===")
-    elseif !isnothing(prop_method.pre_bound_method)
+    elseif !isnothing(prop_method.pre_bound_method) # pre-bounding with other methods
         # println("---computing pre bound ---")
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, [nothing], model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
@@ -280,15 +293,19 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         batch_info[node][:weight_ptb] = false
         batch_info[node][:bias_ptb] = false
     end
-    #initialize alpha & beta
-    # println("model_info.activation_nodes")
-    # println(model_info.activation_nodes)
-    # @assert false
-
+    
+    
+    # init alpha and beta in case they are not initialized in the pre-bounding, or not inheritated.
     for node in model_info.activation_nodes
-        batch_info = init_alpha(model_info.node_layer[node], node, batch_info, batch_input)
-        batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
-        # @show node,  batch_info[node][:lower_bound_alpha], batch_info[node][:upper_bound_alpha]
+        # only init alpha and beta that are not inheritated
+        # in the code, we inheritated alpha, but not beta.
+        # TODO: modify the inehritance when branching ReLU, then inheritate Beta in filter_and_batchify_inheritance.
+        if !haskey(batch_info[node], :lower_bound_alpha) || !haskey(batch_info[node], :lower_bound_alpha)
+            batch_info = init_node_alpha(model_info.node_layer[node], node, batch_info, batch_input)
+        end
+        if !haskey(batch_info[node], :beta_lower) || !haskey(batch_info[node], :beta_upper)
+            batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
+        end
     end
     
     n = size(out_specs.A, 2)
@@ -351,22 +368,16 @@ function update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_inpu
 end
 
 """
-    init_alpha(layer::typeof(relu), node, batch_info, batch_input)
+    init_node_alpha(layer::typeof(relu), node, batch_info, batch_input)
 """
-function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
+function init_node_alpha(layer::typeof(relu), node, batch_info, batch_input)
     
     # relu_input_lower, relu_input_upper = update_bound_by_relu_con(node, batch_input, relu_input_lower, relu_input_upper)
 
-    # println("relu_input_lower: ", relu_input_lower)
-    # println("relu_input_upper: ", relu_input_upper)
-
-    # relu_input_lower, relu_input_upper = compute_bound(batch_info[node][:pre_bound]) # reach_dim x batch 
-    # batch_info[node][:pre_lower] = relu_input_lower # reach_dim x batch 
-    # batch_info[node][:pre_upper] = relu_input_upper
-
-    #batch_size = size(relu_input_lower)[end]
     l = batch_info[node][:pre_lower]
     u = batch_info[node][:pre_upper]
+    
+    @assert ndims(l) == 2 || ndims(l) == 4 "pre_layer of relu should be dense or conv"
 
     unstable_mask = (u .> 0) .& (l .< 0) #indices of non-zero alphas/ indices of activative neurons
     alpha_indices = findall(unstable_mask) 
@@ -374,21 +385,15 @@ function init_alpha(layer::typeof(relu), node, batch_info, batch_input)
     # lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
     # lower_slope = copy(upper_slope) #lower slope
     lower_slope = zeros(size(upper_slope))
-    #minimum_sparsity = batch_info[node]["minimum_sparsity"]
-    #total_neuron_size = length(l) ÷ batch_size #number of the neuron of the pre_layer of relu
 
-    #fully alpha
-    @assert ndims(l) == 2 || ndims(l) == 4 "pre_layer of relu should be dense or conv"
-    #if(ndims(l) == 2) #pre_layer of relu is dense 
-    #end
-    #lower_bound_alpha is for lower bound, upper_bound_alpha is for upper bound
+    lower_slope = isa(l, CuArray) ? lower_slope |> gpu : lower_slope
+    
     lower_bound_alpha = lower_slope .* unstable_mask
     upper_bound_alpha = lower_slope .* unstable_mask
+
     batch_info[node][:lower_bound_alpha] = lower_bound_alpha #reach_dim x batch
     batch_info[node][:upper_bound_alpha] = upper_bound_alpha #reach_dim x batch
-    # @show node
-    # @show lower_bound_alpha
-    # @show upper_bound_alpha
+    
     return batch_info
 end   
 

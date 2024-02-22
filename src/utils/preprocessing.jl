@@ -255,7 +255,7 @@ function compute_output(model_info, batch_input::AbstractArray)
             end
         end
 
-        if length(model_info.node_nexts[node]) == 2
+        if length(model_info.node_prevs[node]) == 2
             batch_out = compute_out_skip(model_info, batch_info, node)
         else
             batch_out = compute_out_layer(model_info, batch_info, node)
@@ -277,12 +277,6 @@ end
 
 function compute_out_layer(model_info, batch_info, node)
     input_node1 = model_info.node_prevs[node][1]
-    # @show typeof(batch_info[input_node1][:bound]) <: Vector
     batch_out1 = batch_info[input_node1][:out]
-    # batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
-    # @show size(batch_out1)
-    # @show model_info.node_layer[node]
-    # @show typeof(batch_out1)
-    # @show typeof(Flux.params(model_info.node_layer[node]))
     return model_info.node_layer[node](batch_out1 |> cpu)
 end

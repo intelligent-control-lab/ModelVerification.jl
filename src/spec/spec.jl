@@ -20,6 +20,11 @@ struct ImageConvexHull <: Spec
     imgs::AbstractArray # list of images (h,w,c)
 end
 
+
+function center(bound::ImageConvexHull)
+    return sum(bound.imgs) ./ length(bound.imgs)
+end
+
 """
     ReLUConstraints
 

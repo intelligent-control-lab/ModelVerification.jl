@@ -7,6 +7,8 @@ function compute_all_bound(prop_method::ForwardProp, batch_input,batch_output, m
     batch_info = init_propagation(prop_method, batch_input, nothing, model_info)
     _, all_bounds = propagate(prop_method, model_info, batch_info)
 
+    # batch_info = get_all_layer_output_size(model_info, batch_info)
+
     for node in model_info.all_nodes
         # @show node
         # @show haskey(all_bounds[node], :bound)
@@ -37,6 +39,44 @@ function compute_all_bound(prop_method::ForwardProp, batch_input,batch_output, m
     return all_bounds, batch_info
 end
 
+function get_all_layer_output_size(model_info, batch_info, input_size)
+    # @show model_info
+    # @show batch_info
+
+    @assert length(model_info.start_nodes) == 1
+    @assert length(model_info.node_nexts[model_info.start_nodes[1]]) == 1
+    # println(batch_info)
+    batch_size = 1
+    batch_info[model_info.start_nodes[1]][:size_after_layer] = (input_size..., batch_size)
+    
+    #BFS
+    queue = Queue{Any}()                            # Make an empty queue.
+    enqueue!(queue, model_info.node_nexts[model_info.start_nodes[1]][1])
+
+    visit_cnt = Dict(node => 0 for node in model_info.all_nodes)    # Dictionary for the number of visits (cnt) for all nodes. 
+    while !isempty(queue)                           # If queue is not empty!
+        node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
+        for output_node in model_info.node_nexts[node]    # For each node connected from the current node.
+            visit_cnt[output_node] += 1             # The output node is visited one more time!
+            if length(model_info.node_prevs[output_node]) == visit_cnt[output_node]   # If all the previous nodes has been led to the `output_node`.
+                enqueue!(queue, output_node)        # Add the `output_node` to the queue.
+            end
+        end
+        if length(model_info.node_prevs[node]) == 2    # If this is  are two previous nodes connecting to the `node`
+            if isa(model_info.node_layer[node], Union{typeof(+), typeof(-)})
+                batch_info[node][:size_after_layer] = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
+            else
+                error("Size propagation not implemented for: $model_info.node_layer[node]")
+            end
+        else
+            prev_size = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
+            batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
+        end
+        @show node, batch_info[node][:size_after_layer]
+    end
+    return batch_info
+end
+
 function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVector,batch_output::AbstractVector, model_info, nominal_outputs)
     
     batch_size = length(batch_input)
@@ -44,20 +84,12 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
     batch_info = init_propagation(prop_method, batch_input, get_linear_spec(batch_output), model_info)
     # @show reverse(model_info.all_nodes)
     # @show batch_info
-    if !isnothing(batch_info[model_info.final_nodes[1]][:bound].img_size)
-        size_after_layer = (batch_info[model_info.final_nodes[1]][:bound].img_size...,batch_size)
+    
+    f_node = model_info.final_nodes[1]
+    if !isnothing(batch_info[f_node][:bound].img_size)
+        batch_info = get_all_layer_output_size(model_info, batch_info, batch_info[f_node][:bound].img_size)
     else
-        size_after_layer = (size(batch_info[model_info.final_nodes[1]][:bound].batch_data_min)[1], batch_size)
-    end
-    # @show model_info.all_nodes == data
-    forward_nodes = model_info.all_nodes
-    for each_node in forward_nodes
-        batch_info[each_node][:size_before_layer] = size_after_layer
-        # @show batch_info[each_node][:size_after_layer] 
-        isa(model_info.node_layer[each_node], Union{Flux.Conv, Flux.Dense, typeof(Flux.flatten), Flux.MeanPool, Flux.BatchNorm, Flux.ConvTranspose, typeof(relu)}) || continue
-        size_after_layer = Flux.outputsize(model_info.node_layer[each_node], size_after_layer)
-        batch_info[each_node][:size_after_layer] = size_after_layer
-        # @show each_node, batch_info[each_node][:size_before_layer], batch_info[each_node][:size_after_layer]
+        batch_info = get_all_layer_output_size(model_info, batch_info, size(batch_info[f_node][:bound].batch_data_min)[1])
     end
     
     all_bounds = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
@@ -68,7 +100,7 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
         end
         # @assert length(model_info.node_prevs[node]) == 1
         # prev_node = model_info.node_prevs[node][1]
-        # @show node
+        @show node
 
         sub_model_info = get_sub_model(model_info, node)
 
@@ -218,24 +250,13 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     processed_batch_input = [processed_problem.input]
     # processed_batch_outspec = [processed_problem.output]
 
-    sample, input_size = center(problem.input)
-
+    sample = center(problem.input)
+    input_size = size(sample)
     original_batch_input = reshape(sample, (input_size..., 1))
     nominal_outputs = compute_output(model_info, original_batch_input) # useful for infer output shapes
 
     all_bounds,batch_info = compute_all_bound(prop_method, processed_batch_input, [processed_problem.output], model_info, nominal_outputs)
 
-    plot_bounds(all_bounds, model_info,batch_info, save_path; vis_center=true, save_bound=false, plot_mode=plot_mode)
+    plot_bounds(all_bounds, model_info,batch_info, save_path; vis_center=vis_center, save_bound=save_bound, plot_mode=plot_mode)
     return all_bounds
-end
-
-function center(bound::LazySet)
-    return LazySets.center(bound), size(sample)
-end
-
-function center(bound::ImageConvexHull)
-    img_size = ModelVerification.get_size(bound)
-    @assert all(<=(0), bound.imgs[1]-bound.imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
-    bound = Hyperrectangle(low = reduce(vcat,bound.imgs[1]), high = reduce(vcat,bound.imgs[2]))
-    return LazySets.center(bound), img_size
 end

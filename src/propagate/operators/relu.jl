@@ -654,6 +654,7 @@ function (f::BetaLayer)(x)
     return [New_A, New_b]
 end
 
+
 function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #= if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
@@ -721,3 +722,22 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
 
     return New_bound
 end
+
+# function init_alpha(l, u; bound_heuristics::CrownBoundHeuristics = zero_slope)
+    
+#     unstable_mask = (u .> 0) .& (l .< 0) #indices of non-zero alphas/ indices of activative neurons
+#     alpha_indices = findall(unstable_mask) 
+#     upper_slope, upper_bias = relu_upper_bound(l, u) #upper slope and upper bias
+#     lower_slope = bound_heuristics == zero_slope ? zeros(size(upper_slope)) : copy(upper_slope)
+#     # lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) # adaptive lower slope
+    
+#     #minimum_sparsity = batch_info[node]["minimum_sparsity"]
+    
+#     #fully alpha
+#     @assert ndims(l) == 2 || ndims(l) == 4 "pre_layer of relu should be dense or conv"
+    
+#     lower_bound_alpha = lower_slope .* unstable_mask
+#     upper_bound_alpha = lower_slope .* unstable_mask
+    
+#     return lower_bound_alpha, upper_bound_alpha
+# end   
