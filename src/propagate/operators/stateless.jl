@@ -129,6 +129,26 @@ function propagate_linear_batch_symbolic(layer::MeanPool, bound::CrownBound)
 end
 
 function propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
+    @assert all(x -> x == layer.k[1], layer.k)
+    @assert all(x -> x == layer.stride[1], layer.stride)
+    @assert all(x -> x == layer.pad[1], layer.pad)
+    
+    # Create a diagonal weight matrix for channel-wise mean pooling
+    node = batch_info[:current_node]
+    size_after_layer = batch_info[node][:size_after_layer][1:3]
+    channel = size_after_layer[3]
+    
+    weights = zeros(layer.k..., channel, channel)
+    v = 1 / prod(layer.k)
+    for i in 1:channel
+        weights[:,:,i,i] .= v
+    end
+    equal_conv = Conv(weights, false, identity; stride = layer.stride[1], pad = layer.pad[1])
+
+    return propagate_linear_batch(prop_method, equal_conv, bound, batch_info)
+end
+
+function f_propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TODO: we haven't consider the perturbation in weight and bias
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))

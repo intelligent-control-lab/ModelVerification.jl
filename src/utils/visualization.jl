@@ -7,7 +7,8 @@ function compute_all_bound(prop_method::ForwardProp, batch_input,batch_output, m
     batch_info = init_propagation(prop_method, batch_input, nothing, model_info)
     _, all_bounds = propagate(prop_method, model_info, batch_info)
 
-    # batch_info = get_all_layer_output_size(model_info, batch_info)
+    @show size(center(batch_input[1]))
+    batch_info = get_all_layer_output_size(model_info, batch_info, size(center(batch_input[1]))[1:end-1])
 
     for node in model_info.all_nodes
         # @show node

@@ -610,8 +610,8 @@ function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups,
         # @show size(x_weight)
         x_bias = x[2]
         # @show size(x_bias)
-        zero_bias = zeros(size(weight)[3])  #bias need to be zero
-        backward = ConvTranspose(weight, zero_bias, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+        # zero_bias = zeros(size(weight)[3])  #bias need to be zero
+        backward = ConvTranspose(weight, false, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
         x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
         spec_dim = size(x_weight)[2]
         b_size = size(x_weight)[3]
