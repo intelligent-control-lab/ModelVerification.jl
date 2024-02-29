@@ -73,3 +73,34 @@ function propagate_skip_batch(prop_method::Crown, layer::typeof(+), bound1::Crow
     # @show size([Chain(bound1.batch_Low), Chain(bound2.batch_Low)])
     return CrownBound(bound1.batch_Low+bound2.batch_Low,bound1.batch_Up+bound2.batch_Up,  bound1.batch_data_min, bound1.batch_data_max, bound1.img_size)
 end
+
+# For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
+function propagate_linear_batch(prop_method::BetaCrown, layer::typeof(+), bound::BetaCrownBound, batch_info)
+    bound1 = copy(bound)
+    bound2 = copy(bound)
+    return bound1, bound2
+end
+
+function merge(m1::Chain, m2::Chain)
+    if length(m1) > length(m2) # make sure m1 is the shorter one
+        m1, m2 = m2, m1
+    end
+    for i in eachindex(m1)
+        if m1[i] != m2[i]
+            return [m1[1:i-1]; [Parallel(+;m1[i:end], m2[i:end])]]
+        elseif i == length(m1) # all are the same -> last node is a skip connection
+            return [m1; [SkipConnection(m2[i+1:end], +)]]
+        end
+    end
+end
+
+# For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
+function propagate_linear_batch(prop_method::BetaCrown, layer::typeof(skip), bound1::BetaCrownBound, bound2::BetaCrownBound, batch_info)
+    @assert bound1.batch_data_max == bound2.batch_data_max
+    @assert bound1.batch_data_min == bound2.batch_data_min
+    @assert bound1.img_size == bound2.img_size
+    lA_x = merge(bound1.lA_x, bound2.lA_x)
+    uA_x = merge(bound1.uA_x, bound2.uA_x)
+    bound = BetaCrownBound(lA_x, uA_x, nothing, nothing, bound1.batch_data_min, bound1.batch_data_max, bound1.img_size)
+    return bound
+end
