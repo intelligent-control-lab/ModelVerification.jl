@@ -18,7 +18,7 @@ Structure containing the information of the neural network to be verified.
 - `activation_number` (`Int`): Number of activation nodes (deprecated in the 
     future).
 """
-struct Model
+struct ModelGraph
     start_nodes::Array{String, 1}
     final_nodes::Array{String, 1}
     all_nodes::Array{String, 1}
@@ -201,7 +201,7 @@ function onnx_parse(onnx_model_path)
     # println("node_layer")
     # println(node_layer)
     # @assert false
-    model_info = Model(start_nodes, final_nodes, all_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
+    model_info = ModelGraph(start_nodes, final_nodes, all_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
     # println("model_info.start_nodes")
     # println(model_info.start_nodes)
     model_info = purify_model(model_info) # some ad-hoc treatment for vnncomp benchmarks models
@@ -209,7 +209,7 @@ function onnx_parse(onnx_model_path)
 
 end
 
-function remove_start_flatten(model_info::Model)
+function remove_start_flatten(model_info::ModelGraph)
     length(model_info.start_nodes) > 1 && return model_info
     node1 = model_info.start_nodes[1] 
     length(model_info.node_nexts[node1]) > 1 && return model_info
@@ -221,7 +221,7 @@ function remove_start_flatten(model_info::Model)
     return model_info
 end
 
-function purify_model(model_info::Model)
+function purify_model(model_info::ModelGraph)
     model_info = remove_start_flatten(model_info)
 end
  

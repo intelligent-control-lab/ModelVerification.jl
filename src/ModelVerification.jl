@@ -98,6 +98,7 @@ include("utils/network.jl")
 include("utils/problem.jl")
 include("utils/util.jl")
 include("utils/flux.jl")
+include("utils/preprocessing.jl")
 
 
 export
@@ -161,7 +162,6 @@ include("branching/search.jl")
 include("branching/split.jl")
 include("branching/util.jl")
 
-include("utils/preprocessing.jl")
 
 include("utils/adv_input_bound.jl")
 

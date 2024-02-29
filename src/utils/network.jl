@@ -80,5 +80,5 @@ function get_sub_model(model_info, end_node)
     start_nodes = filter(n -> n in sub_nodes, model_info.start_nodes)
     activation_nodes = filter(n -> n in sub_nodes, model_info.activation_nodes)
     activation_number = length(activation_nodes)
-    return Model(start_nodes, [end_node], sub_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
+    return ModelGraph(start_nodes, [end_node], sub_nodes, node_layer, node_prevs, node_nexts, activation_nodes, activation_number)
 end
