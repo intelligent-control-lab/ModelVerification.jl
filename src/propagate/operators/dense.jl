@@ -256,4 +256,27 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
         New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
         return New_bound
     end
-end 
+end
+
+function propagate_linear_batch(
+    prop_method::MIPVerify,
+    layer::Dense,
+    bound::AbstractVector,
+    batch_info::Dict,
+)::AbstractVector
+    # create optimization variable of the current node
+    node = batch_info[:current_node]
+    opt_model = batch_info[:opt_model]
+    z = @variable(opt_model, [1:batch_info[node][:size_after_layer][1]])
+    batch_info[node][:opt_vars] = Dict(:z => z)
+
+    # get optimization variable of the previous node
+    prev_nodes = batch_info[node][:prev_nodes]
+    @assert length(prev_nodes) == 1
+    z_prev = batch_info[prev_nodes[1]][:opt_vars][:z]
+
+    # add constraint of Dense layer
+    @constraint(opt_model, z .== layer.weight * z_prev + layer.bias)
+
+    return bound
+end

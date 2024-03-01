@@ -741,3 +741,44 @@ end
     
 #     return lower_bound_alpha, upper_bound_alpha
 # end   
+
+function propagate_act_batch(
+    prop_method::MIPVerify,
+    layer::typeof(relu),
+    bound::AbstractVector,
+    batch_info::Dict,
+)::AbstractVector
+    # create optimization variable of the current node
+    node = batch_info[:current_node]
+    opt_model = batch_info[:opt_model]
+    z = @variable(opt_model, [1:batch_info[node][:size_after_layer][1]])
+    δ = @variable(opt_model, [1:batch_info[node][:size_after_layer][1]], binary=true)
+    batch_info[node][:opt_vars] = Dict(:z => z, :δ => δ)
+
+    # get optimization variable of the previous node
+    prev_nodes = batch_info[node][:prev_nodes]
+    @assert length(prev_nodes) == 1
+    z_prev = batch_info[prev_nodes[1]][:opt_vars][:z]
+
+    # get pre-activation bound
+    l = batch_info[node][:pre_lower]
+    u = batch_info[node][:pre_upper]
+
+    # add constraint of relu layer
+    active = l .>= 0.0
+    inactive = u .<= 0.0
+    unstable = .~active .& .~inactive
+
+    @constraint(opt_model, z[active] .== z_prev[active])
+    @constraint(opt_model, δ[active] .== 1)
+
+    @constraint(opt_model, z[inactive] .== 0.0)
+    @constraint(opt_model, δ[inactive] .== 0)
+
+    @constraint(opt_model, z[unstable] .>= 0.0)
+    @constraint(opt_model, z[unstable] .>= z_prev[unstable])
+    @constraint(opt_model, z[unstable] .<= u[unstable] .* δ[unstable])
+    @constraint(opt_model, z[unstable] .<= z_prev[unstable] - l[unstable] .* (1 .- δ[unstable]))
+
+    return bound
+end
