@@ -2,13 +2,12 @@ using Plots
 using JLD2
 using FileIO
 
-function compute_all_bound(prop_method::ForwardProp, batch_input,batch_output, model_info, out_and_bounds)
+function compute_all_bound(prop_method::ForwardProp, batch_input, batch_output, model_info, out_and_bounds)
 
     batch_info = init_propagation(prop_method, batch_input, nothing, model_info)
     _, all_bounds = propagate(prop_method, model_info, batch_info)
 
-    @show size(center(batch_input[1]))
-    batch_info = get_all_layer_output_size(model_info, batch_info, size(center(batch_input[1]))[1:end-1])
+    batch_info = get_all_layer_output_size(model_info, batch_info, size(LazySets.center(batch_input[1])))
 
     for node in model_info.all_nodes
         # @show node
@@ -50,6 +49,8 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
     batch_size = 1
     batch_info[model_info.start_nodes[1]][:size_after_layer] = (input_size..., batch_size)
     
+    # @show model_info.start_nodes[1]
+    # @show (input_size..., batch_size)
     #BFS
     queue = Queue{Any}()                            # Make an empty queue.
     enqueue!(queue, model_info.node_nexts[model_info.start_nodes[1]][1])
@@ -71,9 +72,11 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
             end
         else
             prev_size = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
+            # @show model_info.node_prevs[node][1]
+            # @show prev_size
             batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
         end
-        @show node, batch_info[node][:size_after_layer]
+        # @show node, batch_info[node][:size_after_layer]
     end
     return batch_info
 end
@@ -95,13 +98,14 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
     
     all_bounds = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
 
+    # TODO: need to conver this to BFS
     for node in model_info.all_nodes
         if node in model_info.start_nodes
             continue
         end
         # @assert length(model_info.node_prevs[node]) == 1
         # prev_node = model_info.node_prevs[node][1]
-        @show node
+        # @show node
 
         sub_model_info = get_sub_model(model_info, node)
 
@@ -193,8 +197,8 @@ function plot_bounds(all_bounds, model_info,batch_info, save_path; vis_center=tr
             
             l, u = all_bounds[node][:l], all_bounds[node][:u]
             # @show size(l),batch_info[node][:size_after_layer]
-            l = reshape(l, (batch_info[node][:size_after_layer]))
-            u = reshape(u, (batch_info[node][:size_after_layer]))
+            l = reshape(l, (batch_info[node][:size_after_layer])) |> cpu
+            u = reshape(u, (batch_info[node][:size_after_layer])) |> cpu
 
             println("saving visualized bound: ", save_path * string(i) * "_" * node * ".png")
             # @show size(l)
@@ -251,7 +255,7 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     processed_batch_input = [processed_problem.input]
     # processed_batch_outspec = [processed_problem.output]
 
-    sample = center(problem.input)
+    sample = LazySets.center(problem.input)
     input_size = size(sample)
     original_batch_input = reshape(sample, (input_size..., 1))
     nominal_outputs = compute_output(model_info, original_batch_input) # useful for infer output shapes

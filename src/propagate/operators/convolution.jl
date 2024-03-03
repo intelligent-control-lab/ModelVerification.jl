@@ -26,7 +26,7 @@ function propagate_by_small_batch(f, x; sm_batch=500)
 end
 
 """
-    propagate_linear(prop_method::ImageZono, layer::Conv, 
+    propagate_layer(prop_method::ImageZono, layer::Conv, 
                      bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a convolution layer. I.e., it 
@@ -47,7 +47,7 @@ generators) does not. The resulting bound is also of type `ImageZonoBound`.
 ## Returns
 - The convolved bound of the output layer represented in `ImageZonoBound` type.
 """
-# function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
+# function propagate_layer(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
 #     # copy a Conv and set activation to identity
 #     # println("layer.bias")
 #     to = get_timer("Shared")
@@ -67,7 +67,7 @@ generators) does not. The resulting bound is also of type `ImageZonoBound`.
 #     return ImageZonoBound(new_center, new_generators)
 # end
 
-function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method::ImageZono, layer::Conv, bound::ImageZonoBound, batch_info)
     # copy a Conv and set activation to identity
     # println("layer.bias")
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
@@ -86,7 +86,7 @@ function propagate_linear(prop_method::ImageZono, layer::Conv, bound::ImageZonoB
 end
 
 """
-    propagate_linear(prop_method::ImageStar, layer::Conv, 
+    propagate_layer(prop_method::ImageStar, layer::Conv, 
                      bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a convolution layer. I.e., it 
@@ -107,7 +107,7 @@ generators) does not. The resulting bound is also of type `ImageStarBound`.
 ## Returns
 - The convolved bound of the output layer represented in `ImageStarBound` type.                     
 """
-function propagate_linear(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method::ImageStar, layer::Conv, bound::ImageStarBound, batch_info)
     # copy a Conv and set activation to identity
     cen_Conv = Conv(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     new_center = cen_Conv(bound.center)
@@ -122,17 +122,17 @@ end
 """
     forward prop for CNN, Crown, box is not using symbolic bound
 """
-function propagate_linear_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info; box=false)
+function propagate_layer_batch(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info; box=false)
     if box
-        return propagate_linear_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+        return propagate_layer_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     else
-        return propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+        return propagate_layer_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     end
     
 end
 
 """
-    propagate_linear_batch_box(prop_method::Crown, layer::Conv, 
+    propagate_layer_batch_box(prop_method::Crown, layer::Conv, 
                            bound::CrownBound, batch_info)
 
 Propagates the bounds through the convolution layer for `Crown` solver. It operates
@@ -150,7 +150,7 @@ Then the bound is initalized again `CrownBound` type.
 - `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
     which is represented by `CrownBound` type.
 """
-function propagate_linear_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+function propagate_layer_batch_box(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     @assert length(size(bound.batch_Low)) > 3
     img_size = size(bound.batch_Low)[1:3]
     l, u = compute_bound(bound)
@@ -163,7 +163,7 @@ function propagate_linear_batch_box(prop_method::Crown, layer::Conv, bound::Crow
 end
 
 """
-    propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, 
+    propagate_layer_batch_symbolic(prop_method::Crown, layer::Conv, 
                            bound::CrownBound, batch_info)
 
 Propagates the bounds through the convolution layer for `Crown` solver. It operates
@@ -181,7 +181,7 @@ Then the bound is initalized again `CrownBound` type.
 - `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
     which is represented by `CrownBound` type.
 """
-function propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
+function propagate_layer_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     @assert length(size(bound.batch_Low)) > 3
     new_crown_bound = batch_interval_map(layer, bound)
     # img_size = size(bound.batch_Low)[1:3]
@@ -195,7 +195,7 @@ function propagate_linear_batch_symbolic(prop_method::Crown, layer::Conv, bound:
 end
 
 """
-    propagate_linear(prop_method::ImageZono, layer::ConvTranspose, 
+    propagate_layer(prop_method::ImageZono, layer::ConvTranspose, 
                      bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a convolutional transpose layer. 
@@ -220,7 +220,7 @@ generators) does not. The resulting bound is also of type `ImageZonoBound`.
 ## Returns
 - The convolved bound of the output layer represented in `ImageZonoBound` type.              
 """
-function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method::ImageZono, layer::ConvTranspose, bound::ImageZonoBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
@@ -232,7 +232,7 @@ function propagate_linear(prop_method::ImageZono, layer::ConvTranspose, bound::I
 end
 
 """
-    propagate_linear(prop_method::ImageStar, layer::ConvTranspose, 
+    propagate_layer(prop_method::ImageStar, layer::ConvTranspose, 
                      bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a convolutional transpose layer. 
@@ -257,7 +257,7 @@ generators) does not. The resulting bound is also of type `ImageStarBound`.
 ## Returns
 - The convolved bound of the output layer represented in `ImageStarBound` type.                          
 """
-function propagate_linear(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method::ImageStar, layer::ConvTranspose, bound::ImageStarBound, batch_info)
     cen_Conv = ConvTranspose(layer.weight, layer.bias, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups) 
     gen_Conv = ConvTranspose(layer.weight, false, identity; stride = layer.stride, pad = layer.pad, dilation = layer.dilation, groups = layer.groups)
     new_center = cen_Conv(bound.center)
@@ -470,7 +470,7 @@ function batch_interval_map(layer::Conv, bound::CrownBound)
 end
 
 """
-    propagate_linear(prop_method::Crown, layer::ConvTranspose, 
+    propagate_layer(prop_method::Crown, layer::ConvTranspose, 
                      bound::CrownBound, batch_info)
 
 Propagate the `CrownBound` bound through a convolutional transpose layer. 
@@ -492,7 +492,7 @@ properties. The resulting bound is also of type `CrownBound`.
 ## Returns
 - The convolved bound of the output layer represented in `CrownBound` type.              
 """
-function propagate_linear_batch(prop_method::Crown, layer::ConvTranspose, bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::ConvTranspose, bound::CrownBound, batch_info)
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
     lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
     upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
@@ -544,7 +544,7 @@ function propagate_linear_batch(prop_method::Crown, layer::ConvTranspose, bound:
 end
 
 """
-    propagate_linear_batch(prop_method::BetaCrown, layer::Conv, 
+    propagate_layer_batch(prop_method::BetaCrown, layer::Conv, 
                            bound::BetaCrownBound, batch_info)
 
 Propagates the bounds through the Conv layer for `BetaCrown` solver. It 
@@ -566,7 +566,7 @@ resulting bound is represented by `BetaCrownBound` type.
 - `New_bound` (`BetaCrownBound`): Bound of the output after affine 
     transformation, which is represented by `BetaCrownBound` type.
 """
-function propagate_linear_batch(prop_method::BetaCrown, layer::Conv, bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::Conv, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TODO: we haven't consider the perturbation in weight and bias
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
@@ -584,12 +584,14 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Conv, bound::Beta
         weight = layer.weight # x[1].lower
         bias = bias_lb # x[2].lower
         if prop_method.bound_lower
-            lA_x = conv_bound_oneside(bound.lower_A_x, weight, bias_lb, stride, pad, dilation, groups, bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
+            lA_x = deepcopy(bound.lower_A_x)
+            lA_x = conv_bound_oneside(lA_x, weight, bias_lb, stride, pad, dilation, groups, bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
         else
             lA_x = nothing
         end
         if prop_method.bound_upper
-            uA_x = conv_bound_oneside(bound.upper_A_x, weight, bias_lb, stride, pad, dilation, groups,bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
+            uA_x = deepcopy(bound.upper_A_x)
+            uA_x = conv_bound_oneside(uA_x, weight, bias_lb, stride, pad, dilation, groups,bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
         else
             uA_x = nothing
         end

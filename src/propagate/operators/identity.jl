@@ -1,5 +1,5 @@
 """
-    propagate_act(prop_method, σ::typeof(identity), bound, batch_info)
+    propagate_layer(prop_method, σ::typeof(identity), bound, batch_info)
 
 Propagate the bounds through the identity activation layer.
 
@@ -12,6 +12,6 @@ Propagate the bounds through the identity activation layer.
 ## Returns
 - `bound`: Bounds of the output, which is equivalent to the bounds of the input.
 """
-function propagate_act(prop_method, σ::typeof(identity), bound, batch_info)
+function propagate_layer(prop_method, σ::typeof(identity), bound, batch_info)
     return bound
 end

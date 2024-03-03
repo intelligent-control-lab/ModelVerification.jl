@@ -92,7 +92,6 @@ include("spec/spec.jl")
 export ImageConvexHull, InputSpec, OutputSpec
 export get_linear_spec, get_image_linf_spec, classification_spec
 
-
 include("utils/activation.jl")
 include("utils/network.jl")
 include("utils/problem.jl")

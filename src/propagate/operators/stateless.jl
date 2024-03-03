@@ -1,5 +1,5 @@
 """
-    propagate_linear(prop_method, layer::typeof(flatten), 
+    propagate_layer(prop_method, layer::typeof(flatten), 
                      bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a flatten layer. I.e., it flattens 
@@ -14,11 +14,11 @@ the `ImageStarBound` into a `Star` type.
 ## Returns
 - The flattened bound of the output layer represented in `Star` type.
 """
-propagate_linear(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info) = 
+propagate_layer(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info) = 
     Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b))
 
 """
-    propagate_linear(prop_method, layer::typeof(flatten), 
+    propagate_layer(prop_method, layer::typeof(flatten), 
                      bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a flatten layer. I.e., it flattens 
@@ -33,11 +33,11 @@ the `ImageZonoBound` into a `Zonotope` type.
 ## Returns
 - The flattened bound of the output layer represented in `Zonotope` type.
 """
-propagate_linear(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
+propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
     Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
 
 """
-    propagate_linear(prop_method, layer::MeanPool, 
+    propagate_layer(prop_method, layer::MeanPool, 
                      bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a mean pool layer. I.e., it applies
@@ -54,14 +54,14 @@ also of type `ImageStarBound`.
 - The mean pooled bound of the output layer represented in `ImageStarBound` 
     type.
 """
-function propagate_linear(prop_method, layer::MeanPool, bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method, layer::MeanPool, bound::ImageStarBound, batch_info)
     new_center = layer(bound.center)
     new_generators = layer(bound.generators)
     return ImageStarBound(new_center, new_generators, bound.A, bound.b)
 end
 
 """
-    propagate_linear(prop_method, layer::MeanPool, 
+    propagate_layer(prop_method, layer::MeanPool, 
                      bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a mean pool layer. I.e., it applies
@@ -78,26 +78,26 @@ also of type `ImageZonoBound`.
 - The mean pooled bound of the output layer represented in `ImageZonoBound` 
     type.
 """
-function propagate_linear(prop_method, layer::MeanPool, bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method, layer::MeanPool, bound::ImageZonoBound, batch_info)
     new_center = layer(bound.center)
     new_generators = layer(bound.generators)
     return ImageZonoBound(new_center, new_generators)
 end
 
-function propagate_linear_batch(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info,box=false)
+function propagate_layer_batch(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info,box=false)
     if box
-        return propagate_linear_batch_box(prop_method, layer, bound, batch_info)
+        return propagate_layer_batch_box(prop_method, layer, bound, batch_info)
     else
-        return propagate_linear_batch_symbolic(layer, bound)
+        return propagate_layer_batch_symbolic(layer, bound)
     end
 end
 
-function propagate_linear_batch(prop_method::Crown, layer::typeof(Flux.flatten), bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::typeof(Flux.flatten), bound::CrownBound, batch_info)
     bound, _ = convert_CROWN_Bound_batch(bound)
     return bound
 end
 
-function propagate_linear_batch_box(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info)
+function propagate_layer_batch_box(prop_method::Crown, layer::MeanPool, bound::CrownBound, batch_info)
     @assert length(size(bound.batch_Low)) > 3
     img_size = size(bound.batch_Low)[1:3]
     l, u = compute_bound(bound)
@@ -110,7 +110,7 @@ function propagate_linear_batch_box(prop_method::Crown, layer::MeanPool, bound::
     return new_crown_bound
 end
 
-function propagate_linear_batch_symbolic(layer::MeanPool, bound::CrownBound)
+function propagate_layer_batch_symbolic(layer::MeanPool, bound::CrownBound)
     # width × height × channel × (input_dim+1) * batch_size
     batch_Low = reshape(bound.batch_Low, (size(bound.batch_Low)[1],size(bound.batch_Low)[2],size(bound.batch_Low)[3], size(bound.batch_Low)[4]*size(bound.batch_Low)[5]))
     batch_Up = reshape(bound.batch_Up, (size(bound.batch_Up)[1],size(bound.batch_Up)[2],size(bound.batch_Up)[3], size(bound.batch_Up)[4]*size(bound.batch_Up)[5]))
@@ -129,7 +129,7 @@ function propagate_linear_batch_symbolic(layer::MeanPool, bound::CrownBound)
 end
 
 # TODO: Ad-hoc solution, needs to be replaced to improve performance.
-function propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
     @assert all(x -> x == layer.k[1], layer.k)
     @assert all(x -> x == layer.stride[1], layer.stride)
     @assert all(x -> x == layer.pad[1], layer.pad)
@@ -146,10 +146,10 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::
     end
     equal_conv = Conv(weights, false, identity; stride = layer.stride[1], pad = layer.pad[1])
 
-    return propagate_linear_batch(prop_method, equal_conv, bound, batch_info)
+    return propagate_layer_batch(prop_method, equal_conv, bound, batch_info)
 end
 
-function f_propagate_linear_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
+function f_propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TODO: we haven't consider the perturbation in weight and bias
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
@@ -265,7 +265,7 @@ function meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min
     return last_A
 end
 
-function propagate_linear_batch(prop_method::BetaCrown, layer::typeof(Flux.flatten), bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(Flux.flatten), bound::BetaCrownBound, batch_info)
     # bound, _ = convert_CROWN_Bound_batch(bound)
     node = batch_info[:current_node]
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))

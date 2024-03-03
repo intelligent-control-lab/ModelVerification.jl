@@ -1,10 +1,10 @@
 """
-    propagate_act_batch(prop_method::Crown, layer::typeof(tanh), 
+    propagate_layer_batch(prop_method::Crown, layer::typeof(tanh), 
                         bound::CrownBound, batch_info)
 
 Propagate the `CrownBound` bound through a tanh layer.
 """
-function propagate_act_batch(prop_method::Crown, layer::typeof(tanh), bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::typeof(tanh), bound::CrownBound, batch_info)
     # println("bound tanh act")
     relax_lw, relax_uw, relax_lb, relax_ub = relax_bound(layer, bound)
     if length(size(bound.batch_Low)) > 3

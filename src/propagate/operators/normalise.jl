@@ -1,5 +1,5 @@
 """
-    propagate_linear(prop_method::ImageStar, layer::BatchNorm, 
+    propagate_layer(prop_method::ImageStar, layer::BatchNorm, 
                      bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a batch norm layer. I.e., it 
@@ -20,7 +20,7 @@ The resulting bound is also of type `ImageStarBound`.
 - The batch normed bound of the output layer represented in `ImageStarBound` 
     type.
 """
-function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method::ImageStar, layer::BatchNorm, bound::ImageStarBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -32,7 +32,7 @@ function propagate_linear(prop_method::ImageStar, layer::BatchNorm, bound::Image
 end
 
 """
-    propagate_linear(prop_method::ImageZono, layer::BatchNorm, 
+    propagate_layer(prop_method::ImageZono, layer::BatchNorm, 
                      bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a batch norm layer. I.e., it 
@@ -53,7 +53,7 @@ The resulting bound is also of type `ImageZonoBound`.
 - The batch normed bound of the output layer represented in `ImageZonoBound` 
     type.
 """
-function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method::ImageZono, layer::BatchNorm, bound::ImageZonoBound, batch_info)
     cen_BN = @set layer.λ = identity # copy a BN and set activation to identity
 
     gen_BN = @set cen_BN.β = zeros(eltype(cen_BN.β), size(cen_BN.β)) # copy a BN set β to zeros
@@ -72,7 +72,7 @@ function propagate_linear(prop_method::ImageZono, layer::BatchNorm, bound::Image
 end 
 
 """
-    propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, 
+    propagate_layer_batch(layer::BatchNorm, batch_reach::AbstractArray, 
                            batch_info)
 
 Propagate the `batch_reach` through a batch norm layer. I.e., it applies the 
@@ -88,7 +88,7 @@ input batch with channel dimension.
 ## Returns
 - The batch normed bound of the output layer.
 """
-function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, batch_info)
+function propagate_layer_batch(layer::BatchNorm, batch_reach::AbstractArray, batch_info)
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     channels = size(batch_reach)[end-1] #number of channels
 
@@ -116,7 +116,7 @@ function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, ba
 end
 
 """
-    propagate_linear(prop_method::Crown, layer::BatchNorm, 
+    propagate_layer(prop_method::Crown, layer::BatchNorm, 
                      bound::CrownBound, batch_info)
 
 Propagate the `CrownBound` bound through a batch norm layer. I.e., it 
@@ -134,7 +134,7 @@ The resulting bound is also of type `CrownBound`.
 - The batch normed bound of the output layer represented in `CrownBound` 
     type.
 """
-function propagate_linear_batch(prop_method::Crown, layer::BatchNorm, bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::BatchNorm, bound::CrownBound, batch_info)
     # @show size(bound.batch_Low)
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     # @show size(μ)

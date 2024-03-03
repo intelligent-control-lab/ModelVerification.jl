@@ -328,7 +328,7 @@ function (f::AlphaLayer)(x)
     return [New_A, New_bias]
 end
 
-function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::AlphaCrown, layer::typeof(relu), bound::AlphaCrownBound, batch_info)
     node = batch_info[:current_node]
    #=  if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
         lower, upper = compute_bound(batch_info[node][:pre_bound])
@@ -371,7 +371,7 @@ function propagate_act_batch(prop_method::AlphaCrown, layer::typeof(relu), bound
 end
 
 
-function propagate_linear_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::AlphaCrown, layer::Dense, bound::AlphaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
