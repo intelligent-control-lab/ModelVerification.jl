@@ -19,7 +19,7 @@ mutable struct CrownBound <: Bound
     batch_Up     # reach_dim x input_dim+1 x batch_size
     batch_data_min    # input_dim+1 x batch_size
     batch_data_max     # input_dim+1 x batch_size
-    img_size
+    img_size    # width x height x channel or nothing if the input is not ImageConvexHull
 end
 function CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
     return CrownBound(batch_Low, batch_Up, batch_data_min, batch_data_max, nothing)

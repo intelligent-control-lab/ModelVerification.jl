@@ -573,58 +573,65 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Conv, bound::Beta
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
     # @show node
     size_after_conv = batch_info[node][:size_after_layer][1:3]
+    size_before_conv = batch_info[node][:size_before_layer][1:3]
+    # @show size_before_conv
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
 
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-    # println("=== in dense ===")
+    # println("=== in cnn ===")
     # println("bound.lower_A_x: ", bound.lower_A_x)
-    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-        weight = layer.weight # x[1].lower
-        bias = bias_lb # x[2].lower
-        if prop_method.bound_lower
-            lA_x = conv_bound_oneside(bound.lower_A_x, weight, bias_lb, stride, pad, dilation, groups, bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
-        else
-            lA_x = nothing
-        end
-        if prop_method.bound_upper
-            uA_x = conv_bound_oneside(bound.upper_A_x, weight, bias_lb, stride, pad, dilation, groups,bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
-        else
-            uA_x = nothing
-        end
-        # println("lA_x: ", lA_x)
-        # println("uA_x: ", uA_x)
-        New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
-        return New_bound
+    # if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    weight = layer.weight # x[1].lower
+    bias = bias_lb # x[2].lower
+    if prop_method.bound_lower
+        lA_x = conv_bound_oneside(bound.lower_A_x, weight, bias_lb, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_info[:batch_size])
+    else
+        lA_x = nothing
     end
+    if prop_method.bound_upper
+        uA_x = conv_bound_oneside(bound.upper_A_x, weight, bias_lb, stride, pad, dilation, groups,size_before_conv, size_after_conv, batch_info[:batch_size])
+    else
+        uA_x = nothing
+    end
+    # println("lA_x: ", lA_x)
+    # println("uA_x: ", uA_x)
+    New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return New_bound
+    # end
 end 
 
 """
-    conv_bound_oneside(last_A, weight, bias, batch_size)
+    conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
 
 """
-function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, batch_data_min, batch_data_max,size_after_conv, batch_size)
+function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
     function find_w_b(x)
         x_weight = x[1]
         # @show size(x_weight)
         x_bias = x[2]
         # @show size(x_bias)
         # zero_bias = zeros(size(weight)[3])  #bias need to be zero
+        @show pad
         backward = ConvTranspose(weight, false, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
         x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
+        # @show size(x_weight)
         spec_dim = size(x_weight)[2]
         b_size = size(x_weight)[3]
         x_weight = reshape(x_weight, (size_after_conv..., spec_dim*b_size))
 
         batch_reach = backward(x_weight)
+        # @show size(batch_reach)
         # @show size(x_weight)[1], 
-        output_padding1 = Int(size(batch_reach)[1]) - (Int(size(x_weight)[1]) - 1) * stride[1] + 2 * pad[1] - 1 - (Int(size(weight)[1] - 1) * dilation[1])
-        output_padding2 = Int(size(batch_reach)[2]) - (Int(size(x_weight)[2]) - 1) * stride[2] + 2 * pad[2] - 1 - (Int(size(weight)[2] - 1) * dilation[2])
+        output_padding1 = Int(size_before_conv[1]) - (Int(size(x_weight)[1]) - 1) * stride[1] + 2 * pad[1] - 1 - (Int(size(weight)[1] - 1) * dilation[1])
+        output_padding2 = Int(size_before_conv[2]) - (Int(size(x_weight)[2]) - 1) * stride[2] + 2 * pad[2] - 1 - (Int(size(weight)[2] - 1) * dilation[2])
+
         if(output_padding1 != 0 || output_padding2 != 0) #determine the output size of the ConvTranspose
+            @show output_padding1, output_padding2
             batch_reach = PaddedView(0, batch_reach, (size(batch_reach)[1] + output_padding1, size(batch_reach)[2] + output_padding2, size(batch_reach)[3], size(batch_reach)[4]))
         end
-
+        # @show size(batch_reach)
         batch_bias = sum(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)) .* bias, dims = 1) # compute the output bias
         
         batch_reach = reshape(batch_reach, (size(batch_reach)[1]*size(batch_reach)[2]*size(batch_reach)[3],spec_dim, b_size))

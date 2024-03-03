@@ -92,8 +92,8 @@ function propagate_linear_batch(layer::BatchNorm, batch_reach::AbstractArray, ba
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
     channels = size(batch_reach)[end-1] #number of channels
 
-    β = affine ? β : 1.0
-    γ = affine ? γ : 0.0
+    β = affine ? β : 0.0
+    γ = affine ? γ : 1.0
     μ = track_stats ? μ : zeros(channels)
     σ² = track_stats ? σ² : ones(channels)
 
@@ -153,8 +153,8 @@ function propagate_linear_batch(prop_method::Crown, layer::BatchNorm, bound::Cro
 
     channels = size(lower_weight)[end-1] #number of channels
 
-    β = affine ? β : 1.0
-    γ = affine ? γ : 0.0
+    β = affine ? β : 0.0
+    γ = affine ? γ : 1.0
     μ = track_stats ? μ : zeros(channels)
     σ² = track_stats ? σ² : ones(channels)
 
@@ -192,3 +192,117 @@ function propagate_linear_batch(prop_method::Crown, layer::BatchNorm, bound::Cro
     # @show size(new_bound.batch_Low)
     return new_bound
 end 
+
+
+"""
+    propagate_linear(prop_method::BetaCrown, layer::BatchNorm, 
+                     bound::BetaCrownBound, batch_info)
+
+Propagate the `BetaCrownBound` bound through a batch norm layer. I.e., it 
+applies the "inverse" batch norm operation to the `BetaCrownBound` bound. 
+The resulting bound is also of type `BetaCrownBound`.
+
+## Arguments
+- `prop_method` (`Crown`): The `Crown` propagation method used for the 
+    verification problem.
+- `layer` (`BetaCrown`): The batch norm operation to be used for propagation.
+- `bound` (`BetaCrownBound`): The bound of the input node.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- The batch normed bound of the output layer represented in `BetaCrownBound` 
+    type.
+"""
+function propagate_linear_batch(prop_method::BetaCrown, layer::BatchNorm, bound::BetaCrownBound, batch_info)
+    node = batch_info[:current_node]
+    
+    β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
+    
+    channels = batch_info[node][:size_after_layer][3] #number of channels
+
+    β = affine ? β : 0.0
+    γ = affine ? γ : 1.0
+    μ = track_stats ? μ : zeros(channels)
+    σ² = track_stats ? σ² : ones(channels)
+
+    tmp_β = β .- μ ./ sqrt.(σ² .+ ϵ) .* γ # bias
+    tmp_γ = γ ./ sqrt.(σ² .+ ϵ) # weight
+    
+    #TODO: we haven't consider the perturbation in weight and bias
+    @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    # @show node
+    size_after_layer = batch_info[node][:size_after_layer][1:3]
+    size_before_layer = batch_info[node][:size_before_layer][1:3]
+    # @show size_before_layer
+    # @show size_after_layer
+    # weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+
+    # bias_lb = _preprocess(node, batch_info, layer.bias)
+    # bias_ub = _preprocess(node, batch_info, layer.bias)
+    # lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    # println("=== in cnn ===")
+    # println("bound.lower_A_x: ", bound.lower_A_x)
+    # if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    # weight = layer.weight # x[1].lower
+    # bias = bias_lb # x[2].lower
+    if prop_method.bound_lower
+        lA_x = bn_bound_oneside(bound.lower_A_x, tmp_γ, tmp_β, size_before_layer,size_after_layer, batch_info[:batch_size])
+    else
+        lA_x = nothing
+    end
+    if prop_method.bound_upper
+        uA_x = bn_bound_oneside(bound.upper_A_x, tmp_γ, tmp_β,size_before_layer, size_after_layer, batch_info[:batch_size])
+    else
+        uA_x = nothing
+    end
+    # println("lA_x: ", lA_x)
+    # println("uA_x: ", uA_x)
+    New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return New_bound
+    # end
+end 
+
+"""
+    bn_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_layer,size_after_layer, batch_size)
+
+"""
+function bn_bound_oneside(last_A, tmp_γ, tmp_β, size_before_layer,size_after_layer, batch_size)
+    function find_w_b(x)
+        # @show size_before_layer, size_after_layer
+        x_weight = x[1]
+        # @show size(x_weight)
+        x_bias = x[2]
+        # @show size(x_bias)
+
+        x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
+        # @show size(x_weight)
+        spec_dim = size(x_weight)[2]
+        b_size = size(x_weight)[3]
+        x_weight = reshape(x_weight, (size_after_layer..., spec_dim*b_size))
+        # @show size(x_weight)
+        @assert ndims(x_weight) > 3 # TODO: currently BN only supports CNN
+
+        tmp_γ = reshape(tmp_γ, (size_after_layer[3], 1)) 
+        #reshape the tmp_γ for ".* x_weight"
+        for i in 1:((ndims(x_weight)-2))
+            tmp_γ = reshape(tmp_γ, (1, size(tmp_γ)...))
+        end
+        # @show size(tmp_γ)
+        # @show size(x_weight .* tmp_γ)
+
+        batch_reach = x_weight .* tmp_γ
+
+        batch_reach = reshape(batch_reach, (size(batch_reach)[1]*size(batch_reach)[2]*size(batch_reach)[3],spec_dim, b_size))
+        batch_reach = permutedims(batch_reach,(2,1,3))
+        
+        batch_bias = sum(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)) .* tmp_β, dims = 1) # compute the output bias
+        
+        @assert size(batch_bias)[1] == 1
+        batch_bias = reshape(batch_bias, (spec_dim, b_size))
+        # @show size(batch_reach), size(batch_bias)
+        return [batch_reach, batch_bias]
+    end
+    push!(last_A, find_w_b)
+    return last_A
+end

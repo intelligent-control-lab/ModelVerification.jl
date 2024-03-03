@@ -87,6 +87,7 @@ function (f::Compute_bound)(x)
     #u = batched_vec(max.(x[1], z), f.batch_data_max) + batched_vec(min.(x[1], z), f.batch_data_min) .+ x[2]
     A_pos = clamp.(x[1], 0, Inf)
     A_neg = clamp.(x[1], -Inf, 0)
+    # @show size(f.batch_data_min), size(A_pos)
     l = batched_vec(A_pos, f.batch_data_min) + batched_vec(A_neg, f.batch_data_max) .+ x[2]
     u = batched_vec(A_pos, f.batch_data_max) + batched_vec(A_neg, f.batch_data_min) .+ x[2]
     return l, u
@@ -174,7 +175,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         if pre_bound_method.use_gpu
             I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
         end
-        # @show size(I_spec.A)
+        # @show size(I_spec.A), size(I_spec.b)
         
         sub_out_spec, sub_batch_info = prepare_method(pre_bound_method, batch_input, I_spec, [batch_info], sub_model_info, true)
         # println("keys: ", keys(sub_batch_info))
@@ -184,6 +185,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
         sub_batch_bound, sub_batch_info = propagate(pre_bound_method, sub_model_info, sub_batch_info)
         sub_batch_bound, sub_batch_info = process_bound(pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+        # @show typeof(sub_batch_bound) # ConcretizeCrownBound
         l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
 
         batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
@@ -231,7 +233,6 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     if prop_method.inherit_pre_bound && eltype(inheritance_list) != Nothing # pre_bound can be inherited from the parent branch 
         println("inheritating pre bound ...")
         for node in model_info.activation_nodes
-            @show node
             # @show batch_inheritance[node]
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batchify_inheritance(inheritance_list, node, :pre_lower, prop_method.use_gpu)
@@ -531,10 +532,12 @@ end
 """
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     to = get_timer("Shared")
+    # @show size(batch_bound.batch_data_min)
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
     # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
+    # @show batch_bound.img_size
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
@@ -619,7 +622,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         end
     end
 
-    # @show size(batch_info[:spec_A_b][1])
+    # @show size(batch_info[:spec_A_b][1]), size(batch_info[:spec_A_b][2])
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
     # @show lower_spec_l
