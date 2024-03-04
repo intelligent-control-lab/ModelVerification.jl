@@ -204,7 +204,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     init_size = isnothing(batch_info[f_node][:bound].img_size) ? size(batch_info[f_node][:bound].batch_data_min)[1] : batch_info[f_node][:bound].img_size
     batch_info = get_all_layer_output_size(model_info, batch_info, init_size)
     
-    # @show batch_info
+    @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
 
     # println("list_inheritance: ", inheritance_list)
@@ -589,17 +589,14 @@ end
 function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_info)
     if lower_or_upper
         for node in model_info.activation_nodes
-            # println(batch_info[node][:pre_lower_A_function])
-            # println(batch_info[node][:pre_upper_A_function])
-            # @assert false
             A_function = use_gpu ? fmap(cu, Chain(batch_info[node][:pre_lower_A_function])) : Chain(batch_info[node][:pre_lower_A_function])
             batch_info[node][:pre_lower_spec_A] = A_function(init)[1]
-            
             batch_info[node][:pre_upper_spec_A] = nothing
         end
     end
     if !lower_or_upper
         for node in model_info.activation_nodes
+            @show "act ", node
             A_function = use_gpu ? fmap(cu, Chain(batch_info[node][:pre_upper_A_function])) : Chain(batch_info[node][:pre_upper_A_function])
             batch_info[node][:pre_upper_spec_A] = A_function(init)[1]
             batch_info[node][:pre_lower_spec_A] = nothing

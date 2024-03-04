@@ -30,6 +30,12 @@ function propagate_skip(prop_method, layer::typeof(+), bound1::Zonotope, bound2:
     return Zonotope(new_c, new_g)
 end
 
+function propagate_skip(prop_method, layer::typeof(+), bound1::Hyperrectangle, bound2::Hyperrectangle, batch_info)
+    new_c = LazySets.center(bound1) + LazySets.center(bound2)
+    new_r = radius_hyperrectangle(bound1) .+ radius_hyperrectangle(bound2)
+    return Hyperrectangle(new_c, new_r)
+end
+
 
 """
     propagate_skip(prop_method, layer::typeof(+), bound1::ImageStarBound, 
@@ -102,16 +108,15 @@ function merge_parallel(m1::Union{Chain, Vector, Nothing}, m2::Union{Chain, Vect
     end
     for i in eachindex(m1)
         if m1[i] != m2[i]
-            return [m1[1:i-1]; [Parallel(+, Chain(m1[i:end]), Chain(m2[i:end]))]]
-        elseif i == length(m1) # all are the same -> last node is a skip connection
-            # use 1:end to avoid shallow copy
-            return [m1[1:i]; [SkipConnection(Chain(m2[i+1:end]), +)]]
+            return [m1[1:i-1]; [Parallel(+, Chain(m1[i:end]), Chain(m2[i:end]))]] 
         end
     end
+    # all are the same -> last node is a skip connection
+    return [m1[1:end]; [SkipConnection(Chain(m2[length(m1)+1:end]), +)]] # use 1:end to avoid shallow copy
 end
 
 # For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
-function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(SkipConnection), bound1::BetaCrownBound, bound2::BetaCrownBound, batch_info)
+function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(Parallel), bound1::BetaCrownBound, bound2::BetaCrownBound, batch_info)
     @assert bound1.batch_data_max == bound2.batch_data_max
     @assert bound1.batch_data_min == bound2.batch_data_min
     @assert bound1.img_size == bound2.img_size

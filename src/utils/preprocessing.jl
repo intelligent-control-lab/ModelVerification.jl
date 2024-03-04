@@ -84,6 +84,7 @@ function onnx_node_to_flux_layer(vertex)
     # elseif node_type == ONNXNaiveNASflux.var"#217#229"{typeof(relu)}
     #     return NNlib.relu
     else
+        # @show vertex
         return NaiveNASflux.layer(vertex)
     end
 end
@@ -140,6 +141,9 @@ function onnx_parse(onnx_model_path)
 
         if length(inputs(vertex)) == 0 # the start node has no input nodes
             push!(start_nodes, v_name)
+            node_layer[v_name] = identity # data node only exists in onnx, therefore we assign it an identity operator for flux model.
+        else
+            node_layer[v_name] = onnx_node_to_flux_layer(vertex)
         end
 
         # println("NaiveNASflux.layer(vertex) === ")
@@ -149,7 +153,7 @@ function onnx_parse(onnx_model_path)
         # println(NaiveNASflux.layer(vertex))
         # println(typeof(NaiveNASflux.layer(vertex)))
         
-        node_layer[v_name] = onnx_node_to_flux_layer(vertex)
+        
         # println("name === layer")
         # println(v_name)
         # println(node_layer[v_name])
@@ -185,6 +189,8 @@ function onnx_parse(onnx_model_path)
             node_nexts[v_name] = [activation_name]
             node_layer[activation_name] = act
             
+            node_layer[v_name] = remove_layer_act(node_layer[v_name])
+
             push!(activation_nodes, activation_name)
             push!(all_nodes, activation_name) 
             v_name = activation_name  # for getting the final_nodes
@@ -209,6 +215,14 @@ function onnx_parse(onnx_model_path)
 
 end
 
+function remove_layer_act(l)
+    if l isa Dense
+        return Dense(l.weight, l.bias, identity;)
+    else
+        @warn "Decoupling activation for $l is not implemented. The inference output may be incorrect. Verification is not affected."
+    end
+end
+
 function remove_start_flatten(model_info::Model)
     length(model_info.start_nodes) > 1 && return model_info
     node1 = model_info.start_nodes[1] 
@@ -221,7 +235,8 @@ function remove_start_flatten(model_info::Model)
     return model_info
 end
 
-function purify_model(model_info::Model)
+# some ad-hoc treatment for vnncomp benchmarks models
+function purify_model(model_info::Model) 
     model_info = remove_start_flatten(model_info)
 end
  
@@ -235,8 +250,11 @@ function compute_output(model_info, batch_input::AbstractArray)
 
 # function compute_output(model_info, batch_info::Dict)
     queue = Queue{Any}()
-    enqueue!(queue, vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)...)
-    
+    # @show [model_info.node_nexts[s] for s in model_info.start_nodes]
+    # @show vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...)
+    # foreach(x -> enqueue!(queue, x), vcat([model_info.node_nexts[s] for s in model_info.start_nodes]...))
+    foreach(x -> enqueue!(queue, x), model_info.start_nodes)
+
     out_cnt = Dict(node => 0 for node in model_info.all_nodes)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)
     i = 0
@@ -247,6 +265,7 @@ function compute_output(model_info, batch_input::AbstractArray)
     while !isempty(queue)
         i += 1
         node = dequeue!(queue)
+        # @show node, typeof(model_info.node_layer[node])
         batch_info[:current_node] = node
         for output_node in model_info.node_nexts[node]
             visit_cnt[output_node] += 1
@@ -254,6 +273,8 @@ function compute_output(model_info, batch_input::AbstractArray)
                 enqueue!(queue, output_node)
             end
         end
+        
+        node in model_info.start_nodes && continue # start nodes do not need computing bound
 
         if length(model_info.node_prevs[node]) == 2
             batch_out = compute_out_skip(model_info, batch_info, node)

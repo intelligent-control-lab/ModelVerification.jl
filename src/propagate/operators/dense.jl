@@ -193,7 +193,7 @@ end
 """
 function dense_bound_oneside(last_A, weight, bias, batch_size)
     if isnothing(last_A)
-        return [nothing, x[2]]
+        return nothing
     end
     #weight = reshape(weight, (size(weight)..., 1)) 
     #weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight

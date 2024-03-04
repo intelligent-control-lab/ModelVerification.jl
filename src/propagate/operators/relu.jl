@@ -656,6 +656,7 @@ end
 
 
 function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), bound::BetaCrownBound, batch_info)
+    # @show "========= relu"
     node = batch_info[:current_node]
     #= if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
         lower, upper = compute_bound(batch_info[node][:pre_bound])
@@ -694,7 +695,7 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
     # print_beta_layers(lower_A, batch_info[:init_A_b])
     # println("before upper_A: ")
     # print_beta_layers(upper_A, batch_info[:init_A_b])
-
+    # @show "setting ", node
     batch_info[node][:pre_upper_A_function] = nothing
     batch_info[node][:pre_lower_A_function] = nothing
 
