@@ -54,7 +54,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     while !isempty(queue)                           # If queue is not empty!
         node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
         batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
-        # @show "prop:", node
+        @show "prop:", node
         
         enqueue_connected!(prop_method, model_info, queue, visit_cnt, node)
 
@@ -63,6 +63,10 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
             batch_bound = propagate_skip_method(prop_method, model_info, batch_info, node)
         else
             batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
+        end
+        if length(prev_nodes(prop_method, model_info, node)) > 0
+            @show prev_nodes(prop_method, model_info, node)[1], node
+            @show batch_info[prev_nodes(prop_method, model_info, node)[1]][:bound] == batch_bound
         end
         # @show typeof(batch_bound)
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.

@@ -92,11 +92,13 @@ struct_copy(x::T) where T = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]
 
 # For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
 function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(+), bound::BetaCrownBound, batch_info)
-    lA_x = bound.lower_A_x[1:end]
-    uA_x = bound.upper_A_x[1:end]
+    lA_x = deepcopy(bound.lower_A_x[1:end])
+    uA_x = deepcopy(bound.upper_A_x[1:end])
     lA_W = nothing
     uA_W = nothing
     return BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    # return BetaCrownBound(bound.lower_A_x, bound.upper_A_x, bound.lower_A_W, bound.upper_A_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    # return bound
 end
 
 function merge_parallel(m1::Union{Chain, Vector, Nothing}, m2::Union{Chain, Vector, Nothing})
@@ -107,12 +109,15 @@ function merge_parallel(m1::Union{Chain, Vector, Nothing}, m2::Union{Chain, Vect
         m1, m2 = m2, m1
     end
     for i in eachindex(m1)
+        @show m1[i]
+        @show m2[i]
+        @show i, m1[i] == m2[i]
         if m1[i] != m2[i]
-            return [m1[1:i-1]; [Parallel(+, Chain(m1[i:end]), Chain(m2[i:end]))]] 
+            return [deepcopy(m1[1:i-1]); [Parallel(+, Chain(deepcopy(m1[i:end])), Chain(deepcopy(m2[i:end])))]] 
         end
     end
     # all are the same -> last node is a skip connection
-    return [m1[1:end]; [SkipConnection(Chain(m2[length(m1)+1:end]), +)]] # use 1:end to avoid shallow copy
+    return [deepcopy(m1[1:end]); [SkipConnection(Chain(deepcopy(m2[length(m1)+1:end])), +)]] # use 1:end to avoid shallow copy
 end
 
 # For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
@@ -126,20 +131,20 @@ function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(Parallel), b
     lA_W = merge_parallel(bound1.lower_A_W, bound2.lower_A_W)
     uA_W = merge_parallel(bound1.upper_A_W, bound2.upper_A_W)
 
-    # println("================")
-    # for i in eachindex(bound1.lower_A_x)
-    #     @show i, typeof(bound1.lower_A_x[i])
-    # end
-    # println("--------1-------")
-    # for i in eachindex(bound2.lower_A_x)
-    #     @show i, typeof(bound2.lower_A_x[i])
-    # end
-    # println("--------2--------")
-    # for i in eachindex(lA_x)
-    #     @show i, typeof(lA_x[i])
-    # end
-    # println("================")
+    println("================")
+    for i in eachindex(bound1.lower_A_x)
+        @show i, typeof(bound1.lower_A_x[i])
+    end
+    println("--------1-------")
+    for i in eachindex(bound2.lower_A_x)
+        @show i, typeof(bound2.lower_A_x[i])
+    end
+    println("--------2--------")
+    for i in eachindex(lA_x)
+        @show i, typeof(lA_x[i])
+    end
+    println("================")
 
-    bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound1.batch_data_min, bound1.batch_data_max, bound1.img_size)
+    bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, deepcopy(bound1.batch_data_min), deepcopy(bound1.batch_data_max), bound1.img_size)
     return bound
 end

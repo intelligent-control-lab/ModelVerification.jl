@@ -104,7 +104,7 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
 
     # TODO: need to conver this to BFS
     for node in model_info.all_nodes
-        # @show "vis:", node
+        @show "vis:", node
         if node in model_info.start_nodes
             continue
         end
