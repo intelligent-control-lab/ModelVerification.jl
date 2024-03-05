@@ -104,7 +104,7 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
 
     # TODO: need to conver this to BFS
     for node in model_info.all_nodes
-        @show "vis:", node
+        # @show "vis:", node
         if node in model_info.start_nodes
             continue
         end
@@ -227,20 +227,21 @@ function plot_bounds(all_bounds, model_info, batch_info, save_path; vis_center=t
             
             # @show size(out_center)
             # @show plot_mode
-            if plot_mode == :lucr
+            if plot_mode == :curve
+                p1 = plot(range(1,length(out_l)), [out_l out_center out_u], label=["lower" "center" "upper"])
+                title!(string(i) * "_" * node)
+                savefig(save_path * string(i) * "_" * node * ".png")
+            elseif plot_mode == :lucr
                 global_min = minimum(out_l)
                 global_max = maximum(out_u)
                 pl = heatmap(out_l, c = :ice, clims=(global_min, global_max))    
                 title!(string(i) * "_" * node * "_lower")
                 pu = heatmap(out_u, c = :ice, clims=(global_min, global_max))
                 title!(string(i) * "_" * node * "_upper")
-                # p1 = heatmap(out_l - out_center, c = :ice)    
-                # title!(string(i) * "_" * node * "_lower - center")
-                p1 = plot(range(1,length(out_l)), [out_l out_center out_u], label=["lower" "center" "upper"])
+                p1 = heatmap(out_l - out_center, c = :ice)    
                 title!(string(i) * "_" * node * "_lower - center")
                 p2 = heatmap(out_u - out_center, c = :ice)
                 title!(string(i) * "_" * node * "_upper - center")
-                plot(p1, p2, layout=(1,2), size = (800,300))
                 savefig(save_path * string(i) * "_" * node * ".png")
                 p3 = heatmap(out_center)            
                 title!(string(i) * "_" * node * "_center")
@@ -248,10 +249,8 @@ function plot_bounds(all_bounds, model_info, batch_info, save_path; vis_center=t
                 title!(string(i) * "_" * node * "_bound_size")
                 plot(pl, pu, p1, p2, p3, p4, layout=(3,2), size = (800,1000))
                 savefig(save_path * string(i) * "_" * node * ".png")
-
                 @assert all(out_l .<= out_center)
                 @assert all(out_u .>= out_center)
-
             elseif plot_mode == :lu
                 global_min = minimum(out_l)
                 global_max = maximum(out_u)
@@ -268,8 +267,6 @@ function plot_bounds(all_bounds, model_info, batch_info, save_path; vis_center=t
                 title!(string(i) * "_" * node * "_bound_size")
                 plot(p1, p2, layout=(1,2), size = (800,300))
                 savefig(save_path * string(i) * "_" * node * ".png")
-                # plot(p2, size = (400,300))
-                # savefig(save_path * string(i) * "_" * node * ".png")
             end
 
             signal_scale = maximum(out_center) - minimum(out_center)
@@ -288,7 +285,7 @@ end
 function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_method::PropMethod, problem::Problem, save_path; 
                     vis_center=true, 
                     save_bound=false,
-                    plot_mode=:lucr
+                    plot_mode=:curve
                     )
     
     model_info, processed_problem = prepare_problem(search_method, split_method, prop_method, problem)

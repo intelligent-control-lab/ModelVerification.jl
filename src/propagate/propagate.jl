@@ -54,20 +54,19 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     while !isempty(queue)                           # If queue is not empty!
         node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
         batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
-        @show "prop:", node
+        # @show "prop:", node
         
         enqueue_connected!(prop_method, model_info, queue, visit_cnt, node)
 
-        if has_two_reach_node(prop_method, model_info, node)    # If there are two previous nodes connecting to the `node`.
-            # println("...two reach...")
+        if num_prevs(prop_method, model_info, node) >= 2   # If there are more than two previous nodes connecting to the `node`.
             batch_bound = propagate_skip_method(prop_method, model_info, batch_info, node)
         else
             batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
         end
-        if length(prev_nodes(prop_method, model_info, node)) > 0
-            @show prev_nodes(prop_method, model_info, node)[1], node
-            @show batch_info[prev_nodes(prop_method, model_info, node)[1]][:bound] == batch_bound
-        end
+        # if length(prev_nodes(prop_method, model_info, node)) > 0
+        #     @show prev_nodes(prop_method, model_info, node)[1], node
+        #     @show batch_info[prev_nodes(prop_method, model_info, node)[1]][:bound] == batch_bound
+        # end
         # @show typeof(batch_bound)
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
         # @assert false
@@ -189,13 +188,13 @@ it means that all the previous nodes of X has been outputted to X.
 all_prevs_in(prop_method, model_info, output_node, cnt) = (cnt == length(prev_nodes(prop_method, model_info, output_node)))
 
 """
-    has_two_reach_node(prop_method, model_info, node)
+    num_prevs(prop_method, model_info, node)
 
 Checks whether there are two nodes connected to the current `node`, i.e., there 
 are two previous nodes. This function is used to check if there are skip 
 connections.
 """
-has_two_reach_node(prop_method, model_info, node) = (length(prev_nodes(prop_method, model_info, node)) == 2)
+num_prevs(prop_method, model_info, node) = length(prev_nodes(prop_method, model_info, node))
 
 
 """
@@ -224,6 +223,7 @@ operation of the node. Then, `propagate_skip` is invoked.
     method and the layer operation.
 """
 function propagate_skip_method(prop_method::ForwardProp, model_info, batch_info, node)
+    @assert length(model_info.node_prevs[node]) == 2
     input_node1 = model_info.node_prevs[node][1]
     input_node2 = model_info.node_prevs[node][2]
     batch_bound1 = batch_info[input_node1][:bound]
@@ -258,11 +258,13 @@ operation of the node. Then, `propagate_skip` is invoked.
     method and the layer operation.                          
 """
 function propagate_skip_method(prop_method::BackwardProp, model_info, batch_info, node)
-    output_node1 = model_info.node_nexts[node][1]
-    output_node2 = model_info.node_nexts[node][2]
-    batch_bound1 = batch_info[output_node1][:bound]
-    batch_bound2 = batch_info[output_node2][:bound]
-    batch_bound = propagate_skip_batch(prop_method, Parallel, batch_bound1, batch_bound2, batch_info)
+    # There might be more than two next node for $node if the skip layer contains another skip layer.
+    # output_node1 = model_info.node_nexts[node][1]
+    # output_node2 = model_info.node_nexts[node][2]
+    # batch_bound1 = batch_info[output_node1][:bound]
+    # batch_bound2 = batch_info[output_node2][:bound]
+    bounds = [batch_info[output_node][:bound] for output_node in model_info.node_nexts[node]]
+    batch_bound = propagate_skip_batch(prop_method, Parallel, bounds, batch_info)
     batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_bound, batch_info)
     # if !(node in model_info.start_nodes)
         

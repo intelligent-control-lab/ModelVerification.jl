@@ -204,7 +204,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
     init_size = isnothing(batch_info[f_node][:bound].img_size) ? size(batch_info[f_node][:bound].batch_data_min)[1] : batch_info[f_node][:bound].img_size
     batch_info = get_all_layer_output_size(model_info, batch_info, init_size)
     
-    @show batch_info
+    # @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
 
     # println("list_inheritance: ", inheritance_list)
@@ -489,14 +489,14 @@ end
     process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
 """
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
+    
     to = get_timer("Shared")
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
     # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
-
     # for i in eachindex(batch_bound.lower_A_x)
-    #     @show i, typeof(batch_bound.lower_A_x[i])
+    #     @show i, typeof(batch_bound.lower_A_x), typeof(batch_bound.lower_A_x[i])
     # end
 
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
@@ -596,7 +596,7 @@ function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_in
     end
     if !lower_or_upper
         for node in model_info.activation_nodes
-            @show "act ", node
+            # @show "act ", node
             A_function = use_gpu ? fmap(cu, Chain(batch_info[node][:pre_upper_A_function])) : Chain(batch_info[node][:pre_upper_A_function])
             batch_info[node][:pre_upper_spec_A] = A_function(init)[1]
             batch_info[node][:pre_lower_spec_A] = nothing
