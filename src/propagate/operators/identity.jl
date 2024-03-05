@@ -25,7 +25,6 @@ end
 function propagate_layer_batch(prop_method::ForwardProp, σ::typeof(identity), bound, batch_info)
     return bound
 end
-
 function propagate_layer_batch(prop_method::ForwardProp, σ::typeof(identity), bound::AbstractArray, batch_info)
     return bound
 end

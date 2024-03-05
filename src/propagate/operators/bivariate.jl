@@ -107,6 +107,10 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(+), bound::
     # return bound
 end
 
+function (f::Tuple{typeof(+), Base.UUID})(x)
+    return x
+end
+
 function merge_parallel(m1::Union{Chain, Vector, Nothing}, m2::Union{Chain, Vector, Nothing})
     if isnothing(m1) && isnothing(m2)
         return nothing
@@ -115,16 +119,8 @@ function merge_parallel(m1::Union{Chain, Vector, Nothing}, m2::Union{Chain, Vect
         m1, m2 = m2, m1
     end
     i = findlast(op -> (op isa Tuple) && (op[1] == +), m1) # last_plus_idx
+    # merge at the last +, operators before the last + must the same
     return [deepcopy(m1[1:i-1]); [Parallel(+, Chain(deepcopy(m1[i+1:end])), Chain(deepcopy(m2[i+1:end])))]]
-
-    # i == length(m1) && (return [deepcopy(m1[1:i-1]); [SkipConnection(Chain(deepcopy(m2[i+1:end])), +)]])
-    # for i in reverse(eachindex(m1)) # merge at the last +, operators before the last + must the same
-    #     if m1[i] == +
-    #         i == length(m1) && (return [deepcopy(m1[1:i-1]); [SkipConnection(Chain(deepcopy(m2[i+1:end])), +)]])
-    #         return [deepcopy(m1[1:i-1]); [Parallel(+, Chain(deepcopy(m1[i+1:end])), Chain(deepcopy(m2[i+1:end])))]] 
-    #     end
-    # end
-    # @error "Skip layer not merged. No merging operator detected."
 end
 
 # For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
@@ -136,9 +132,15 @@ function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(Parallel), b
     last_plus_idx = bound -> findlast(op -> (op isa Tuple) && (op[1] == +), bound.lower_A_x)
     last_uuid = bound -> bound.lower_A_x[last_plus_idx(bound)][2]
     bounds = sort(bounds, by = bound -> (count_plus(bound), last_uuid(bound)), rev=true)
+    max_plus = maximum(count_plus, bounds)
+    if length(bounds) > 3
+        @warn "The merging skip method may not work for more than 3 parallel branches."
+    end
     # for bound in bounds
     #     @show typeof(bound)
     #     @show typeof(bound.lower_A_x)
+    #     @show length(bound.lower_A_x)
+    #     [@show op for op in bound.lower_A_x]
     # end
     # lA_x = reduce((b1, b2) -> println(typeof(b2)), bounds)
     lA_x = reduce((b1, b2) -> merge_parallel(b1, b2), [b.lower_A_x for b in bounds])
@@ -162,6 +164,10 @@ function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(Parallel), b
     # println("--------2--------")
     # for i in eachindex(lA_x)
     #     @show i, typeof(lA_x[i])
+    #     if lA_x[i] isa Parallel
+    #         @show length(lA_x[i].layers[1])
+    #         @show length(lA_x[i].layers[2])
+    #     end
     # end
     # println("================")
 

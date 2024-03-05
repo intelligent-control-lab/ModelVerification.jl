@@ -132,6 +132,7 @@ function onnx_parse(onnx_model_path)
     node_prevs = Dict()
     node_nexts = Dict()
     node_layer = Dict()
+    act_name = Dict()
     
     node_name = rename_same_name(comp_graph) # some nodes can have the same name, need to distinguish them
 
@@ -169,10 +170,8 @@ function onnx_parse(onnx_model_path)
         node_prevs[v_name] = []
         for input_node in inputs(vertex)
             input_node_name = node_name[input_node]
-            act = get_act(node_layer[input_node_name])
-            if !isnothing(act)
-                prev_activation_name = input_node_name * "_" * string(act)
-                push!(node_prevs[v_name], prev_activation_name)    
+            if haskey(act_name, input_node_name)
+                push!(node_prevs[v_name], act_name[input_node_name])
             else
                 push!(node_prevs[v_name], input_node_name)
             end
@@ -181,19 +180,20 @@ function onnx_parse(onnx_model_path)
         #split this layer into a linear layer and a activative layer
         act = get_act(NaiveNASflux.layer(vertex))
         if !isnothing(act)
-            activation_name = v_name * "_" * string(act)
-            
-            node_prevs[activation_name] = [v_name]
-            node_nexts[activation_name] = node_nexts[v_name]
+            act_name[v_name] = v_name * "_" * string(act)
 
-            node_nexts[v_name] = [activation_name]
-            node_layer[activation_name] = act
-            
+            node_prevs[act_name[v_name]] = [v_name]
+            node_nexts[act_name[v_name]] = node_nexts[v_name]
+
+            node_nexts[v_name] = [act_name[v_name]]
+            node_layer[act_name[v_name]] = act
+
+            push!(activation_nodes, act_name[v_name])
+            push!(all_nodes, act_name[v_name]) 
+
             node_layer[v_name] = remove_layer_act(node_layer[v_name])
 
-            push!(activation_nodes, activation_name)
-            push!(all_nodes, activation_name) 
-            v_name = activation_name  # for getting the final_nodes
+            v_name = act_name[v_name]  # for getting the final_nodes
         end
         
         if length(outputs(vertex)) == 0  #the final node has no output nodes
@@ -204,6 +204,7 @@ function onnx_parse(onnx_model_path)
         # println("nexts: ", node_nexts[node_name])
         # println("====")
     end
+
     # println("node_layer")
     # println(node_layer)
     # @assert false
@@ -218,6 +219,10 @@ end
 function remove_layer_act(l)
     if l isa Dense
         return Dense(l.weight, l.bias, identity;)
+    elseif l isa Conv
+        return Conv(l.weight, l.bias, identity, stride = l.stride, pad = l.pad, dilation = l.dilation, groups = l.groups)
+    elseif l isa ConvTranspose
+        return ConvTranspose(l.weight, l.bias, identity, stride = l.stride, pad = l.pad, dilation = l.dilation, groups = l.groups)
     else
         @warn "Decoupling activation for $l is not implemented. The inference output may be incorrect. Verification is not affected."
     end

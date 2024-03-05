@@ -628,6 +628,8 @@ function (f::BetaLayer)(x)
     if isnothing(A)
         return [nothing, nothing]
     end
+    # @show f.alpha
+    # @show f.beta
     # @timeit to "beta_layer" begin
     # lower_slop = alpha if unstable, 1 if active, 0 if inactive
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
@@ -669,6 +671,8 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
     # println("=== in relu ===")
     # println("lower: ", lower)
     # println("upper: ", upper)
+    # @show batch_info[node][:lower_bound_alpha]
+    # @show batch_info[node][:upper_bound_alpha]
 
     lower_bound_alpha = batch_info[node][:lower_bound_alpha]
     upper_bound_alpha = batch_info[node][:upper_bound_alpha]
@@ -704,6 +708,7 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
         Beta_Lower_Layer = BetaLayer(node, lower_bound_alpha, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta)
         # println("Beta_Lower_Layer.beta_lower: ", Beta_Lower_Layer.beta)
         push!(lower_A, Beta_Lower_Layer)
+        # @show Flux.params(Beta_Lower_Layer)
     end
 
     if prop_method.bound_upper
@@ -715,6 +720,7 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 
+    # @show Flux.params(lower_A)
     # println("lower_A: ", lower_A)
     # println("after lower_A: ")
     # print_beta_layers(lower_A, batch_info[:init_A_b])

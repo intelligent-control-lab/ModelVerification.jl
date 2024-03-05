@@ -147,7 +147,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
     # pre_bounds = Dict()
     batch_size = length(batch_input)
     for node in model_info.activation_nodes
-        println("sub model node: ", node)
+        # println("sub model node: ", node)
         @assert length(model_info.node_prevs[node]) == 1
         prev_node = model_info.node_prevs[node][1]
         
@@ -185,7 +185,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
 
         batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
         batch_info = init_node_alpha(model_info.node_layer[node], node, batch_info, batch_input)
-        println("node alpha initted:", node)
+        # println("node alpha initted:", node)
         # pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
         # println("sub model node: ", node)
         # @show l
@@ -342,8 +342,9 @@ function init_node_alpha(layer::typeof(relu), node, batch_info, batch_input)
     alpha_indices = findall(unstable_mask) 
     upper_slope, upper_bias = relu_upper_bound(l, u) #upper slope and upper bias
     # lower_slope = convert(typeof(upper_slope), upper_slope .> 0.5) #lower slope
-    # lower_slope = copy(upper_slope) #lower slope
-    lower_slope = zeros(size(upper_slope))
+    # @show upper_slope
+    lower_slope = deepcopy(upper_slope) #lower slope
+    # lower_slope = zeros(size(upper_slope))
 
     lower_slope = isa(l, CuArray) ? lower_slope |> gpu : lower_slope
     
@@ -498,12 +499,20 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # for i in eachindex(batch_bound.lower_A_x)
     #     @show i, typeof(batch_bound.lower_A_x), typeof(batch_bound.lower_A_x[i])
     # end
+    # @show length(batch_bound.lower_A_x)
+    # for op in batch_bound.lower_A_x
+    #     @show typeof(op)
+    #     @show Flux.params(op)
+    # end
+    # @show Flux.params(batch_bound.lower_A_x)
+    # @show Flux.params(batch_bound.upper_A_x)
 
     bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
     bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
     bound_upper_model = prop_method.use_gpu ? bound_upper_model |> gpu : bound_upper_model
 
+    # @show Flux.params(bound_upper_model)
     # for polytope output set, spec holds if upper bound of (spec_A x - b) < 0 for all dimension. therefore minimize maximum(spec_A x - b)
     # for complement polytope set, spec holds if lower bound of (spec_A x - b) > 0 for any dimension. therefore maximize maximum(spec_A x - b), that is minimize -maximum(spec_A x - b)
     
@@ -518,10 +527,16 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     
     if length(Flux.params(bound_lower_model)) > 0
         loss_func = l_u -> -sum(l_u[1]) # surrogate loss to maximize the min spec
+        # loss_func = l_u -> -sum(exp.(l_u[1])) # surrogate loss to maximize the min spec
+        # loss_func = l_u -> -sum(l_u[1].^3) # surrogate loss to maximize the min spec
         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
     if length(Flux.params(bound_upper_model)) > 0
+        # @show "optimize"
         loss_func = l_u -> sum(l_u[2]) # surrogate loss to minimize the max spec
+        # loss_func = l_u -> sum(exp.(l_u[2])) # surrogate loss to minimize the max spec
+        # loss_func = l_u -> sum(l_u[2].^3) # surrogate loss to minimize the max spec
+        # loss_func = l_u -> -sum(l_u[2]) # surrogate loss to minimize the max spec
         @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, batch_info[:spec_A_b], loss_func, prop_method.optimizer, prop_method.train_iteration)
     end
 
@@ -546,6 +561,8 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])
     # @show lower_spec_l
+    # @show lower_spec_u
+    # @show upper_spec_l
     # @show upper_spec_u
     # println("spec")
     

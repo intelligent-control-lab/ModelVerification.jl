@@ -114,6 +114,9 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
 
         sub_model_info = get_sub_model(model_info, node)
 
+        # @show node
+        # @show sub_model_info.all_nodes
+
         # need to revise the following for image inputs with Convolution layers
         if isa(prop_method.pre_bound_method,BackwardProp)
             # @show model_info.node_layer[node]
