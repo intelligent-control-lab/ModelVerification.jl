@@ -174,3 +174,28 @@ function propagate_skip_batch(prop_method::BetaCrown, layer::typeof(Parallel), b
     bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, deepcopy(bounds[1].batch_data_min), deepcopy(bounds[1].batch_data_max), bounds[1].img_size)
     return bound
 end
+function propagate_skip_batch(
+    prop_method::MIPVerify,
+    layer::typeof(+),
+    bound1::AbstractVector,
+    bound2::AbstractVector,
+    batch_info,
+)::AbstractVector
+    # create optimization variable of the current node
+    node = batch_info[:current_node]
+    opt_model = batch_info[:opt_model]
+    z = @variable(opt_model, [1:batch_info[node][:size_after_layer][1]])
+    batch_info[node][:opt_vars] = Dict(:z => z)
+
+    # get optimization variable of previous nodes
+    prev_nodes = batch_info[node][:prev_nodes]
+    @assert length(prev_nodes) == 2
+    z_prev1 = batch_info[prev_nodes[1]][:opt_vars][:z]
+    z_prev2 = batch_info[prev_nodes[2]][:opt_vars][:z]
+
+    # add constraint of + layer
+    @constraint(opt_model, z .== z_prev1 + z_prev2)
+
+    # return any one of the two bounds is fine since it will not be used for verification
+    return bound1
+end
