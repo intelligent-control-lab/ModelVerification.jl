@@ -1,5 +1,5 @@
 """
-    propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), 
+    propagate_layer(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), 
                   reach::AbstractPolytope, batch_info)
 
 Propagate the `AbstractPolytope` bound through a ReLU layer. I.e., it applies 
@@ -20,7 +20,7 @@ resulting bound using a Zonotope.
 ## Returns
 - the relued bound of the output represented in `Zonotope` type.
 """
-function propagate_act(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_layer(prop_method::Union{Ai2z, ImageZono}, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = overapproximate(Rectification(reach), Zonotope)
     return reach
 end  
@@ -63,7 +63,7 @@ function partition_relu(bound)
 end
 
 """
-    propagate_act(prop_method::ExactReach, layer::typeof(relu), 
+    propagate_layer(prop_method::ExactReach, layer::typeof(relu), 
                   reach::ExactReachBound, batch_info)
 
 Propagate the `ExactReachBound` bound through a ReLU layer. I.e., it applies 
@@ -85,7 +85,7 @@ concatenated and stored in an `ExactReachBound` object.
 ## Returns
 - the relued bound of the output represented in `ExactReachBound` type.
 """
-function propagate_act(prop_method::ExactReach, layer::typeof(relu), reach::ExactReachBound, batch_info)
+function propagate_layer(prop_method::ExactReach, layer::typeof(relu), reach::ExactReachBound, batch_info)
     partitioned_bound = [partition_relu(bound) for bound in reach.polys]
     partitioned_bound = vcat(partitioned_bound...)
     reach = ExactReachBound(partitioned_bound)
@@ -93,7 +93,7 @@ function propagate_act(prop_method::ExactReach, layer::typeof(relu), reach::Exac
 end
 
 """
-    propagate_act(prop_method::Box, layer::typeof(relu), 
+    propagate_layer(prop_method::Box, layer::typeof(relu), 
                   reach::AbstractPolytope, batch_info)
 
 Propagate the `AbstractPolytope` bound through a ReLU layer. I.e., it applies 
@@ -111,7 +111,7 @@ of type `AbstractPolytope`. This is for Ai2's `Box` propagation method. It calls
 ## Returns
 - the relued bound of the output represented in `AbstractPolytope` type.
 """
-function propagate_act(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
+function propagate_layer(prop_method::Box, layer::typeof(relu), reach::AbstractPolytope, batch_info)
     reach = rectify(reach)
     return reach
 end  
@@ -167,7 +167,7 @@ function fast_overapproximate(r::Rectification{N,<:AbstractZonotope}, ::Type{<:Z
 end
 
 """
-    propagate_act(prop_method, layer::typeof(relu), 
+    propagate_layer(prop_method, layer::typeof(relu), 
                   bound::ImageZonoBound, batch_info)
 
 Propagate the `ImageZonoBound` bound through a ReLU layer. I.e., it applies 
@@ -187,7 +187,7 @@ converts the resulting `Zonotope` back to `ImageZonoBound`.
 ## Returns
 - the relued bound of the output represented in `ImageZonoBound` type.
 """
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
     cen = reshape(bound.center, :)
     gen = reshape(bound.generators, :, size(bound.generators,4))
     # println("size gen: ", size(bound.generators,4))
@@ -225,7 +225,7 @@ function propagate_act(prop_method, layer::typeof(relu), bound::ImageZonoBound, 
 end
 
 """
-    propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+    propagate_layer(prop_method, layer::typeof(relu), bound::Star, batch_info)
     
 Propagate the `Star` bound through a ReLU layer. I.e., it applies the ReLU 
 operation to the `Star` bound. The resulting bound is also of type `Star`. This 
@@ -244,7 +244,7 @@ is for `Star` propagation methods.
 [1] HD. Tran, S. Bak, W. Xiang, and T.T. Johnson, "Verification of Deep Convolutional 
 Neural Networks Using ImageStars," in _Computer Aided Verification (CAV)_, 2020.
 """
-function propagate_act(prop_method, layer::typeof(relu), bound::Star, batch_info)
+function propagate_layer(prop_method, layer::typeof(relu), bound::Star, batch_info)
     # https://arxiv.org/pdf/2004.05511.pdf
     cen = LazySets.center(bound) # h * w * c * 1
     gen = basis(bound) # h*w*c x n_alpha
@@ -352,13 +352,13 @@ function Star_to_ImageStar(bound::Star, sz)
 end
 
 """
-    propagate_act(prop_method, layer::typeof(relu), 
+    propagate_layer(prop_method, layer::typeof(relu), 
                   bound::ImageStarBound, batch_info)
 
 Propagate the `ImageStarBound` bound through a ReLU layer. I.e., it applies 
 the ReLU operation to the `ImageStarBound` bound. The resulting bound is also 
 of type `ImageStarBound`. This is for `ImageStar` propagation method. It 
-converts the input bound to `Star` type, calls `propagate_act` that propagates 
+converts the input bound to `Star` type, calls `propagate_layer` that propagates 
 the `Star` bound through a ReLU layer, and converts the resulting bound back to 
 `ImageStarBound`.
 
@@ -372,23 +372,23 @@ the `Star` bound through a ReLU layer, and converts the resulting bound back to
 ## Returns
 - The relued bound of the output represented in `ImageStarBound` type.
 """
-function propagate_act(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method, layer::typeof(relu), bound::ImageStarBound, batch_info)
     to = get_timer("Shared")
     sz = size(bound.generators)
     # println("generator size: ", sz)
     @timeit to "ImageStar_to_Star" flat_bound = ImageStar_to_Star(bound)
-    @timeit to "propagate_star" new_flat_bound = propagate_act(prop_method, layer, flat_bound, batch_info)
+    @timeit to "propagate_star" new_flat_bound = propagate_layer(prop_method, layer, flat_bound, batch_info)
     @timeit to "Star_to_ImageStar" new_bound = Star_to_ImageStar(new_flat_bound, sz)
     return new_bound
 end
 
 """
-    propagate_act_batch(prop_method::Crown, layer::typeof(relu), 
+    propagate_layer_batch(prop_method::Crown, layer::typeof(relu), 
                         bound::CrownBound, batch_info)
 
 Propagate the `CrownBound` bound through a ReLU layer.
 """
-function propagate_act_batch(prop_method::Crown, layer::typeof(relu), original_bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::typeof(relu), original_bound::CrownBound, batch_info)
     to = get_timer("Shared")
     if length(size(original_bound.batch_Low)) > 3
         bound, img_size = convert_CROWN_Bound_batch(original_bound)
@@ -628,6 +628,8 @@ function (f::BetaLayer)(x)
     if isnothing(A)
         return [nothing, nothing]
     end
+    # @show f.alpha
+    # @show f.beta
     # @timeit to "beta_layer" begin
     # lower_slop = alpha if unstable, 1 if active, 0 if inactive
     lower_slope = clamp.(f.alpha, 0, 1) .* f.unstable_mask .+ f.active_mask 
@@ -655,7 +657,8 @@ function (f::BetaLayer)(x)
 end
 
 
-function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), bound::BetaCrownBound, batch_info)
+    # @show "========= relu"
     node = batch_info[:current_node]
     #= if !haskey(batch_info[node], :pre_lower) || !haskey(batch_info[node], :pre_upper)
         lower, upper = compute_bound(batch_info[node][:pre_bound])
@@ -668,6 +671,8 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     # println("=== in relu ===")
     # println("lower: ", lower)
     # println("upper: ", upper)
+    # @show batch_info[node][:lower_bound_alpha]
+    # @show batch_info[node][:upper_bound_alpha]
 
     lower_bound_alpha = batch_info[node][:lower_bound_alpha]
     upper_bound_alpha = batch_info[node][:upper_bound_alpha]
@@ -686,15 +691,15 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     beta_lower_S = prop_method.use_gpu ? fmap(cu, batch_info[node][:beta_lower_S]) : batch_info[node][:beta_lower_S]
     beta_upper_S = prop_method.use_gpu ? fmap(cu, batch_info[node][:beta_upper_S]) : batch_info[node][:beta_upper_S]
 
-    lower_A = bound.lower_A_x
-    upper_A = bound.upper_A_x
+    lower_A = deepcopy(bound.lower_A_x)
+    upper_A = deepcopy(bound.upper_A_x)
 
     # println("lower_A: ", lower_A)
     # println("before lower_A: ")
     # print_beta_layers(lower_A, batch_info[:init_A_b])
     # println("before upper_A: ")
     # print_beta_layers(upper_A, batch_info[:init_A_b])
-
+    # @show "setting ", node
     batch_info[node][:pre_upper_A_function] = nothing
     batch_info[node][:pre_lower_A_function] = nothing
 
@@ -703,6 +708,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
         Beta_Lower_Layer = BetaLayer(node, lower_bound_alpha, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta)
         # println("Beta_Lower_Layer.beta_lower: ", Beta_Lower_Layer.beta)
         push!(lower_A, Beta_Lower_Layer)
+        # @show Flux.params(Beta_Lower_Layer)
     end
 
     if prop_method.bound_upper
@@ -714,6 +720,7 @@ function propagate_act_batch(prop_method::BetaCrown, layer::typeof(relu), bound:
     push!(batch_info[:Beta_Lower_Layer_node], node)
     New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 
+    # @show Flux.params(lower_A)
     # println("lower_A: ", lower_A)
     # println("after lower_A: ")
     # print_beta_layers(lower_A, batch_info[:init_A_b])

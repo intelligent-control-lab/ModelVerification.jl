@@ -66,6 +66,7 @@ function get_sub_model(model_info, end_node)
     while !isempty(queue)
         node = dequeue!(queue)
         for input_node in model_info.node_prevs[node]
+            # @show node, input_node
             if !(input_node in sub_nodes)
                 push!(sub_nodes, input_node)
                 enqueue!(queue, input_node)
