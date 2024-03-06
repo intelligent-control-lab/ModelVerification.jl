@@ -1,7 +1,7 @@
 using Plots
 
 """
-    propagate_linear(prop_method::ForwardProp, layer::Dense, 
+    propagate_layer(prop_method::ForwardProp, layer::Dense, 
                      reach::LazySet, batch_info)
 
 Propagate the bounds through the dense layer. It operates an affine 
@@ -19,14 +19,14 @@ transformation on the given input bound and returns the output bound.
 ## Returns
 - `reach` (`LazySet`): Bound of the output after affine transformation.
 """
-function propagate_linear(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
+function propagate_layer(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
     # display(plot(reach, title=typeof(prop_method), xlim=[-3,3], ylim=[-3,3]))
     return reach
 end
 
 """
-    propagate_linear(prop_method::ExactReach, layer::Dense, 
+    propagate_layer(prop_method::ExactReach, layer::Dense, 
                      reach::ExactReachBound, batch_info)
 
 Propagate the bounds through the dense layer. It operates an affine 
@@ -46,7 +46,7 @@ transformation on the given input bound and returns the output bound for
 - `reach` (`ExactReachBound`): Bound of the output after affine transformation, 
     which is represented by `ExactReachBound` type.
 """
-function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactReachBound, batch_info)
+function propagate_layer(prop_method::ExactReach, layer::Dense, reach::ExactReachBound, batch_info)
     bounds = []
     cnt = 0
     for bound in reach.polys
@@ -68,7 +68,7 @@ function propagate_linear(prop_method::ExactReach, layer::Dense, reach::ExactRea
 end
 
 """
-    propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
+    propagate_layer(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
 
 Propagate the bounds through the dense layer for Ai2 `Box` solver. It operates 
 an approximate affine transformation (affine transformation using hyperrectangle 
@@ -84,7 +84,7 @@ overapproximation) on the given input bound and returns the output bound.
 - `reach` (`hyperrectangle`): Bound of the output after approximate affine 
     transformation.
 """
-function propagate_linear(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
+function propagate_layer(prop_method::Box, layer::Dense, reach::LazySet, batch_info)
     isa(reach, AbstractPolytope) || throw("Ai2 only support AbstractPolytope type branches.")
     reach = approximate_affine_map(layer, reach)
     return reach
@@ -118,7 +118,7 @@ function batch_interval_map(W::AbstractMatrix{N}, l::AbstractArray, u::AbstractA
 end
 
 """
-    propagate_linear_batch(prop_method::Crown, layer::Dense, 
+    propagate_layer_batch(prop_method::Crown, layer::Dense, 
                            bound::CrownBound, batch_info)
 
 Propagates the bounds through the dense layer for `Crown` solver. It operates
@@ -137,7 +137,7 @@ The resulting bound is represented by `CrownBound` type.
 - `new_bound` (`CrownBound`): Bound of the output after affine transformation, 
     which is represented by `CrownBound` type.
 """
-function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
+function propagate_layer_batch(prop_method::Crown, layer::Dense, bound::CrownBound, batch_info)
     # out_dim x in_dim * in_dim x X_dim x batch_size
     output_Low, output_Up = prop_method.use_gpu ? batch_interval_map(fmap(cu, layer.weight), bound.batch_Low, bound.batch_Up) : batch_interval_map(layer.weight, bound.batch_Low, bound.batch_Up)
     @assert !any(isnan, output_Low) "contains NaN"
@@ -149,7 +149,7 @@ function propagate_linear_batch(prop_method::Crown, layer::Dense, bound::CrownBo
 end
 
 # # Ai2z, Ai2h
-# function propagate_linear(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
+# function propagate_layer(prop_method::ForwardProp, layer::Dense, batch_reach::AbstractArray, batch_info)
 #     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
 #     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
 #     batch_reach = affine_map(layer, batch_reach)
@@ -157,7 +157,7 @@ end
 # end
 
 # # Ai2 Box
-# function propagate_linear(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
+# function propagate_layer(prop_method::Box, layer::Dense, batch_reach::AbstractArray, batch_info)
 #     all(isa.(batch_reach, AbstractPolytope)) || throw("Ai2 only support AbstractPolytope type branches.")
 #     batch_reach = identity.(batch_reach) # identity. converts Vector{Any} to Vector{AbstractPolytope}
 #     batch_reach = approximate_affine_map(layer, batch_reach)
@@ -193,7 +193,7 @@ end
 """
 function dense_bound_oneside(last_A, weight, bias, batch_size)
     if isnothing(last_A)
-        return [nothing, x[2]]
+        return nothing
     end
     #weight = reshape(weight, (size(weight)..., 1)) 
     #weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
@@ -208,7 +208,7 @@ function dense_bound_oneside(last_A, weight, bias, batch_size)
 end
 
 """
-    propagate_linear_batch(prop_method::BetaCrown, layer::Dense, 
+    propagate_layer_batch(prop_method::BetaCrown, layer::Dense, 
                            bound::BetaCrownBound, batch_info)
 
 Propagates the bounds through the dense layer for `BetaCrown` solver. It 
@@ -230,7 +230,7 @@ resulting bound is represented by `BetaCrownBound` type.
 - `New_bound` (`BetaCrownBound`): Bound of the output after affine 
     transformation, which is represented by `BetaCrownBound` type.
 """
-function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::Dense, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(node, batch_info, layer.bias)
@@ -242,12 +242,14 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
         weight = layer.weight
         bias = bias_lb
         if prop_method.bound_lower
-            lA_x = dense_bound_oneside(bound.lower_A_x, weight, bias, batch_info[:batch_size])
+            lA_x = deepcopy(bound.lower_A_x)
+            lA_x = dense_bound_oneside(lA_x, weight, bias, batch_info[:batch_size])
         else
             lA_x = nothing
         end
         if prop_method.bound_upper
-            uA_x = dense_bound_oneside(bound.upper_A_x, weight, bias, batch_info[:batch_size])
+            uA_x = deepcopy(bound.upper_A_x)
+            uA_x = dense_bound_oneside(uA_x, weight, bias, batch_info[:batch_size])
         else
             uA_x = nothing
         end
@@ -256,4 +258,27 @@ function propagate_linear_batch(prop_method::BetaCrown, layer::Dense, bound::Bet
         New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
         return New_bound
     end
-end 
+end
+
+function propagate_layer_batch(
+    prop_method::MIPVerify,
+    layer::Dense,
+    bound::AbstractVector,
+    batch_info::Dict,
+)::AbstractVector
+    # create optimization variable of the current node
+    node = batch_info[:current_node]
+    opt_model = batch_info[:opt_model]
+    z = @variable(opt_model, [1:batch_info[node][:size_after_layer][1]])
+    batch_info[node][:opt_vars] = Dict(:z => z)
+
+    # get optimization variable of the previous node
+    prev_nodes = batch_info[node][:prev_nodes]
+    @assert length(prev_nodes) == 1
+    z_prev = batch_info[prev_nodes[1]][:opt_vars][:z]
+
+    # add constraint of Dense layer
+    @constraint(opt_model, z .== layer.weight * z_prev + layer.bias)
+
+    return bound
+end

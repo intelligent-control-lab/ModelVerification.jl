@@ -185,6 +185,10 @@ function init_bound(prop_method::StarSet, input::Hyperrectangle)
     return s
 end
 
+function init_bound(prop_method::Ai2z, input::Hyperrectangle)
+    return convert(Zonotope, input)
+end
+
 """
     check_inclusion(prop_method::ForwardProp, model, input::LazySet, 
     reach::LazySet, output::LazySet)

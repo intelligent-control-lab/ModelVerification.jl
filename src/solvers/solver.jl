@@ -188,6 +188,7 @@ key is mapped to the list of input specifications.
 - `batch_info`: Dictionary containing information of each node in the model.
 """
 function init_propagation(prop_method::BackwardProp, batch_input, batch_output, model_info)
+    # @show model_info.final_nodes
     @assert length(model_info.final_nodes) == 1
     batch_info = Dict{Any, Any}(node => Dict() for node in model_info.all_nodes)
     batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, batch_input, batch_output)

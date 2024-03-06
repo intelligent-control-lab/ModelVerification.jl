@@ -4,7 +4,7 @@ module ModelVerification
 using JuMP
 import Ipopt
 
-# using GLPK, SCS # SCS only needed for Certify
+using GLPK #, SCS # SCS only needed for Certify
 # using PicoSAT # needed for Planet
 using Polyhedra, CDDLib
 using LazySets, LazySets.Approximations
@@ -33,6 +33,7 @@ using DataStructures
 using Statistics
 using Einsum
 using Zygote
+using UUIDs
 
 using ReachabilityAnalysis
 
@@ -92,7 +93,6 @@ include("spec/spec.jl")
 export ImageConvexHull, InputSpec, OutputSpec
 export get_linear_spec, get_image_linf_spec, classification_spec
 
-
 include("utils/activation.jl")
 include("utils/network.jl")
 include("utils/problem.jl")
@@ -129,6 +129,7 @@ include("solvers/crown.jl")
 include("solvers/beta-crown.jl")
 include("solvers/exact-reach.jl")
 include("solvers/ode-taylor.jl")
+include("solvers/mip-verify.jl")
 
 include("propagate/propagate.jl")
 include("propagate/propagate_neural_ode.jl")
@@ -152,6 +153,7 @@ export ImageStar, ImageZono
 export Crown, BetaCrown
 export CrownBoundHeuristics
 export ODETaylor
+export MIPVerify
 
 const tol = sqrt(eps())
 const TOL = Ref(sqrt(eps()))
