@@ -84,6 +84,7 @@ Flux.@functor Compute_bound ()
 function (f::Compute_bound)(x)
     A_pos = clamp.(x[1], 0, Inf)
     A_neg = clamp.(x[1], -Inf, 0)
+    # @show size(f.batch_data_min), size(A_pos)
     l = batched_vec(A_pos, f.batch_data_min) + batched_vec(A_neg, f.batch_data_max) .+ x[2]
     u = batched_vec(A_pos, f.batch_data_max) + batched_vec(A_neg, f.batch_data_min) .+ x[2]
     return l, u
@@ -171,7 +172,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         if pre_bound_method.use_gpu
             I_spec = LinearSpec(fmap(cu, I_spec.A), fmap(cu, I_spec.b), fmap(cu, I_spec.is_complement))
         end
-        # @show size(I_spec.A)
+        # @show size(I_spec.A), size(I_spec.b)
         
         sub_out_spec, sub_batch_info = prepare_method(pre_bound_method, batch_input, I_spec, [batch_info], sub_model_info, true)
         # println("keys: ", keys(sub_batch_info))
@@ -181,6 +182,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         # println("dense_0_relu low A:", sub_batch_info["dense_0_relu"].lower_A_x)
         sub_batch_bound, sub_batch_info = propagate(pre_bound_method, sub_model_info, sub_batch_info)
         sub_batch_bound, sub_batch_info = process_bound(pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
+        # @show typeof(sub_batch_bound) # ConcretizeCrownBound
         l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
 
         batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
@@ -492,10 +494,14 @@ end
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     
     to = get_timer("Shared")
+    # @show size(batch_bound.batch_data_min)
     @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
     #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
     # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
+
+    # @show batch_bound.img_size
+
     # for i in eachindex(batch_bound.lower_A_x)
     #     @show i, typeof(batch_bound.lower_A_x), typeof(batch_bound.lower_A_x[i])
     # end
@@ -557,6 +563,9 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         [batch_info[l.node][:beta_lower] = l.beta for l in Flux.modules(bound_lower_model) if l isa BetaLayer]
         [batch_info[l.node][:beta_upper] = l.beta for l in Flux.modules(bound_upper_model) if l isa BetaLayer]
     end
+
+
+    # @show size(batch_info[:spec_A_b][1]), size(batch_info[:spec_A_b][2])
 
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
     upper_spec_l, upper_spec_u = bound_upper_model(batch_info[:spec_A_b])

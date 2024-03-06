@@ -573,60 +573,71 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::Conv, bound::BetaC
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
     # @show node
     size_after_conv = batch_info[node][:size_after_layer][1:3]
+    size_before_conv = batch_info[node][:size_before_layer][1:3]
+    # @show size_before_conv
     weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
 
     bias_lb = _preprocess(node, batch_info, layer.bias)
     bias_ub = _preprocess(node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-    # println("=== in dense ===")
+    # println("=== in cnn ===")
     # println("bound.lower_A_x: ", bound.lower_A_x)
-    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-        weight = layer.weight # x[1].lower
-        bias = bias_lb # x[2].lower
-        if prop_method.bound_lower
-            lA_x = deepcopy(bound.lower_A_x)
-            lA_x = conv_bound_oneside(lA_x, weight, bias_lb, stride, pad, dilation, groups, bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
-        else
-            lA_x = nothing
-        end
-        if prop_method.bound_upper
-            uA_x = deepcopy(bound.upper_A_x)
-            uA_x = conv_bound_oneside(uA_x, weight, bias_lb, stride, pad, dilation, groups,bound.batch_data_min, bound.batch_data_max,size_after_conv, batch_info[:batch_size])
-        else
-            uA_x = nothing
-        end
-        # println("lA_x: ", lA_x)
-        # println("uA_x: ", uA_x)
-        New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
-        return New_bound
+    # if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    weight = layer.weight # x[1].lower
+    bias = bias_lb # x[2].lower
+    if prop_method.bound_lower
+        lA_x = deepcopy(bound.lower_A_x)
+        lA_x = conv_bound_oneside(lA_x, weight, bias_lb, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_info[:batch_size])
+    else
+        lA_x = nothing
     end
+    if prop_method.bound_upper
+        uA_x = deepcopy(bound.upper_A_x)
+        uA_x = conv_bound_oneside(uA_x, weight, bias_lb, stride, pad, dilation, groups,size_before_conv, size_after_conv, batch_info[:batch_size])
+    else
+        uA_x = nothing
+
+    end
+    # println("lA_x: ", lA_x)
+    # println("uA_x: ", uA_x)
+    New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return New_bound
+    # end
 end 
 
 """
-    conv_bound_oneside(last_A, weight, bias, batch_size)
+    conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
 
 """
-function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, batch_data_min, batch_data_max,size_after_conv, batch_size)
+function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
     function find_w_b(x)
         x_weight = x[1]
         # @show size(x_weight)
         x_bias = x[2]
         # @show size(x_bias)
         # zero_bias = zeros(size(weight)[3])  #bias need to be zero
+        # @show pad
         backward = ConvTranspose(weight, false, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
         x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
+        # @show size(x_weight)
         spec_dim = size(x_weight)[2]
         b_size = size(x_weight)[3]
         x_weight = reshape(x_weight, (size_after_conv..., spec_dim*b_size))
 
         batch_reach = backward(x_weight)
+        # @show size(batch_reach)
         # @show size(x_weight)[1], 
-        output_padding1 = Int(size(batch_reach)[1]) - (Int(size(x_weight)[1]) - 1) * stride[1] + 2 * pad[1] - 1 - (Int(size(weight)[1] - 1) * dilation[1])
-        output_padding2 = Int(size(batch_reach)[2]) - (Int(size(x_weight)[2]) - 1) * stride[2] + 2 * pad[2] - 1 - (Int(size(weight)[2] - 1) * dilation[2])
-        if(output_padding1 != 0 || output_padding2 != 0) #determine the output size of the ConvTranspose
-            batch_reach = PaddedView(0, batch_reach, (size(batch_reach)[1] + output_padding1, size(batch_reach)[2] + output_padding2, size(batch_reach)[3], size(batch_reach)[4]))
-        end
-
+        output_padding1 = Int(size_before_conv[1]) - (Int(size(x_weight)[1]) - 1) * stride[1] + 2 * pad[1] - 1 - (Int(size(weight)[1] - 1) * dilation[1])
+        output_padding2 = Int(size_before_conv[2]) - (Int(size(x_weight)[2]) - 1) * stride[2] + 2 * pad[2] - 1 - (Int(size(weight)[2] - 1) * dilation[2])
+        # @show Int(size(x_weight)[1]), Int(size(weight)[1])
+        # @show (Int(size_before_conv[1]) + 2 * pad[1] - Int(size(weight)[1]))
+        # TODO: currently we only support (i+2p-k)%s == 0 to avoid output padding, as shown in https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html, which Flux does not support
+        @assert output_padding1 == 0 && output_padding2 == 0 "currently we only support (i+2p-k)%s == 0 (now =$output_padding1) to avoid output padding, which Flux does not support, as shown in https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html"
+        # if(output_padding1 != 0 || output_padding2 != 0) #determine the output size of the ConvTranspose
+        #     # @show output_padding1, output_padding2
+        #     batch_reach = PaddedView(0, batch_reach, (size(batch_reach)[1] + output_padding1, size(batch_reach)[2] + output_padding2, size(batch_reach)[3], size(batch_reach)[4]))
+        # end
+        # @show size(batch_reach)
         batch_bias = sum(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)) .* bias, dims = 1) # compute the output bias
         
         batch_reach = reshape(batch_reach, (size(batch_reach)[1]*size(batch_reach)[2]*size(batch_reach)[3],spec_dim, b_size))
@@ -634,6 +645,89 @@ function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups,
         @assert size(batch_bias)[1] == 1
         batch_bias = reshape(batch_bias, (spec_dim, b_size))
         # @show size(batch_reach), size(batch_bias)
+        return [batch_reach, batch_bias]
+    end
+    push!(last_A, find_w_b)
+    return last_A
+end
+
+"""
+    propagate_linear_batch(prop_method::BetaCrown, layer::ConvTranspose, 
+                           bound::BetaCrownBound, batch_info)
+
+Propagates the bounds through the ConvTranspose layer for `BetaCrown` solver. It 
+operates an ConvTranspose transformation on the given input bound and returns the
+output bound. It first preprocesses the lower- and upper-bounds of the bias of 
+the node using `_preprocess`. Then, it computes the interval map of the 
+resulting lower- and upper-bounds using `convtrans_bound_oneside` function. The 
+resulting bound is represented by `BetaCrownBound` type.
+
+## Arguments
+- `prop_method` (`BetaCrown`): `BetaCrown` solver used for the verification 
+    process.
+- `layer` (`ConvTranspose`): ConvTranspose layer of the model.
+- `bound` (`BetaCrownBound`): Bound of the input, represented by 
+    `BetaCrownBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `New_bound` (`BetaCrownBound`): Bound of the output after affine 
+    transformation, which is represented by `BetaCrownBound` type.
+"""
+function propagate_linear_batch(prop_method::BetaCrown, layer::ConvTranspose, bound::BetaCrownBound, batch_info)
+    node = batch_info[:current_node]
+    #TODO: we haven't consider the perturbation in weight and bias
+    @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    # @show node
+    size_after_conv = batch_info[node][:size_after_layer][1:3]
+    size_before_conv = batch_info[node][:size_before_layer][1:3]
+    # @show size_before_conv
+    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+
+    bias_lb = _preprocess(node, batch_info, layer.bias)
+    bias_ub = _preprocess(node, batch_info, layer.bias)
+    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    weight = layer.weight # x[1].lower
+    bias = bias_lb # x[2].lower
+    if prop_method.bound_lower
+        lA_x = convtrans_bound_oneside(bound.lower_A_x, weight, bias_lb, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_info[:batch_size])
+    else
+        lA_x = nothing
+    end
+    if prop_method.bound_upper
+        uA_x = convtrans_bound_oneside(bound.upper_A_x, weight, bias_lb, stride, pad, dilation, groups,size_before_conv, size_after_conv, batch_info[:batch_size])
+    else
+        uA_x = nothing
+    end
+
+    New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return New_bound
+    # end
+end 
+
+"""
+    convtrans_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
+
+"""
+function convtrans_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_size)
+    function find_w_b(x)
+        x_weight = x[1]
+        x_bias = x[2]
+
+        backward = Conv(weight, false, identity, stride = stride, pad = pad, dilation = dilation, groups = groups)
+        x_weight = permutedims(x_weight,(2,1,3)) # spec_dim x out_dim x batch_size => #  out_dim x spec_dim x batch_size
+        spec_dim = size(x_weight)[2]
+        b_size = size(x_weight)[3]
+        x_weight = reshape(x_weight, (size_after_conv..., spec_dim*b_size))
+
+        batch_reach = backward(x_weight)
+        batch_bias = sum(dropdims(sum(x_weight, dims=(1, 2)), dims=(1,2)) .* bias, dims = 1) # compute the output bias
+        
+        batch_reach = reshape(batch_reach, (size(batch_reach)[1]*size(batch_reach)[2]*size(batch_reach)[3],spec_dim, b_size))
+        batch_reach = permutedims(batch_reach,(2,1,3))
+        @assert size(batch_bias)[1] == 1
+        batch_bias = reshape(batch_bias, (spec_dim, b_size))
         return [batch_reach, batch_bias]
     end
     push!(last_A, find_w_b)
