@@ -71,6 +71,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
         if length(model_info.node_prevs[node]) == 2    # If this is  are two previous nodes connecting to the `node`
             if isa(model_info.node_layer[node], Union{typeof(+), typeof(-)})
                 batch_info[node][:size_after_layer] = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
+                batch_info[node][:size_before_layer] = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
             else
                 error("Size propagation not implemented for: $model_info.node_layer[node]")
             end
@@ -79,6 +80,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
             # @show model_info.node_prevs[node][1]
             # @show prev_size
             batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
+            batch_info[node][:size_before_layer] = prev_size
         end
         # @show node, batch_info[node][:size_after_layer]
     end
@@ -227,6 +229,9 @@ function plot_bounds(all_bounds, model_info, batch_info, save_path; vis_center=t
             
             out_l = ndims(l) == 4 ? l[:,:,1,1] : reshape(l, :,1)
             out_u = ndims(u) == 4 ? u[:,:,1,1] : reshape(u, :,1)
+
+            out_center = ndims(out_center) == 4 ? out_center[:,:,1,1] : reshape(out_center, :,1)
+            
             
             # @show size(out_center)
             # @show plot_mode
@@ -294,8 +299,13 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
     model_info, processed_problem = prepare_problem(search_method, split_method, prop_method, problem)
     processed_batch_input = [processed_problem.input]
     # processed_batch_outspec = [processed_problem.output]
-
-    center_input = LazySets.center(problem.input)
+    
+    # TODO: unify center
+    if problem.input isa ImageConvexHull
+        center_input = center(problem.input)
+    else
+        center_input = LazySets.center(problem.input)
+    end
     input_size = size(center_input)
     # @show center_input
     original_batch_input = reshape(center_input, (input_size..., 1))

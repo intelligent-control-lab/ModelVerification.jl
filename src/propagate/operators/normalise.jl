@@ -213,7 +213,7 @@ The resulting bound is also of type `BetaCrownBound`.
 - The batch normed bound of the output layer represented in `BetaCrownBound` 
     type.
 """
-function propagate_linear_batch(prop_method::BetaCrown, layer::BatchNorm, bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::BatchNorm, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     
     β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats

@@ -652,7 +652,7 @@ function conv_bound_oneside(last_A, weight, bias, stride, pad, dilation, groups,
 end
 
 """
-    propagate_linear_batch(prop_method::BetaCrown, layer::ConvTranspose, 
+propagate_layer_batch(prop_method::BetaCrown, layer::ConvTranspose, 
                            bound::BetaCrownBound, batch_info)
 
 Propagates the bounds through the ConvTranspose layer for `BetaCrown` solver. It 
@@ -674,7 +674,7 @@ resulting bound is represented by `BetaCrownBound` type.
 - `New_bound` (`BetaCrownBound`): Bound of the output after affine 
     transformation, which is represented by `BetaCrownBound` type.
 """
-function propagate_linear_batch(prop_method::BetaCrown, layer::ConvTranspose, bound::BetaCrownBound, batch_info)
+function propagate_layer_batch(prop_method::BetaCrown, layer::ConvTranspose, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TODO: we haven't consider the perturbation in weight and bias
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))

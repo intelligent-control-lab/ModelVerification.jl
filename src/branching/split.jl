@@ -334,7 +334,7 @@ function branching_scores_kfsb(model_info, batch_info, input)
             #A = batch_info[node][:pre_upper_A]
             A = batch_info[node][:pre_upper_spec_A]
         end
-        if isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.Conv)
+        if isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.Conv) || isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.ConvTranspose)
             A = reshape(A, (size(A)[1], batch_info[model_info.node_prevs[node][1]][:size_after_layer][1:3]..., size(A)[3]))
         end
         unstable_mask = batch_info[node][:unstable_mask]
@@ -344,7 +344,7 @@ function branching_scores_kfsb(model_info, batch_info, input)
         upper_slope, upper_bias = relu_upper_bound(lower, upper)
 
         intercept_temp = clamp.(A, 0, Inf)
-        if isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.Conv)
+        if isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.Conv) || isa(model_info.node_layer[model_info.node_prevs[node][1]], Flux.ConvTranspose)
             intercept_temp = reshape(intercept_temp, (size(intercept_temp)[1], size(intercept_temp)[2] * size(intercept_temp)[3] *size(intercept_temp)[4], size(intercept_temp)[5]))
         end
         intercept_candidate = intercept_temp .* reshape(upper_bias, (1, size(upper_bias)...))
@@ -352,7 +352,7 @@ function branching_scores_kfsb(model_info, batch_info, input)
         @assert length(model_info.node_prevs[node]) == 1
         input_node = model_info.node_prevs[node][1]
         input_layer = model_info.node_layer[input_node]
-        if isa(input_layer, Flux.Conv) || isa(input_layer, Flux.Dense)
+        if isa(input_layer, Flux.Conv) || isa(input_layer, Flux.Dense) || isa(input_layer, Flux.ConvTranspose)
             if !isnothing(input_layer.bias)
                 b_temp = input_layer.bias
             else
@@ -384,7 +384,7 @@ function branching_scores_kfsb(model_info, batch_info, input)
         end   
         use_gpu = A isa CUDA.CuArray
         b_temp = use_gpu ? b_temp |> gpu : b_temp
-        if isa(input_layer, Flux.Conv)
+        if isa(input_layer, Flux.Conv) || isa(input_layer, Flux.ConvTranspose)
             b_temp = reshape(b_temp, (1, 1, 1, size(b_temp)...)) .* A
             b_temp = reshape(b_temp, (size(b_temp)[1], size(b_temp)[2] * size(b_temp)[3] *size(b_temp)[4], size(b_temp)[5]))
         else

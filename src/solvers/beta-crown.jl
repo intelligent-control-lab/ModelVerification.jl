@@ -138,7 +138,9 @@ end
 function batchify_inheritance(inheritance_list::AbstractVector, node, key, use_gpu)
     eltype(inheritance_list) == Nothing && return nothing
     n_dim = ndims(inheritance_list[1][node][key])
+    # @show n_dim, node, size(inheritance_list[1][node][key])
     batch_value = cat([ih[node][key] for ih in inheritance_list]..., dims=n_dim)
+    # @show size(batch_value)
     batch_value = use_gpu ? batch_value |> gpu : batch_value
     return batch_value
 end
@@ -183,7 +185,8 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         sub_batch_bound, sub_batch_info = propagate(pre_bound_method, sub_model_info, sub_batch_info)
         sub_batch_bound, sub_batch_info = process_bound(pre_bound_method, sub_batch_bound, sub_out_spec, sub_model_info, sub_batch_info)
         # @show typeof(sub_batch_bound) # ConcretizeCrownBound
-        l, u = compute_bound(sub_batch_bound) # reach_dim x batch 
+        l, u = compute_bound(sub_batch_bound) # reach_dim x batch
+        # @show size(l), node
 
         batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
         batch_info = init_node_alpha(model_info.node_layer[node], node, batch_info, batch_input)
@@ -191,7 +194,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         # pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
         # println("sub model node: ", node)
         # @show l
-        # @show batch_info[node][:pre_lower]
+        # @show size(batch_info[node][:pre_lower]), "111"
     end
     return batch_info
 end
@@ -227,7 +230,9 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
             if haskey(inheritance_list[1][node], :upper_bound_alpha)
                 batch_info[node][:upper_bound_alpha] = batchify_inheritance(inheritance_list, node, :upper_bound_alpha, prop_method.use_gpu)
             end
+            # @show node, size(batch_info[node][:pre_lower])
         end
+        # println("---done iterating act nodes ---")
     elseif prop_method.pre_bound_method isa BetaCrown  # requires recursive bounding, iterate from first layer
 
         # println("---computing pre bound ---")
@@ -246,6 +251,7 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         end
         # println("=== Done computing pre bound ===")
     end
+    # @show sub
     
     batch_info[:batch_size] = length(batch_input)
     for node in model_info.all_nodes
@@ -301,8 +307,8 @@ function get_inheritance(prop_method::BetaCrown, batch_info::Dict, batch_idx::In
     for node in model_info.activation_nodes
         # println(size(batch_info[node][:pre_lower]))
         inheritance[node] = Dict(
-            :pre_lower => batch_info[node][:pre_lower][:,batch_idx],
-            :pre_upper => batch_info[node][:pre_upper][:,batch_idx]
+            :pre_lower => batch_info[node][:pre_lower][:,batch_idx:batch_idx],
+            :pre_upper => batch_info[node][:pre_upper][:,batch_idx:batch_idx]
         )
     end
     # println("inheritance: ", inheritance)
@@ -337,6 +343,7 @@ function init_node_alpha(layer::typeof(relu), node, batch_info, batch_input)
 
     l = batch_info[node][:pre_lower]
     u = batch_info[node][:pre_upper]
+    # @show ndims(l), node
     
     @assert ndims(l) == 2 || ndims(l) == 4 "pre_layer of relu should be dense or conv"
 
