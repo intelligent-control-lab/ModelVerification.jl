@@ -61,7 +61,7 @@ not changed, but the radius is scaled by the ratio.
 - The scaled `Hyperrectangle` set.
 """
 function scale_set(set::Hyperrectangle, ratio)
-    return Hyperrectangle(center(set), radius_hyperrectangle(set) * ratio)
+    return Hyperrectangle(get_center(set), radius_hyperrectangle(set) * ratio)
 end
 
 """

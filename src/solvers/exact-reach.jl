@@ -47,7 +47,7 @@ struct ExactReachBound <: Bound
 end
 
 """
-    center(bound::ExactReachBound)
+get_center(bound::ExactReachBound)
 
 Returns a randomly sampled point from the first polytope in the array of 
 polytopes, `bound.polys`.
@@ -58,8 +58,8 @@ polytopes, `bound.polys`.
 ## Returns
 - A randomly sampled point from the first polytope in the array of polytopes.
 """
-function center(bound::ExactReachBound)
-    return sample(bound.polys[1])
+function get_center(bound::ExactReachBound)
+    return LazySets.sample(bound.polys[1])
 end
 
 """

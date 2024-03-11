@@ -167,7 +167,7 @@ function compute_bound(bound::ImageStarBound)
 end
 
 """
-    center(bound::ImageStarBound)
+get_center(bound::ImageStarBound)
 
 Returns the center image of the `ImageStarBound` bound.
 
@@ -178,7 +178,7 @@ Returns the center image of the `ImageStarBound` bound.
 ## Returns
 - `ImageStarBound.center` image of type `AbstractArray{T, 4}`.
 """
-center(bound::ImageStarBound) = bound.center
+get_center(bound::ImageStarBound) = bound.center
 
 """
     check_inclusion(prop_method::ImageStar, model, input::ImageStarBound, 

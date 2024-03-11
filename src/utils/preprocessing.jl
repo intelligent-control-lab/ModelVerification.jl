@@ -81,8 +81,8 @@ function onnx_node_to_flux_layer(vertex)
         return +
     elseif node_type == NaiveNASlib.var"#342#344"{typeof(-)}
         return -
-    # elseif node_type == ONNXNaiveNASflux.var"#217#229"{typeof(relu)}
-    #     return NNlib.relu
+    elseif node_type == ONNXNaiveNASflux.var"#217#229"{typeof(relu)}
+        return NNlib.relu
     else
         # @show vertex
         return NaiveNASflux.layer(vertex)
@@ -223,6 +223,8 @@ function remove_layer_act(l)
         return Conv(l.weight, l.bias, identity, stride = l.stride, pad = l.pad, dilation = l.dilation, groups = l.groups)
     elseif l isa ConvTranspose
         return ConvTranspose(l.weight, l.bias, identity, stride = l.stride, pad = l.pad, dilation = l.dilation, groups = l.groups)
+    elseif l isa BatchNorm
+        return BatchNorm(identity, l.β, l.γ, l.μ, l.σ², l.ϵ, l.momentum, l.affine, l.track_stats, l.active, l.chs)
     else
         @warn "Decoupling activation for $l is not implemented. The inference output may be incorrect. Verification is not affected."
     end
@@ -294,8 +296,8 @@ end
 function compute_out_skip(model_info, batch_info, node)
     input_node1 = model_info.node_prevs[node][1]
     input_node2 = model_info.node_prevs[node][2]
-    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : center(batch_info[input_node1][:bound][1])
-    batch_out2 = haskey(batch_info[input_node2], :out) ? batch_info[input_node2][:out] : center(batch_info[input_node2][:bound][1])
+    batch_out1 = haskey(batch_info[input_node1], :out) ? batch_info[input_node1][:out] : get_center(batch_info[input_node1][:bound][1])
+    batch_out2 = haskey(batch_info[input_node2], :out) ? batch_info[input_node2][:out] : get_center(batch_info[input_node2][:bound][1])
     return model_info.node_layer[node](batch_out1 |> cpu, batch_out2 |> cpu)
 end
 

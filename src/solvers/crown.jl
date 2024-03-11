@@ -235,7 +235,7 @@ function convert_CROWN_Bound_batch(img_bound::CrownBound)
     return new_bound, img_size
 end
 
-function center(bound::CrownBound)
+function get_center(bound::CrownBound)
     @show size(bound.batch_Low)
     @show size(bound.batch_data_min)
     l, u = compute_bound(bound)

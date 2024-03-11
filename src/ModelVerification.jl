@@ -130,6 +130,7 @@ include("solvers/beta-crown.jl")
 include("solvers/exact-reach.jl")
 include("solvers/ode-taylor.jl")
 include("solvers/mip-verify.jl")
+include("solvers/example-solver.jl")
 
 include("propagate/propagate.jl")
 include("propagate/propagate_neural_ode.jl")
@@ -146,7 +147,7 @@ include("propagate/operators/sigmoid.jl")
 
 include("attack/pgd.jl")
 
-
+export ExampleSolver
 export Ai2, Ai2h, Ai2z, Box, ExactReach
 export StarSet
 export ImageStar, ImageZono
