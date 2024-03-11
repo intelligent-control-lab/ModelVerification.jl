@@ -180,7 +180,7 @@ end
     project(x, dir::AbstractVector, set::Hyperrectangle)
 """
 function project(x, dir::AbstractVector, set::Hyperrectangle)
-    c = center(set)
+    c = LazySets.center(set)
     r = radius_hyperrectangle(set)
     return c - r * sign.(dir)
 end

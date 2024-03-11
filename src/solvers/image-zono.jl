@@ -119,7 +119,7 @@ function compute_bound(bound::ImageZonoBound)
 end
 
 """
-    center(bound::ImageZonoBound)
+get_center(bound::ImageZonoBound)
 
 Returns the center image of the `ImageZonoBound` bound.
 
@@ -130,7 +130,7 @@ Returns the center image of the `ImageZonoBound` bound.
 ## Returns
 - `ImageZonoBound.center` image of type `AbstractArray{T, 4}`.
 """
-center(bound::ImageZonoBound) = bound.center
+get_center(bound::ImageZonoBound) = bound.center[:,:,:,1]
 
 """
     check_inclusion(prop_method::ImageZono, model, input::ImageZonoBound, 

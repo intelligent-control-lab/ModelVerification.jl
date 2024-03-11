@@ -5,9 +5,10 @@ using FileIO
 function compute_all_bound(prop_method::ForwardProp, batch_input, batch_output, model_info, out_and_bounds)
 
     batch_info = init_propagation(prop_method, batch_input, nothing, model_info)
-    _, all_bounds = propagate(prop_method, model_info, batch_info)
+    
+    batch_info = get_all_layer_output_size(model_info, batch_info, size(get_center(batch_input[1])))
 
-    batch_info = get_all_layer_output_size(model_info, batch_info, size(LazySets.center(batch_input[1])))
+    _, all_bounds = propagate(prop_method, model_info, batch_info)
 
     for node in model_info.all_nodes
         # @show node
@@ -42,6 +43,7 @@ end
 function get_all_layer_output_size(model_info, batch_info, input_size)
     # @show model_info
     # @show batch_info
+    println("Computing all layer output size")
 
     @assert length(model_info.start_nodes) == 1
     # @assert length(model_info.node_nexts[model_info.start_nodes[1]]) == 1
@@ -50,7 +52,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
     batch_info[model_info.start_nodes[1]][:size_after_layer] = (input_size..., batch_size)
     
     # @show model_info.start_nodes[1]
-    # @show (input_size..., batch_size)
+    @show (input_size..., batch_size)
     #BFS
     queue = Queue{Any}()                            # Make an empty queue.
     # enqueue!(queue, model_info.node_nexts[model_info.start_nodes[1]][1])
@@ -59,6 +61,8 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
     visit_cnt = Dict(node => 0 for node in model_info.all_nodes)    # Dictionary for the number of visits (cnt) for all nodes. 
     while !isempty(queue)                           # If queue is not empty!
         node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
+        
+        @show node
         for output_node in model_info.node_nexts[node]    # For each node connected from the current node.
             visit_cnt[output_node] += 1             # The output node is visited one more time!
             if length(model_info.node_prevs[output_node]) == visit_cnt[output_node]   # If all the previous nodes has been led to the `output_node`.
@@ -80,7 +84,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
             # @show prev_size
             batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
         end
-        # @show node, batch_info[node][:size_after_layer]
+        @show node, batch_info[node][:size_after_layer]
     end
     return batch_info
 end
@@ -292,10 +296,15 @@ function visualize(search_method::SearchMethod, split_method::SplitMethod, prop_
                     )
     
     model_info, processed_problem = prepare_problem(search_method, split_method, prop_method, problem)
+
+    # for node in model_info.all_nodes
+    #     println(node, "->", model_info.node_nexts[node])
+    # end
+
     processed_batch_input = [processed_problem.input]
     # processed_batch_outspec = [processed_problem.output]
 
-    center_input = LazySets.center(problem.input)
+    center_input = get_center(problem.input)
     input_size = size(center_input)
     # @show center_input
     original_batch_input = reshape(center_input, (input_size..., 1))

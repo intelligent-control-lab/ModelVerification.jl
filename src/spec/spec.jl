@@ -5,6 +5,7 @@ Abstract super-type for input-output specifications.
 """
 abstract type Spec end
 
+get_center(set::LazySet) = LazySets.center(set)
 """
     ImageConvexHull <: Spec
 
@@ -20,8 +21,7 @@ struct ImageConvexHull <: Spec
     imgs::AbstractArray # list of images (h,w,c)
 end
 
-
-function center(bound::ImageConvexHull)
+function get_center(bound::ImageConvexHull)
     return sum(bound.imgs) ./ length(bound.imgs)
 end
 
@@ -96,8 +96,8 @@ returns a `ImageZonoBound` structure.
 """
 function get_image_linf_spec(lb, ub, img_size)
     h = Hyperrectangle(low = lb, high = ub)
-    cen = reshape(center(h), (img_size...,1))
-    gen = reshape(genmat(h), (img_size...,length(lb)))
+    cen = reshape(LazySets.center(h), (img_size...,1))
+    gen = reshape(LazySets.center(h), (img_size...,length(lb)))
     return ImageZonoBound(cen, gen)
 end
 

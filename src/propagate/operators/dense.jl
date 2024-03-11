@@ -21,6 +21,7 @@ transformation on the given input bound and returns the output bound.
 """
 function propagate_layer(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
+    @show reach
     # display(plot(reach, title=typeof(prop_method), xlim=[-3,3], ylim=[-3,3]))
     return reach
 end
