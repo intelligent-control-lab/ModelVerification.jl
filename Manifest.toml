@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.3"
+julia_version = "1.9.4"
 manifest_format = "2.0"
 project_hash = "521736722cde21cf307276c4407c1168db716458"
 
@@ -1444,12 +1444,12 @@ version = "1.59.1"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
+version = "0.6.4"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
+version = "8.4.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1458,7 +1458,7 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
+version = "1.11.0+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1769,10 +1769,10 @@ uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "1.0.2"
 
 [[deps.NaiveNASflux]]
-deps = ["ChainRulesCore", "Flux", "Functors", "JuMP", "LinearAlgebra", "NaiveNASlib", "Optimisers", "PrecompileTools", "Random", "Reexport", "Setfield", "Statistics"]
-git-tree-sha1 = "4c776150c76ef6cb6c446c2b9296a095051640eb"
+deps = ["ChainRulesCore", "Flux", "Functors", "JuMP", "LinearAlgebra", "NaiveNASlib", "Random", "Reexport", "Setfield", "Statistics"]
+path = "onnx_parser/NaiveNASflux"
 uuid = "85610aed-7d32-5e57-bb50-4c2e1c9e7997"
-version = "2.0.10"
+version = "2.0.8"
 
 [[deps.NaiveNASlib]]
 deps = ["Functors", "HiGHS", "JuMP", "Logging", "PrecompileTools", "Reexport", "Statistics"]
@@ -1810,9 +1810,9 @@ version = "2.1.0"
 
 [[deps.ONNXNaiveNASflux]]
 deps = ["ChainRulesCore", "Flux", "JuMP", "NaiveNASflux", "NaiveNASlib", "Pkg", "ProtoBuf", "Setfield", "Statistics"]
-git-tree-sha1 = "f091970d3991079f94f69f5b67ab0b45c5600462"
+path = "onnx_parser/ONNXNaiveNASflux"
 uuid = "2e935253-ba83-4645-9154-13ffeb13a688"
-version = "0.2.11"
+version = "0.2.7"
 
 [[deps.OffsetArrays]]
 git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
@@ -3180,7 +3180,7 @@ version = "1.1.6+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
+version = "1.52.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
