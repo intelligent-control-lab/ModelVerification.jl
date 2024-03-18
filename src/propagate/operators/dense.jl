@@ -179,10 +179,12 @@ is not `nothing`, it multiplies the bias with the beta value of the node.
 ## Returns
 - `bias`: Preprocessed bias of the node.
 """
-function _preprocess(node, batch_info, bias = nothing)
+function _preprocess(prop_method, node, batch_info, bias = nothing)
     if !isnothing(bias)
         if batch_info[node][:beta] != 1.0 
-            bias = batch_info[node][:beta] .* bias
+            bias = prop_method.use_gpu ? fmap(cu, bias) : bias
+            node_beta = prop_method.use_gpu ? fmap(cu, batch_info[node][:beta]) : batch_info[node][:beta]
+            bias = node_beta .* bias
         end
     end
     return bias
@@ -234,31 +236,31 @@ resulting bound is represented by `BetaCrownBound` type.
 function propagate_layer_batch(prop_method::BetaCrown, layer::Dense, bound::BetaCrownBound, batch_info)
     node = batch_info[:current_node]
     #TO DO: we haven't consider the perturbation in weight and bias
-    bias_lb = _preprocess(node, batch_info, layer.bias)
-    bias_ub = _preprocess(node, batch_info, layer.bias)
+    bias_lb = _preprocess(prop_method, node, batch_info, layer.bias)
+    bias_ub = _preprocess(prop_method, node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
     # println("=== in dense ===")
     # println("bound.lower_A_x: ", bound.lower_A_x)
-    if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-        weight = layer.weight
-        bias = bias_lb
-        if prop_method.bound_lower
-            lA_x = deepcopy(bound.lower_A_x)
-            lA_x = dense_bound_oneside(lA_x, weight, bias, batch_info[:batch_size])
-        else
-            lA_x = nothing
-        end
-        if prop_method.bound_upper
-            uA_x = deepcopy(bound.upper_A_x)
-            uA_x = dense_bound_oneside(uA_x, weight, bias, batch_info[:batch_size])
-        else
-            uA_x = nothing
-        end
-        # println("lA_x: ", lA_x)
-        # println("uA_x: ", uA_x)
-        New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
-        return New_bound
+    @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
+    weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
+    bias = bias_lb
+    if prop_method.bound_lower
+        lA_x = deepcopy(bound.lower_A_x)
+        lA_x = dense_bound_oneside(lA_x, weight, bias, batch_info[:batch_size])
+    else
+        lA_x = nothing
     end
+    if prop_method.bound_upper
+        uA_x = deepcopy(bound.upper_A_x)
+        uA_x = dense_bound_oneside(uA_x, weight, bias, batch_info[:batch_size])
+    else
+        uA_x = nothing
+    end
+    # println("lA_x: ", lA_x)
+    # println("uA_x: ", uA_x)
+    New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return New_bound
+    # end
 end
 
 function propagate_layer_batch(

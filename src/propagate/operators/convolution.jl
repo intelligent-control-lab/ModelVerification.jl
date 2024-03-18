@@ -183,7 +183,7 @@ Then the bound is initalized again `CrownBound` type.
 """
 function propagate_layer_batch_symbolic(prop_method::Crown, layer::Conv, bound::CrownBound, batch_info)
     @assert length(size(bound.batch_Low)) > 3
-    new_crown_bound = batch_interval_map(layer, bound)
+    new_crown_bound = batch_interval_map(prop_method, layer, bound)
     # img_size = size(bound.batch_Low)[1:3]
     # l, u = compute_bound(bound)
     # img_low = reshape(l, (img_size..., size(l)[2]))
@@ -418,8 +418,10 @@ function bound_layer(layer::Conv{2, 4, typeof(identity), Array{Float32, 4}, Vect
     return lw, lb, uw, ub
 end
 
-function batch_interval_map(layer::Conv, bound::CrownBound) 
-    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+function batch_interval_map(prop_method::Crown, layer::Conv, bound::CrownBound) 
+    weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
+    bias = prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
+    stride, pad, dilation, groups = layer.stride, layer.pad, layer.dilation, layer.groups
     lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
     upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
     lower_bias = bound.batch_Low[:,:,:, end,:]
@@ -493,7 +495,9 @@ properties. The resulting bound is also of type `CrownBound`.
 - The convolved bound of the output layer represented in `CrownBound` type.              
 """
 function propagate_layer_batch(prop_method::Crown, layer::ConvTranspose, bound::CrownBound, batch_info)
-    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
+    bias = prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
+    stride, pad, dilation, groups = layer.stride, layer.pad, layer.dilation, layer.groups
     lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
     upper_weight = bound.batch_Up[:,:, :, 1:end-1,:]
     lower_bias = bound.batch_Low[:,:,:, end,:]
@@ -575,15 +579,17 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::Conv, bound::BetaC
     size_after_conv = batch_info[node][:size_after_layer][1:3]
     size_before_conv = batch_info[node][:size_before_layer][1:3]
     # @show size_before_conv
-    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
+    # bias = prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias #
+    stride, pad, dilation, groups = layer.stride, layer.pad, layer.dilation, layer.groups
 
-    bias_lb = _preprocess(node, batch_info, layer.bias)
-    bias_ub = _preprocess(node, batch_info, layer.bias)
+    # TODO: check bias == bias_lb?
+    bias_lb = _preprocess(prop_method, node, batch_info, layer.bias)
+    bias_ub = _preprocess(prop_method, node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
     # println("=== in cnn ===")
     # println("bound.lower_A_x: ", bound.lower_A_x)
-    # if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-    weight = layer.weight # x[1].lower
+
     bias = bias_lb # x[2].lower
     if prop_method.bound_lower
         lA_x = deepcopy(bound.lower_A_x)
@@ -683,12 +689,14 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::ConvTranspose, bou
     size_after_conv = batch_info[node][:size_after_layer][1:3]
     size_before_conv = batch_info[node][:size_before_layer][1:3]
     # @show size_before_conv
-    weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
+    weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
+    # bias = prop_method.use_gpu ? fmap(cu, layer.bias) : layer.bias
+    stride, pad, dilation, groups = layer.stride, layer.pad, layer.dilation, layer.groups
 
-    bias_lb = _preprocess(node, batch_info, layer.bias)
-    bias_ub = _preprocess(node, batch_info, layer.bias)
+    bias_lb = _preprocess(prop_method, node, batch_info, layer.bias)
+    bias_ub = _preprocess(prop_method, node, batch_info, layer.bias)
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-    weight = layer.weight # x[1].lower
+
     bias = bias_lb # x[2].lower
     if prop_method.bound_lower
         lA_x = convtrans_bound_oneside(bound.lower_A_x, weight, bias_lb, stride, pad, dilation, groups, size_before_conv,size_after_conv, batch_info[:batch_size])

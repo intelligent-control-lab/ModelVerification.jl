@@ -144,6 +144,7 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound::B
     for i in 1:channel
         weights[:,:,i,i] .= v
     end
+    weights = prop_method.use_gpu ? fmap(cu, weights) : weights
     equal_conv = Conv(weights, false, identity; stride = layer.stride[1], pad = layer.pad[1])
 
     return propagate_layer_batch(prop_method, equal_conv, bound, batch_info)
@@ -166,17 +167,6 @@ function f_propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound:
     pad = layer.pad
     stride = layer.stride
     
-    # @show size_after_layer
-    # # @show layer.window
-    # @show layer.k
-    # @show layer.pad, layer.stride
-    # weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
-
-    # bias_lb = _preprocess(node, batch_info, layer.bias)
-    # bias_ub = _preprocess(node, batch_info, layer.bias)
-    # lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-    # println("=== in dense ===")
-    # println("bound.lower_A_x: ", bound.lower_A_x)
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         # weight = layer.weight # x[1].lower
         # bias = bias_lb # x[2].lower
@@ -230,6 +220,7 @@ function meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min
         b_size = size(x_weight)[3]
         x_weight = reshape(x_weight, (size_after_layer..., spec_dim*b_size))
         # @show x_weight
+        # FIXME: there is a bug here for the original implementation of meanpool for beta crown
         upsampled_weight = upsample_bilinear(x_weight, kernel_size ./ prod(kernel_size), align_corners=false)
         # @show upsampled_weight
         # batch_reach = upsampled_weight
@@ -270,7 +261,7 @@ function meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min
 end
 
 function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(Flux.flatten), bound::BetaCrownBound, batch_info)
-    # bound, _ = convert_CROWN_Bound_batch(bound)
+
     node = batch_info[:current_node]
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
     lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
@@ -278,24 +269,7 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(Flux.flatte
     size_before_layer = batch_info[node][:size_before_layer][1:3]
     # @show batch_info[node][:size_before_layer], batch_info[node][:size_after_layer]
     size_after_layer = [batch_info[node][:size_after_layer][1]]
-    # kernel_size = layer.k
-    # pad = layer.pad
-    # stride = layer.stride
-    
-    # @show size_after_layer
-    # # @show layer.window
-    # @show layer.k
-    # @show layer.pad, layer.stride
-    # weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
 
-    # bias_lb = _preprocess(node, batch_info, layer.bias)
-    # bias_ub = _preprocess(node, batch_info, layer.bias)
-    # lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
-    # println("=== in dense ===")
-    # println("bound.lower_A_x: ", bound.lower_A_x)
-    # if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-        # weight = layer.weight # x[1].lower
-        # bias = bias_lb # x[2].lower
     if prop_method.bound_lower
         lA_x = flatten_bound_oneside(bound.lower_A_x,size_before_layer, size_after_layer, batch_info[:batch_size])
     else
@@ -306,11 +280,8 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(Flux.flatte
     else
         uA_x = nothing
     end
-    # println("lA_x: ", lA_x)
-    # println("uA_x: ", uA_x)
     New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
     return New_bound
-    # end
 end
 
 """
