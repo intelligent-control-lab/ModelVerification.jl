@@ -136,7 +136,12 @@ The resulting bound is also of type `CrownBound`.
 """
 function propagate_layer_batch(prop_method::Crown, layer::BatchNorm, bound::CrownBound, batch_info)
     # @show size(bound.batch_Low)
-    β, γ, μ, σ², ϵ, momentum, affine, track_stats = layer.β, layer.γ, layer.μ, layer.σ², layer.ϵ, layer.momentum, layer.affine, layer.track_stats
+    β = prop_method.use_gpu ? fmap(cu, layer.β) : layer.β
+    γ = prop_method.use_gpu ? fmap(cu, layer.γ) : layer.γ
+    μ = prop_method.use_gpu ? fmap(cu, layer.μ) : layer.μ
+    σ² = prop_method.use_gpu ? fmap(cu, layer.σ²) : layer.σ²
+    ϵ = prop_method.use_gpu ? fmap(cu, layer.ϵ) : layer.ϵ
+    momentum, affine, track_stats = layer.momentum, layer.affine, layer.track_stats
     # @show size(μ)
     # @show size(σ²)
     lower_weight = bound.batch_Low[:,:, :, 1:end-1,:]
