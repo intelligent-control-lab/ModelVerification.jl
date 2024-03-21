@@ -89,7 +89,12 @@ end
 
 struct_copy(x::T) where T = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)
 
-+(t1::Tuple, t2::Tuple) = t1 .+ t2
+# +(t1::Tuple, t2::Tuple) = t1 .+ t2
+import Base: +
+function +(t1::Tuple, t2::Tuple)
+    return t1 .+ t2
+end
+
 # For backward method, + is not a bivariate operator, The bivariate operator is where the skip starts.
 function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(+), bound::BetaCrownBound, batch_info)
     return BetaCrownBound(identity, identity, identity, identity, bound.batch_data_min, bound.batch_data_max, bound.img_size)
