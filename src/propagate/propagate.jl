@@ -345,6 +345,9 @@ function propagate_layer_method(prop_method::BackwardProp, model_info, batch_inf
         output_node = model_info.node_nexts[node][1]
         batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[output_node][:bound], batch_info)
     else #the node is final_node: use the pre-defined bound to start, and update the bound of the current node
+        # @show node
+        # @show batch_info[node][:bound]
+        # haskey(batch_info[node], :symbolic_pre_bound) && (@show batch_info[node][:symbolic_pre_bound])
         batch_bound = propagate_layer_batch(prop_method, model_info.node_layer[node], batch_info[node][:bound], batch_info)
     end
     return batch_bound

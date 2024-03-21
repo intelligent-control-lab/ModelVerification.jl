@@ -789,3 +789,87 @@ function propagate_layer_batch(
 
     return bound
 end
+
+
+"""
+    propagate_layer_batch(prop_method::VeriGrad, layer::typeof(relu), 
+                        bound::VeriGradBound, batch_info)
+
+Propagate the `VeriGradBound` bound through a ReLU layer.
+"""
+function propagate_layer_batch(prop_method::VeriGrad, layer::typeof(relu), original_bound::VeriGradBound, batch_info)
+    to = get_timer("Shared")
+    @assert length(size(original_bound.batch_Low)) ≤ 3
+    if length(size(original_bound.batch_Low)) > 3
+        # TODO: currently not support iamge input
+        bound, img_size = convert_CROWN_Bound_batch(original_bound)
+    else
+        bound = original_bound
+    end
+    # @show node
+    # @show batch_info[node][:symbolic_pre_bound]
+    output_Low, output_Up = copy(bound.batch_Low), copy(bound.batch_Up) # reach_dim x input_dim x batch
+
+
+    # If the lower bound of the lower bound is positive,
+    # No change to the linear bounds.
+    
+    # If the upper bound of the upper bound is negative, set
+    # both linear bounds to 0
+    @timeit to "compute_bound"  l, u = compute_bound(bound) # reach_dim x batch
+    inact_mask = u .<= 0 # reach_dim x batch
+    inact_mask_ext = broadcast_mid_dim(inact_mask, output_Low) # reach_dim x input_dim x batch
+    output_Low[inact_mask_ext] .= 0
+    output_Up[inact_mask_ext] .= 0
+
+    
+    # if the bounds overlap 0, concretize by setting
+    # the generators to 0, and setting the new upper bound
+    # center to be the current upper-upper bound.
+    unstable_mask = (u .> 0) .& (l .< 0) # reach_dim x batch
+    unstable_mask_ext = broadcast_mid_dim(unstable_mask, output_Low) # reach_dim x input_dim+1 x batch
+    slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # selected_reach_dim * selected_batch
+
+    slope_mtx = prop_method.use_gpu ? fmap(cu, ones(size(u))) : ones(size(u))
+    if prop_method.use_gpu
+        CUDA.@allowscalar slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
+    else
+        slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask])
+    end
+
+    broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
+    # broad_slop = reshape(slope, )
+    
+    output_Up .*= broad_slope # slope of active neuron is 1, so does not matter
+    unstable_mask_bias = copy(unstable_mask_ext)
+    unstable_mask_bias[:,1:end-1,:] .= 0
+
+    if prop_method.use_gpu
+        CUDA.@allowscalar output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
+    else
+        output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
+    end
+    # @show size(output_Low)
+    # @show size(output_Low[unstable_mask_ext])
+    # @show size(broad_slope[:])
+    # @show size(broad_slope)
+
+    if prop_method.bound_heuristics == zero_slope
+        output_Low[unstable_mask_ext] .= 0
+    elseif  prop_method.bound_heuristics == parallel_slope
+        output_Low .*= broad_slope # slope of active neuron is 1, so does not matter
+    else
+        throw("unsupported bound heuristics for ReLU, Crown")
+    end
+
+    @assert !any(isnan, output_Low) "relu low contains NaN"
+    @assert !any(isnan, output_Up) "relu up contains NaN"
+    
+    new_bound = CrownBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    
+    if length(size(original_bound.batch_Low)) > 3
+        new_bound = convert_CROWN_Bound_batch(new_bound, img_size)
+    end
+    # @show size(new_bound.batch_Low)
+    return new_bound
+end

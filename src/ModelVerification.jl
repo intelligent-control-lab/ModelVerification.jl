@@ -131,6 +131,7 @@ include("solvers/exact-reach.jl")
 include("solvers/ode-taylor.jl")
 include("solvers/mip-verify.jl")
 include("solvers/example-solver.jl")
+include("solvers/verigrad.jl")
 
 include("propagate/propagate.jl")
 include("propagate/propagate_neural_ode.jl")
@@ -155,6 +156,7 @@ export Crown, BetaCrown
 export CrownBoundHeuristics
 export ODETaylor
 export MIPVerify
+export VeriGrad
 
 const tol = sqrt(eps())
 const TOL = Ref(sqrt(eps()))
