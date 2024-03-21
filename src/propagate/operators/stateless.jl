@@ -158,7 +158,6 @@ function f_propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound:
     node = batch_info[:current_node]
     #TODO: we haven't consider the perturbation in weight and bias
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
     # @show node
     size_before_layer = batch_info[node][:size_before_layer][1:3]
     # @show batch_info[node][:size_before_layer], batch_info[node][:size_after_layer]
@@ -167,31 +166,22 @@ function f_propagate_layer_batch(prop_method::BetaCrown, layer::MeanPool, bound:
     pad = layer.pad
     stride = layer.stride
     
+    lA_W = uA_W = nothing 
     if !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
         # weight = layer.weight # x[1].lower
         # bias = bias_lb # x[2].lower
-        if prop_method.bound_lower
-            lA_x = meanpool_bound_oneside(bound.lower_A_x, kernel_size, stride, pad, bound.batch_data_min, bound.batch_data_max,size_after_layer,size_before_layer, batch_info[:batch_size])
-        else
-            lA_x = nothing
-        end
-        if prop_method.bound_upper
-            uA_x = meanpool_bound_oneside(bound.upper_A_x, kernel_size, stride, pad, bound.batch_data_min, bound.batch_data_max,size_after_layer,size_before_layer, batch_info[:batch_size])
-        else
-            uA_x = nothing
-        end
-        # println("lA_x: ", lA_x)
-        # println("uA_x: ", uA_x)
+        lA_x = prop_method.bound_lower ? meanpool_bound_oneside(kernel_size, stride, pad, bound.batch_data_min, bound.batch_data_max,size_after_layer,size_before_layer, batch_info[:batch_size]) : nothing
+        uA_x = prop_method.bound_upper ? meanpool_bound_oneside(kernel_size, stride, pad, bound.batch_data_min, bound.batch_data_max,size_after_layer,size_before_layer, batch_info[:batch_size]) : nothing
         New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
         return New_bound
     end
 end
 
 """
-    meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer, batch_size)
+    meanpool_bound_oneside(kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer, batch_size)
 
 """
-function meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer,size_before_layer, batch_size)
+function meanpool_bound_oneside(kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer,size_before_layer, batch_size)
 
     #all(isa.(batch_reach, AbstractArray)) || throw("Conv only support AbstractArray type branches.")
     # weight, bias, stride, pad, dilation, groups = layer.weight, layer.bias, layer.stride, layer.pad, layer.dilation, layer.groups
@@ -255,47 +245,42 @@ function meanpool_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min
     end
     # when (W−F+2P)%S != 0, construct the output_padding
     # println("-----")
-    push!(last_A, find_w_b)
+    return find_w_b
+    # push!(last_A, find_w_b)
     # println("=====")
-    return last_A
+    # return last_A
 end
 
 function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(Flux.flatten), bound::BetaCrownBound, batch_info)
 
     node = batch_info[:current_node]
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
-    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    
     # @show node
     size_before_layer = batch_info[node][:size_before_layer][1:3]
     # @show batch_info[node][:size_before_layer], batch_info[node][:size_after_layer]
     size_after_layer = [batch_info[node][:size_after_layer][1]]
 
-    if prop_method.bound_lower
-        lA_x = flatten_bound_oneside(bound.lower_A_x,size_before_layer, size_after_layer, batch_info[:batch_size])
-    else
-        lA_x = nothing
-    end
-    if prop_method.bound_upper
-        uA_x = flatten_bound_oneside(bound.upper_A_x,size_before_layer,size_after_layer, batch_info[:batch_size])
-    else
-        uA_x = nothing
-    end
+    lA_W = uA_W = nothing 
+    lA_x = prop_method.bound_lower ? flatten_bound_oneside(size_before_layer, size_after_layer, batch_info[:batch_size]) : nothing
+    uA_x = prop_method.bound_upper ? flatten_bound_oneside(size_before_layer,size_after_layer, batch_info[:batch_size]) : nothing
     New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
     return New_bound
 end
 
 """
-flatten_bound_oneside(last_A, kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer, batch_size)
+flatten_bound_oneside(kernel_size, stride, pad, batch_data_min, batch_data_max,size_after_layer, batch_size)
 
 """
-function flatten_bound_oneside(last_A,size_before_layer, size_after_layer, batch_size)
-    function find_w_b(x)
+function flatten_bound_oneside(size_before_layer, size_after_layer, batch_size)
+    function bound_flatten(x)
         x_weight = x[1]
         @assert size(x_weight)[2] == size_after_layer[1]
         x_bias = zeros(size(x[2]))
         batch_reach = x_weight
         return [batch_reach, x_bias]
     end
-    push!(last_A, find_w_b)
-    return last_A
+    return bound_flatten
+    # push!(last_A, find_w_b)
+    # return last_A
 end

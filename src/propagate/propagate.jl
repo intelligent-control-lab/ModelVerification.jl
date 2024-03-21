@@ -67,7 +67,8 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         #     @show prev_nodes(prop_method, model_info, node)[1], node
         #     @show batch_info[prev_nodes(prop_method, model_info, node)[1]][:bound] == batch_bound
         # end
-        # @show typeof(batch_bound)
+        # @show typeof(model_info.node_layer[node])
+        # @show typeof(batch_bound.lower_A_x)
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
         # @assert false
         # if !isnothing(batch_bound)

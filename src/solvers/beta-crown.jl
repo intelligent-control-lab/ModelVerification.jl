@@ -495,9 +495,48 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
     return model
 end
 
+function get_bound_chain(prop_method::BackwardProp, model_info, batch_info, node, process_bound_func)
+    @show "get chain " * node
+    m = Any[]
+    # while the current node is not the merging node of a parallel layer
+    while length(prev_nodes(prop_method, model_info, node)) < 2
+        push!(m, process_bound_func(batch_info[node][:bound]))
+        @show node, typeof(batch_info[node][:bound].lower_A_x)
+        # @show node, length(next_nodes(prop_method, model_info, node))
+        while length(next_nodes(prop_method, model_info, node)) == 2
+            m1, end_node1 = get_bound_chain(prop_method, model_info, batch_info, next_nodes(prop_method, model_info, node)[1], process_bound_func)
+            m2, end_node2 = get_bound_chain(prop_method, model_info, batch_info, next_nodes(prop_method, model_info, node)[2], process_bound_func)
+            @assert end_node1 == end_node2
+            # op = model_info.node_layer[end_node1]
+            if length(m1) == 0
+                push!(m, SkipConnection(Chain(m2), +))
+            elseif length(m2) == 0
+                push!(m, SkipConnection(Chain(m1), +))
+            else
+                push!(m, Parallel(+; α = Chain(m1), β = Chain(m2)))
+            end
+            node = end_node1 
+            # end node is an op (typically +) in forward prop
+            # But end node is a normal node in backward prop. So we need to push it into the vec
+            push!(m, process_bound_func(batch_info[node][:bound]))
+        end
+        length(next_nodes(prop_method, model_info, node)) == 0 && break
+        node = next_nodes(prop_method, model_info, node)[1]
+    end
+    @show "finish chain " * node
+    return m, node
+end
+
 """
     process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
 """
+function build_bound_graph(prop_method, model_info::ModelGraph, batch_info, process_bound_func)
+    @show "Building graph"
+    @assert length(start_nodes(prop_method, model_info)) == 1
+    bound_graph, end_node = get_bound_chain(prop_method, model_info, batch_info, start_nodes(prop_method, model_info)[1], process_bound_func)
+    return bound_graph
+end
+
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     
     to = get_timer("Shared")
@@ -509,6 +548,11 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
 
     # @show batch_bound.img_size
 
+    for node in model_info.all_nodes
+        @show node
+        @show typeof(batch_info[node][:bound])
+    end
+
     # for i in eachindex(batch_bound.lower_A_x)
     #     @show i, typeof(batch_bound.lower_A_x), typeof(batch_bound.lower_A_x[i])
     # end
@@ -519,9 +563,29 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # end
     # @show Flux.params(batch_bound.lower_A_x)
     # @show Flux.params(batch_bound.upper_A_x)
+    get_lower_A = bound -> bound.lower_A_x
+    get_upper_A = bound -> bound.upper_A_x
+    
+    bound_lower_model = build_bound_graph(prop_method, model_info, batch_info, get_lower_A)
+    # @show model_info.all_nodes
+    # for op in bound_lower_model
+    #     @show typeof(op)
+    # end
+    # println("====")
+    # x = batch_info[:spec_A_b]
+    # @show length(bound_lower_model)
+    # @show size(x[1]), size(x[2])
+    # for op in bound_lower_model
+    #     @show typeof(op)
+    #     x = op(x)
+    #     @show size(x[1]), size(x[2])
+    # end
+    # @show bound_lower_model
+    bound_lower_model = Chain(push!(bound_lower_model, compute_bound)) 
 
-    bound_lower_model = Chain(push!(batch_bound.lower_A_x, compute_bound)) 
-    bound_upper_model = Chain(push!(batch_bound.upper_A_x, compute_bound)) 
+    bound_upper_model = build_bound_graph(prop_method, model_info, batch_info, get_upper_A)
+    bound_upper_model = Chain(push!(bound_upper_model, compute_bound)) 
+
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
     bound_upper_model = prop_method.use_gpu ? bound_upper_model |> gpu : bound_upper_model
 
@@ -571,7 +635,6 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
         [batch_info[l.node][:beta_upper] = l.beta for l in Flux.modules(bound_upper_model) if l isa BetaLayer]
     end
 
-
     # @show size(batch_info[:spec_A_b][1]), size(batch_info[:spec_A_b][2])
 
     lower_spec_l, lower_spec_u = bound_lower_model(batch_info[:spec_A_b])
@@ -582,16 +645,16 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # @show upper_spec_u
     # println("spec")
     
-    spec_bound_lower = batch_out_spec.is_complement ? true : false
-    spec_bound_upper = batch_out_spec.is_complement ? false : true
-    if spec_bound_lower
-        #batch_info = get_pre_relu_A(init, prop_method.use_gpu, true, model_info, batch_info)
-        @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, true, model_info, batch_info)
-    end
-    if spec_bound_upper
-        #batch_info = get_pre_relu_A(init, prop_method.use_gpu, false, model_info, batch_info)
-        @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, false, model_info, batch_info)
-    end
+    # spec_bound_lower = batch_out_spec.is_complement ? true : false
+    # spec_bound_upper = batch_out_spec.is_complement ? false : true
+    # if spec_bound_lower
+    #     #batch_info = get_pre_relu_A(init, prop_method.use_gpu, true, model_info, batch_info)
+    #     @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, true, model_info, batch_info)
+    # end
+    # if spec_bound_upper
+    #     #batch_info = get_pre_relu_A(init, prop_method.use_gpu, false, model_info, batch_info)
+    #     @timeit to "get_pre_relu_spec_A" batch_info = get_pre_relu_spec_A(batch_info[:spec_A_b], prop_method.use_gpu, false, model_info, batch_info)
+    # end
     return ConcretizeCrownBound(lower_spec_l, upper_spec_u, batch_bound.batch_data_min, batch_bound.batch_data_max), batch_info
 end
 

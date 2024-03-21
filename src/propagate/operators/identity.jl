@@ -18,7 +18,6 @@ end
 function propagate_layer(prop_method::BackwardProp, σ::typeof(identity), bound, batch_info)
     return bound
 end
-
 function propagate_layer_batch(prop_method::BackwardProp, σ::typeof(identity), bound, batch_info)
     return bound
 end
@@ -27,4 +26,8 @@ function propagate_layer_batch(prop_method::ForwardProp, σ::typeof(identity), b
 end
 function propagate_layer_batch(prop_method::ForwardProp, σ::typeof(identity), bound::AbstractArray, batch_info)
     return bound
+end
+
+function propagate_layer_batch(prop_method::BetaCrown, σ::typeof(identity), bound::BetaCrownBound, batch_info)
+    return BetaCrownBound(identity, identity, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 end

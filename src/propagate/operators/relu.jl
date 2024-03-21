@@ -691,8 +691,8 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
     beta_lower_S = prop_method.use_gpu ? fmap(cu, batch_info[node][:beta_lower_S]) : batch_info[node][:beta_lower_S]
     beta_upper_S = prop_method.use_gpu ? fmap(cu, batch_info[node][:beta_upper_S]) : batch_info[node][:beta_upper_S]
 
-    lower_A = deepcopy(bound.lower_A_x)
-    upper_A = deepcopy(bound.upper_A_x)
+    # lower_A = deepcopy(bound.lower_A_x)
+    # upper_A = deepcopy(bound.upper_A_x)
 
     # println("lower_A: ", lower_A)
     # println("before lower_A: ")
@@ -703,22 +703,22 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::typeof(relu), boun
     batch_info[node][:pre_upper_A_function] = nothing
     batch_info[node][:pre_lower_A_function] = nothing
 
-    if prop_method.bound_lower
-        batch_info[node][:pre_lower_A_function] = copy(lower_A)
-        Beta_Lower_Layer = BetaLayer(node, lower_bound_alpha, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta)
+    Beta_Lower_Layer = prop_method.bound_lower ? BetaLayer(node, lower_bound_alpha, beta_lower, beta_lower_S, beta_lower_index, batch_info[:spec_A_b], true, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, prop_method.use_alpha, prop_method.use_beta) : nothing
+    # if 
+        # batch_info[node][:pre_lower_A_function] = copy(lower_A)
         # println("Beta_Lower_Layer.beta_lower: ", Beta_Lower_Layer.beta)
-        push!(lower_A, Beta_Lower_Layer)
+        # push!(lower_A, Beta_Lower_Layer)
         # @show Flux.params(Beta_Lower_Layer)
-    end
+    # end
 
-    if prop_method.bound_upper
-        batch_info[node][:pre_upper_A_function] = copy(upper_A)
-        Beta_Upper_Layer = BetaLayer(node, upper_bound_alpha, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, false, prop_method.use_beta)
+    Beta_Upper_Layer = prop_method.bound_upper ? BetaLayer(node, upper_bound_alpha, beta_upper, beta_upper_S, beta_upper_index, batch_info[:spec_A_b], false, unstable_mask, active_mask, upper_slope, lower_bias, upper_bias, false, prop_method.use_beta) : nothing
+    # if prop_method.bound_upper
+        # batch_info[node][:pre_upper_A_function] = copy(upper_A)
         # println("Beta_Upper_Layer.beta_lower: ", Beta_Upper_Layer.beta)
-        push!(upper_A, Beta_Upper_Layer)
-    end
+        # push!(upper_A, Beta_Upper_Layer)
+    # end
     push!(batch_info[:Beta_Lower_Layer_node], node)
-    New_bound = BetaCrownBound(lower_A, upper_A, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    New_bound = BetaCrownBound(Beta_Lower_Layer, Beta_Upper_Layer, nothing, nothing, bound.batch_data_min, bound.batch_data_max, bound.img_size)
 
     # @show Flux.params(lower_A)
     # println("lower_A: ", lower_A)

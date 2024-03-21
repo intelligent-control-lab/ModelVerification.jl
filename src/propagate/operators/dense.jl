@@ -21,7 +21,7 @@ transformation on the given input bound and returns the output bound.
 """
 function propagate_layer(prop_method::ForwardProp, layer::Dense, reach::LazySet, batch_info)
     reach = affine_map(layer, reach)
-    @show reach
+    # @show reach
     # display(plot(reach, title=typeof(prop_method), xlim=[-3,3], ylim=[-3,3]))
     return reach
 end
@@ -191,23 +191,29 @@ function _preprocess(prop_method, node, batch_info, bias = nothing)
 end
 
 """
-    dense_bound_oneside(last_A, weight, bias, batch_size)
+    dense_bound_oneside(weight, bias, batch_size)
 
 """
-function dense_bound_oneside(last_A, weight, bias, batch_size)
-    if isnothing(last_A)
-        return nothing
-    end
+function dense_bound_oneside(weight, bias, batch_size)
     #weight = reshape(weight, (size(weight)..., 1)) 
     #weight = repeat(weight, 1, 1, batch_size) #add batch dim in weight
-    if !isnothing(bias)
-        #bias = reshape(bias, (size(bias)..., 1))
-        #bias = repeat(bias, 1, batch_size) 
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_vec(x[1], bias) .+ x[2]])
-    else
-        push!(last_A, x -> [NNlib.batched_mul(x[1], weight), x[2]])
+    function bound_dense(x)
+        if !isnothing(bias)
+            return [NNlib.batched_mul(x[1], weight), NNlib.batched_vec(x[1], bias) .+ x[2]]
+        else
+            return [NNlib.batched_mul(x[1], weight), x[2]]
+        end
     end
-    return last_A
+    return bound_dense
+    # if !isnothing(bias)
+    #     #bias = reshape(bias, (size(bias)..., 1))
+    #     #bias = repeat(bias, 1, batch_size) 
+    #     # push!(last_A, x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_vec(x[1], bias) .+ x[2]])
+    #     return x -> [NNlib.batched_mul(x[1], weight), NNlib.batched_vec(x[1], bias) .+ x[2]]
+    # else
+    #     # push!(last_A, x -> [NNlib.batched_mul(x[1], weight), x[2]])
+    #     return x -> [NNlib.batched_mul(x[1], weight), x[2]]
+    # end
 end
 
 """
@@ -238,26 +244,15 @@ function propagate_layer_batch(prop_method::BetaCrown, layer::Dense, bound::Beta
     #TO DO: we haven't consider the perturbation in weight and bias
     bias_lb = _preprocess(prop_method, node, batch_info, layer.bias)
     bias_ub = _preprocess(prop_method, node, batch_info, layer.bias)
-    lA_W = uA_W = lA_bias = uA_bias = lA_x = uA_x = nothing 
+    lA_W = uA_W = nothing 
     # println("=== in dense ===")
     # println("bound.lower_A_x: ", bound.lower_A_x)
     @assert !batch_info[node][:weight_ptb] && (!batch_info[node][:bias_ptb] || isnothing(layer.bias))
     weight = prop_method.use_gpu ? fmap(cu, layer.weight) : layer.weight
     bias = bias_lb
-    if prop_method.bound_lower
-        lA_x = deepcopy(bound.lower_A_x)
-        lA_x = dense_bound_oneside(lA_x, weight, bias, batch_info[:batch_size])
-    else
-        lA_x = nothing
-    end
-    if prop_method.bound_upper
-        uA_x = deepcopy(bound.upper_A_x)
-        uA_x = dense_bound_oneside(uA_x, weight, bias, batch_info[:batch_size])
-    else
-        uA_x = nothing
-    end
-    # println("lA_x: ", lA_x)
-    # println("uA_x: ", uA_x)
+    lA_x = prop_method.bound_lower ? dense_bound_oneside(weight, bias, batch_info[:batch_size]) : nothing
+    uA_x = prop_method.bound_upper ? dense_bound_oneside(weight, bias, batch_info[:batch_size]) : nothing
+
     New_bound = BetaCrownBound(lA_x, uA_x, lA_W, uA_W, bound.batch_data_min, bound.batch_data_max, bound.img_size)
     return New_bound
     # end
