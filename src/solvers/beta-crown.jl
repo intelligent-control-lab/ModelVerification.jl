@@ -496,12 +496,12 @@ function optimize_model(model, input, loss_func, optimizer, max_iter)
 end
 
 function get_bound_chain(prop_method::BackwardProp, model_info, batch_info, node, process_bound_func)
-    @show "get chain " * node
+    # @show "get chain " * node
     m = Any[]
     # while the current node is not the merging node of a parallel layer
     while length(prev_nodes(prop_method, model_info, node)) < 2
         push!(m, process_bound_func(batch_info[node][:bound]))
-        @show node, typeof(batch_info[node][:bound].lower_A_x)
+        # @show node, typeof(batch_info[node][:bound].lower_A_x)
         # @show node, length(next_nodes(prop_method, model_info, node))
         while length(next_nodes(prop_method, model_info, node)) == 2
             m1, end_node1 = get_bound_chain(prop_method, model_info, batch_info, next_nodes(prop_method, model_info, node)[1], process_bound_func)
@@ -523,7 +523,7 @@ function get_bound_chain(prop_method::BackwardProp, model_info, batch_info, node
         length(next_nodes(prop_method, model_info, node)) == 0 && break
         node = next_nodes(prop_method, model_info, node)[1]
     end
-    @show "finish chain " * node
+    # @show "finish chain " * node
     return m, node
 end
 
@@ -531,7 +531,7 @@ end
     process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
 """
 function build_bound_graph(prop_method, model_info::ModelGraph, batch_info, process_bound_func)
-    @show "Building graph"
+    # @show "Building graph"
     @assert length(start_nodes(prop_method, model_info)) == 1
     bound_graph, end_node = get_bound_chain(prop_method, model_info, batch_info, start_nodes(prop_method, model_info)[1], process_bound_func)
     return bound_graph
@@ -548,10 +548,10 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
 
     # @show batch_bound.img_size
 
-    for node in model_info.all_nodes
-        @show node
-        @show typeof(batch_info[node][:bound])
-    end
+    # for node in model_info.all_nodes
+    #     @show node
+    #     @show typeof(batch_info[node][:bound])
+    # end
 
     # for i in eachindex(batch_bound.lower_A_x)
     #     @show i, typeof(batch_bound.lower_A_x), typeof(batch_bound.lower_A_x[i])
