@@ -39,37 +39,37 @@ function BetaCrownBound(lower_A_x, upper_A_x, lower_A_W, upper_A_W, batch_data_m
     return BetaCrownBound(lower_A_x, upper_A_x, lower_A_W, upper_A_W, batch_data_min, batch_data_max, nothing)
 end
 
-function compute_bound(bound::BetaCrownBound)
-    @assert false
-    compute_bound = Compute_bound(bound.batch_data_min, bound.batch_data_max)
-    bound_lower_model = Chain(push!(bound.lower_A_x, compute_bound)) 
-    bound_upper_model = Chain(push!(bound.upper_A_x, compute_bound)) 
-    use_gpu = any(param -> param isa CuArray, Flux.params(bound.upper_A_x))
-    bound_lower_model = use_gpu ? bound_lower_model |> gpu : bound_lower_model
-    bound_upper_model = use_gpu ? bound_upper_model |> gpu : bound_upper_model
+# function compute_bound(bound::BetaCrownBound)
+#     @assert false
+#     compute_bound = Compute_bound(bound.batch_data_min, bound.batch_data_max)
+#     bound_lower_model = Chain(push!(bound.lower_A_x, compute_bound)) 
+#     bound_upper_model = Chain(push!(bound.upper_A_x, compute_bound)) 
+#     use_gpu = any(param -> param isa CuArray, Flux.params(bound.upper_A_x))
+#     bound_lower_model = use_gpu ? bound_lower_model |> gpu : bound_lower_model
+#     bound_upper_model = use_gpu ? bound_upper_model |> gpu : bound_upper_model
     
-    # @show batch_size
-    # @show n
-    # @show size(bound.batch_data_min)
-    # @show size(bound.lower_A_x[1])
+#     # @show batch_size
+#     # @show n
+#     # @show size(bound.batch_data_min)
+#     # @show size(bound.lower_A_x[1])
 
-    batch_size = size(bound.batch_data_min)[end]
-    n = size(bound.lower_A_x[1])[end-1]
+#     batch_size = size(bound.batch_data_min)[end]
+#     n = size(bound.lower_A_x[1])[end-1]
 
-    bound_A_b = init_A_b(n, batch_size)
+#     bound_A_b = init_A_b(n, batch_size)
 
-    if length(Flux.params(bound_lower_model)) > 0
-        loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min
-        @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
-    end
-    if length(Flux.params(bound_upper_model)) > 0
-        loss_func = x -> sum(x[2].^2) # surrogate loss to minimize the max
-        @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
-    end
-    lower_l, lower_u = bound_lower_model(bound_A_b)
-    upper_l, upper_u = bound_upper_model(bound_A_b)
-    return lower_l, upper_u
-end 
+#     if length(Flux.params(bound_lower_model)) > 0
+#         loss_func = x -> -sum(x[1].^2) # surrogate loss to maximize the min
+#         @timeit to "optimize_model" bound_lower_model = optimize_model(bound_lower_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
+#     end
+#     if length(Flux.params(bound_upper_model)) > 0
+#         loss_func = x -> sum(x[2].^2) # surrogate loss to minimize the max
+#         @timeit to "optimize_model" bound_upper_model = optimize_model(bound_upper_model, bound_A_b, loss_func, prop_method.optimizer, prop_method.train_iteration)
+#     end
+#     lower_l, lower_u = bound_lower_model(bound_A_b)
+#     upper_l, upper_u = bound_upper_model(bound_A_b)
+#     return lower_l, upper_u
+# end 
 
 """
     Compute_bound
@@ -189,6 +189,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
         # @show size(l), node
 
         batch_info[node][:pre_lower], batch_info[node][:pre_upper] = l, u
+        batch_info[node][:symbolic_pre_bound] = sub_batch_info[prev_node][:symbolic_crown_bound]
         batch_info = init_node_alpha(model_info.node_layer[node], node, batch_info, batch_input)
         # println("node alpha initted:", node)
         # pre_bounds[node] = Dict(:pre_lower => l, :pre_upper => u)
@@ -245,8 +246,10 @@ function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
+            batch_info[prev_node][:symbolic_crown_bound] = pre_batch_info[prev_node][:bound] 
             pre_bound = pre_batch_info[prev_node][:bound]
             batch_info[node][:pre_lower], batch_info[node][:pre_upper] = compute_bound(pre_bound) # reach_dim x batch 
+            batch_info[node][:symbolic_pre_bound] = pre_bound
             # println("assigning", node," ", prev_node)
         end
         # println("=== Done computing pre bound ===")
@@ -537,12 +540,25 @@ function build_bound_graph(prop_method, model_info::ModelGraph, batch_info, proc
     return bound_graph
 end
 
+"""
+    convert symbolic beta crown bound to symbolic crown bound
+"""
+function to_crown_bound(chain_model_lower::Chain, chain_model_upper::Chain, inpu_spec_A_b::AbstractVector, batch_data_min::AbstractMatrix, batch_data_max::AbstractMatrix, img_size)
+    batch_data_min_ext = vcat(batch_data_min, ones(1, size(batch_data_min)[2]))
+    batch_data_max_ext = vcat(batch_data_max, ones(1, size(batch_data_max)[2]))
+    b_lower = chain_model_lower(inpu_spec_A_b)[2]
+    batch_Low = cat(chain_model_lower(inpu_spec_A_b)[1], reshape(b_lower, (size(b_lower)[1], 1, size(b_lower)[2])); dims=2)
+    b_upper = chain_model_upper(inpu_spec_A_b)[2]
+    batch_Up = cat(chain_model_upper(inpu_spec_A_b)[1], reshape(b_upper, (size(b_upper)[1], 1, size(b_upper)[2])); dims=2)
+    return CrownBound(batch_Low, batch_Up, batch_data_min_ext, batch_data_max_ext, img_size)
+end
+
 function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batch_out_spec, model_info, batch_info)
     
     to = get_timer("Shared")
     # @show size(batch_bound.batch_data_min)
-    @timeit to "compute_bound" compute_bound = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
-    #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound)) 
+    @timeit to "compute_bound" compute_bound_beta = Compute_bound(batch_bound.batch_data_min, batch_bound.batch_data_max)
+    #bound_model = Chain(push!(prop_method.bound_lower ? batch_bound.lower_A_x : batch_bound.upper_A_x, compute_bound_beta)) 
     # println("batch_bound.lower_A_x: ", length(batch_bound.lower_A_x))
     # println("batch_bound.upper_A_x: ", length(batch_bound.upper_A_x))
 
@@ -567,6 +583,7 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     get_upper_A = bound -> bound.upper_A_x
     
     bound_lower_model = build_bound_graph(prop_method, model_info, batch_info, get_lower_A)
+    bound_upper_model = build_bound_graph(prop_method, model_info, batch_info, get_upper_A)
     # @show model_info.all_nodes
     # for op in bound_lower_model
     #     @show typeof(op)
@@ -581,10 +598,9 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     #     @show size(x[1]), size(x[2])
     # end
     # @show bound_lower_model
-    bound_lower_model = Chain(push!(bound_lower_model, compute_bound)) 
 
-    bound_upper_model = build_bound_graph(prop_method, model_info, batch_info, get_upper_A)
-    bound_upper_model = Chain(push!(bound_upper_model, compute_bound)) 
+    bound_lower_model = Chain(push!(bound_lower_model, compute_bound_beta)) 
+    bound_upper_model = Chain(push!(bound_upper_model, compute_bound_beta)) 
 
     bound_lower_model = prop_method.use_gpu ? bound_lower_model |> gpu : bound_lower_model
     bound_upper_model = prop_method.use_gpu ? bound_upper_model |> gpu : bound_upper_model
@@ -644,6 +660,18 @@ function process_bound(prop_method::BetaCrown, batch_bound::BetaCrownBound, batc
     # @show upper_spec_l
     # @show upper_spec_u
     # println("spec")
+
+    # The symbolic beta-crown bound can be transferred into crown bound form
+    crown_bound_sym = to_crown_bound(Chain(bound_lower_model.layers[1:end-1]...),Chain(bound_upper_model.layers[1:end-1]...), batch_info[:spec_A_b], batch_bound.batch_data_min, batch_bound.batch_data_max, batch_bound.img_size)
+    # @show compute_bound(crown_bound_sym)
+    node = start_nodes(prop_method, model_info)[1]
+    # @show model_info.all_nodes
+    # @show prev_nodes(prop_method, model_info, node)
+    # @show next_node = prev_nodes(prop_method, model_info, node)
+    # @show model_info.activation_nodes
+    # @assert (next_node in model_info.activation_nodes)
+    batch_info[node][:symbolic_crown_bound] = crown_bound_sym 
+
     
     # spec_bound_lower = batch_out_spec.is_complement ? true : false
     # spec_bound_upper = batch_out_spec.is_complement ? false : true

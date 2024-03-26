@@ -36,6 +36,9 @@ end
 function VeriGradBound(batch_Low, batch_Up, batch_data_min, batch_data_max)
     return VeriGradBound(batch_Low, batch_Up, batch_data_min, batch_data_max, nothing)
 end
+function VeriGradBound(crown_bound::CrownBound)
+    return VeriGradBound(crown_bound.batch_Low, crown_bound.batch_Up, crown_bound.batch_data_min, crown_bound.batch_data_max, crown_bound.img_size)
+end
 
 """
     ConcretizeVeriGradBound <: Bound
@@ -144,10 +147,11 @@ function prepare_problem(search_method::SearchMethod, split_method::SplitMethod,
 end
 
 """
-    init_batch_bound(prop_method::Crown, batch_input::AbstractArray, out_specs)
+    init_batch_bound(prop_method::VeriGrad, batch_input::AbstractArray, out_specs)
 """
 function init_batch_bound(prop_method::VeriGrad, batch_input::AbstractArray, out_specs)
-    # batch_input : list of Hyperrectangle
+    # initial bound for the original NN
+    # @show size(out_specs.A)
     batch_size = length(batch_input)
     img_size = nothing
     if typeof(batch_input[1]) == ReLUConstrainedDomain
@@ -159,9 +163,11 @@ function init_batch_bound(prop_method::VeriGrad, batch_input::AbstractArray, out
         @assert all(<=(0), batch_input[1].imgs[1]-batch_input[1].imgs[2]) "the first ImageConvexHull input must be upper bounded by the second ImageConvexHull input"
         batch_input = [Hyperrectangle(low = reduce(vcat,img_CH.imgs[1]), high = reduce(vcat,img_CH.imgs[2]))  for img_CH in batch_input]
     end
+    m = 1
     n = prop_method.use_gpu ? fmap(cu, dim(batch_input[1])) : dim(batch_input[1])
-    I = prop_method.use_gpu ? fmap(cu, Matrix{Float64}(LinearAlgebra.I(n))) : Matrix{Float64}(LinearAlgebra.I(n))
-    Z = prop_method.use_gpu ? fmap(cu, zeros(n)) : zeros(n)
+    @assert size(out_specs.A)[2] == n "the gradient should be with the same size of input, currently Jacobian is not supported"
+    I = prop_method.use_gpu ? fmap(cu, Matrix{Float64}(LinearAlgebra.zeros(m,n))) : Matrix{Float64}(LinearAlgebra.zeros(m,n))
+    Z = prop_method.use_gpu ? fmap(cu, ones(m)) : ones(m)
     batch_Low = prop_method.use_gpu ? fmap(cu, repeat([I Z], outer=(1, 1, batch_size))) : repeat([I Z], outer=(1, 1, batch_size))
     batch_Up = prop_method.use_gpu ? fmap(cu, repeat([I Z], outer=(1, 1, batch_size))) : repeat([I Z], outer=(1, 1, batch_size))
     batch_data_min = prop_method.use_gpu ? fmap(cu, cat([low(h) for h in batch_input]..., dims=2)) : cat([low(h) for h in batch_input]..., dims=2)
@@ -193,25 +199,25 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, batc
     return prepare_method(prop_method, batch_input, out_specs, batch_inheritance, model_info,sub)
 end
 
-# merge a list of inheritance info into a batch
-function batchify_inheritance(inheritance_list::AbstractVector, node, key, use_gpu)
-    eltype(inheritance_list) == Nothing && return nothing
-    n_dim = ndims(inheritance_list[1][node][key])
-    # @show n_dim, node, size(inheritance_list[1][node][key])
-    batch_value = cat([ih[node][key] for ih in inheritance_list]..., dims=n_dim)
-    # @show size(batch_value)
-    batch_value = use_gpu ? batch_value |> gpu : batch_value
-    return batch_value
-end
+# # merge a list of inheritance info into a batch
+# function batchify_inheritance(inheritance_list::AbstractVector, node, key, use_gpu)
+#     eltype(inheritance_list) == Nothing && return nothing
+#     n_dim = ndims(inheritance_list[1][node][key])
+#     # @show n_dim, node, size(inheritance_list[1][node][key])
+#     batch_value = cat([ih[node][key] for ih in inheritance_list]..., dims=n_dim)
+#     # @show size(batch_value)
+#     batch_value = use_gpu ? batch_value |> gpu : batch_value
+#     return batch_value
+# end
 
 
 """
     prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
 """
 function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info, sub=false)
-    println("start prepare method, out_specs is already linear")
+    # println("start prepare method, out_specs is already linear")
     # initialize the bound of final node, but it should be updated using the pre-activation bound
-    @show batch_input
+    # @show batch_input
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)
     
     
@@ -222,6 +228,8 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
     # @show batch_info
     # @show init_size
     batch_info = get_all_layer_output_size(model_info, batch_info, init_size)
+    # @show batch_info[f_node][:size_after_layer][1]
+    @assert batch_info[f_node][:size_after_layer][1] == 1 "currently only support 1-dim-output gradient, not general Jacobian"
     
     # @show batch_info
     batch_info[:spec_A_b] = [out_specs.A, .-out_specs.b] # spec_A x < spec_b  ->  A x + b < 0, need negation
@@ -238,6 +246,7 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
             # println("batch_inheritance[node][:pre_lower]:", batch_inheritance[node][:pre_lower])
             batch_info[node][:pre_lower] = batchify_inheritance(inheritance_list, node, :pre_lower, prop_method.use_gpu)
             batch_info[node][:pre_upper] = batchify_inheritance(inheritance_list, node, :pre_upper, prop_method.use_gpu)
+            batch_info[node][:symbolic_pre_bound] = batchify_inheritance(inheritance_list, node, :symbolic_pre_bound, prop_method.use_gpu)
             if haskey(inheritance_list[1][node], :lower_bound_alpha)
                 batch_info[node][:lower_bound_alpha] = batchify_inheritance(inheritance_list, node, :lower_bound_alpha, prop_method.use_gpu)
             end
@@ -259,9 +268,11 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
         for node in model_info.activation_nodes
             @assert length(model_info.node_prevs[node]) == 1
             prev_node = model_info.node_prevs[node][1]
+            batch_info[prev_node][:symbolic_crown_bound] = pre_batch_info[prev_node][:bound] 
             pre_bound = pre_batch_info[prev_node][:bound]
             batch_info[node][:pre_lower], batch_info[node][:pre_upper] = compute_bound(pre_bound) # reach_dim x batch 
             batch_info[node][:symbolic_pre_bound] = pre_bound
+            # @show prev_node, node # node is with relu
             # println("assigning", node," ", prev_node)
         end
         println("=== Done computing pre bound ===")
@@ -278,7 +289,7 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
     
     
     # init alpha and beta in case they are not initialized in the pre-bounding, or not inheritated.
-    for node in model_info.activation_nodes
+    for node in model_info.activation_nodes 
         # only init alpha and beta that are not inheritated
         # in the code, we inheritated alpha, but not beta.
         # TODO: modify the inehritance when branching ReLU, then inheritate Beta in filter_and_batchify_inheritance.
@@ -288,22 +299,13 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
         if !haskey(batch_info[node], :beta_lower) || !haskey(batch_info[node], :beta_upper)
             batch_info = init_beta(model_info.node_layer[node], node, batch_info, batch_input)
         end
-        @show "act", node
-        if haskey(batch_info[node], :symbolic_pre_bound)
-            # reuse the symbolic CROWN bound as the symbolic preactivation bound if the pre bound method is CROWN
-            batch_info[node][:bound] = batch_info[node][:symbolic_pre_bound]
-        elseif haskey(batch_info[node], :pre_lower) && haskey(batch_info[node], :pre_upper)
-            # if the pre bound method is BetaCrown, use the concretized pre bound to as the symbolic pre bound
-            # TODO: reuse the Chain pre bounds as the symbolic preactivation
-            pre_hyperrec = pre_bounds_to_hyperrec(batch_info[node][:pre_lower], batch_info[node][:pre_upper])
-            batch_info[node][:bound] = init_batch_bound(prop_method, pre_hyperrec, out_specs)
-            # haskey(batch_info[node], :bound) && (@show batch_info[node][:bound])
-            # haskey(batch_info[node], :pre_lower) && (@show batch_info[node][:pre_lower])
-            # haskey(batch_info[node], :pre_upper) && (@show batch_info[node][:pre_upper])
-        end
-        haskey(batch_info[node], :bound) && (@show batch_info[node][:bound])
+        # @show "act", node
+        # prev_node = model_info.node_prevs[node][1]
+        batch_info[node][:symbolic_pre_bound] = VeriGradBound(batch_info[node][:symbolic_pre_bound])
+        # batch_info[node][:bound] = batch_info[node][:symbolic_pre_bound]
+        # @show batch_info[node][:bound]
     end
-    
+    # batch_info[model_info.final_nodes[1]][:bound] = init_batch_bound(prop_method, model_info, batch_info)
     n = size(out_specs.A, 2)
 
     batch_info[:init_A_b] = init_A_b(n, batch_info[:batch_size])
@@ -339,7 +341,8 @@ function get_inheritance(prop_method::VeriGrad, batch_info::Dict, batch_idx::Int
         # println(size(batch_info[node][:pre_lower]))
         inheritance[node] = Dict(
             :pre_lower => batch_info[node][:pre_lower][:,batch_idx:batch_idx],
-            :pre_upper => batch_info[node][:pre_upper][:,batch_idx:batch_idx]
+            :pre_upper => batch_info[node][:pre_upper][:,batch_idx:batch_idx],
+            :symbolic_pre_bound => batch_info[node][:symbolic_pre_bound][:,batch_idx:batch_idx]
         )
     end
     # println("inheritance: ", inheritance)
@@ -572,41 +575,74 @@ function get_pre_relu_spec_A(init, use_gpu, lower_or_upper, model_info, batch_in
 end
 
 """
-    check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
+    check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArray, bound::VeriGradBound, batch_out_spec::LinearSpec)
 """
-function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArray, bound::ConcretizeCrownBound, batch_out_spec::LinearSpec)
-    # spec_l, spec_u = process_bound(prop_method::AlphaCrown, bound, batch_out_spec, batch_info)
-    batch_input = prop_method.use_gpu ? fmap(cu, batch_input) : batch_input
-    spec_l, spec_u = bound.spec_l, bound.spec_u
-    batch_size = length(batch_input)
-    #center = (bound.batch_data_min[1:end,:] + bound.batch_data_max[1:end,:])./2 # out_dim x batch_size
-    center = (bound.batch_data_min .+ bound.batch_data_max) ./ 2 # out_dim x batch_size
-    if typeof(batch_input[1].domain) == ImageConvexHull
-        img_size = ModelVerification.get_size(batch_input[1].domain)
-        center = reshape(center, (img_size..., size(center)[2]))
+function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArray, bound::VeriGradBound, batch_out_spec::LinearSpec)
+    # l, u: out_dim x batch_size
+    l, u = compute_bound(bound)
+    # @show size(l)
+    batch_size = size(l,2)
+    #pos_A = max.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A)))) # spec_dim x out_dim x batch_size
+    #neg_A = min.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A))))
+    # @show size(batch_out_spec.A)
+    pos_A = clamp.(batch_out_spec.A, 0, Inf)
+    neg_A = clamp.(batch_out_spec.A, -Inf, 0)
+    spec_u = batched_vec(pos_A, u) + batched_vec(neg_A, l) .- batch_out_spec.b # spec_dim x batch_size
+    spec_l = batched_vec(pos_A, l) + batched_vec(neg_A, u) .- batch_out_spec.b # spec_dim x batch_size
+    CUDA.@allowscalar center = (bound.batch_data_min[1:end-1,:] + bound.batch_data_max[1:end-1,:])./2 # out_dim x batch_size
+    # println("typeof(center)")
+    # println(typeof(center))
+    # println("typeof(model)")
+    # println(typeof(model))
+    model = prop_method.use_gpu ? model |> gpu : model
+    # @show model[end-3:end]
+    # @show size(center)
+    if !isnothing(bound.img_size)
+        # resize input to match Conv for image
+        # @assert length(size(bound.img_size)) == 3
+        center = reshape(center, (bound.img_size..., size(center)[2]))
     end
-    model = prop_method.use_gpu ? fmap(cu, model) : model
-    out_center = model(center)
-    
-    center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
-    center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
-    results = [BasicResult(:unknown) for _ in 1:batch_size]
+    # out_center = model(center)
+    out_center = jacobian(model, center)[1]'
+    # @show size(out_center)
 
-    # complement out spec: violated if exist y such that Ay-b < 0. Need to make sure lower bound of Ay-b > 0 to hold, spec_l > 0
-    if batch_out_spec.is_complement
-        @assert prop_method.bound_lower 
-        spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
+    # TODO: uncomment the following if using Box Conv
+    # num_last_dense=0
+    # for i = 1:length(model)
+    #     if model[length(model)+1-i] isa Dense
+    #         num_last_dense += 1
+    #     else
+    #         break
+    #     end
+    # end
+    
+    # if num_last_dense == length(model)
+    #     dense_model = model
+    # else
+    #     dense_model = model[end-num_last_dense:end]
+    # end
+    # out_center = dense_model(center)
+
+    center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
+    results = [BasicResult(:unknown) for _ in 1:batch_size]
+    spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
+    spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
+    # println("spec")
+    # println(spec_l)
+    # println(spec_u)
+    center_res = reshape(maximum(center_res, dims=1), batch_size) # batch_size
+    if batch_out_spec.is_complement 
+        # A x < b descript the unsafe set, violated if exist x such that max spec ai x - bi <= 0    
         for i in 1:batch_size
-            CUDA.@allowscalar center_res[i] < -tol && (results[i] = BasicResult(:violated))
-            CUDA.@allowscalar spec_l[i] >= -tol && (results[i] = BasicResult(:holds))
+            CUDA.@allowscalar center_res[i] <= -tol && (results[i] = BasicResult(:violated))
+            CUDA.@allowscalar spec_l[i] > -tol && (results[i] = BasicResult(:holds))
         end
-    else # polytope out spec: holds if all y such that Ay-b < 0. Need to make sure upper bound of Ay-b < 0 to hold.
-        @assert prop_method.bound_upper
-        spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
+    else # holds if forall x such that max spec ai x - bi <= tol
         for i in 1:batch_size
             CUDA.@allowscalar spec_u[i] <= tol && (results[i] = BasicResult(:holds))
             CUDA.@allowscalar center_res[i] > tol && (results[i] = BasicResult(:violated))
         end
     end
+    
     return results
-end 
+end

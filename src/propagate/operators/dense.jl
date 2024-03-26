@@ -280,3 +280,35 @@ function propagate_layer_batch(
 
     return bound
 end
+
+
+"""
+    propagate_layer_batch(prop_method::VeriGrad, layer::Dense, 
+                           bound::VeriGradBound, batch_info)
+
+Propagates the bounds through the dense layer for `VeriGrad` solver. It operates
+an affine transformation on the given input bound and returns the output bound.
+It first clamps the input bound and multiplies with the weight matrix using 
+`batch_interval_map` function. Note that there is not bias to be added.
+The resulting bound is represented by `VeriGradBound` type.
+
+## Arguments
+- `prop_method` (`VeriGrad`): `VeriGrad` solver used for the verification process.
+- `layer` (`Dense`): Dense layer of the model.
+- `bound` (`VeriGradBound`): Bound of the input, represented by `VeriGradBound` type.
+- `batch_info`: Dictionary containing information of each node in the model.
+
+## Returns
+- `new_bound` (`VeriGradBound`): Bound of the output after affine transformation, 
+    which is represented by `VeriGradBound` type.
+"""
+function propagate_layer_batch(prop_method::VeriGrad, layer::Dense, bound::VeriGradBound, batch_info)
+    # out_dim x in_dim * in_dim x X_dim x batch_size
+    # @show size(layer.weight')
+    # @show size(bound.batch_Low)
+    output_Low, output_Up = prop_method.use_gpu ? batch_interval_map(fmap(cu, layer.weight'), bound.batch_Low, bound.batch_Up) : batch_interval_map(layer.weight', bound.batch_Low, bound.batch_Up)
+    @assert !any(isnan, output_Low) "contains NaN"
+    @assert !any(isnan, output_Up) "contains NaN"
+    new_bound = VeriGradBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    return new_bound
+end
