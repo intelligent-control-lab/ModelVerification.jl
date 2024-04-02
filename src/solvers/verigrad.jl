@@ -607,6 +607,9 @@ function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArra
     end
     # out_center = model(center)
     out_center = jacobian(model, center)[1]'
+    if all(out_center .== 0.0)
+        out_center = jacobian(model, center .+ tol)[1]'
+    end
     # @show out_center
 
     # TODO: uncomment the following if using Box Conv
