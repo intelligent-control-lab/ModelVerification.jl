@@ -262,7 +262,7 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
         batch_info = joint_optimization(prop_method.pre_bound_method, batch_input, model_info, batch_info)
         
     elseif !isnothing(prop_method.pre_bound_method) # pre-bounding with other methods
-        println("---computing pre bound ---")
+        # println("---computing pre bound ---")
         pre_batch_out_spec, pre_batch_info = prepare_method(prop_method.pre_bound_method, batch_input, out_specs, [nothing], model_info)
         pre_batch_bound, pre_batch_info = propagate(prop_method.pre_bound_method, model_info, pre_batch_info)
         for node in model_info.activation_nodes
@@ -275,7 +275,7 @@ function prepare_method(prop_method::VeriGrad, batch_input::AbstractVector, out_
             # @show prev_node, node # node is with relu
             # println("assigning", node," ", prev_node)
         end
-        println("=== Done computing pre bound ===")
+        # println("=== Done computing pre bound ===")
     end
     # @show sub
     
@@ -580,6 +580,9 @@ end
 function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArray, bound::VeriGradBound, batch_out_spec::LinearSpec)
     # l, u: out_dim x batch_size
     l, u = compute_bound(bound)
+    # @show l, u
+    # @show minimum(radius_hyperrectangle(batch_input[1].domain))
+    
     # @show size(l)
     batch_size = size(l,2)
     #pos_A = max.(batch_out_spec.A, fmap(cu, zeros(size(batch_out_spec.A)))) # spec_dim x out_dim x batch_size
@@ -604,7 +607,7 @@ function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArra
     end
     # out_center = model(center)
     out_center = jacobian(model, center)[1]'
-    # @show size(out_center)
+    # @show out_center
 
     # TODO: uncomment the following if using Box Conv
     # num_last_dense=0
@@ -624,7 +627,9 @@ function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArra
     # out_center = dense_model(center)
 
     center_res = batched_vec(batch_out_spec.A, out_center) .- batch_out_spec.b # spec_dim x batch_size
-    results = [BasicResult(:unknown) for _ in 1:batch_size]
+    # results = [BasicResult(:unknown) for _ in 1:batch_size]
+    # results = [CounterExampleResult(:unknown, center) for _ in 1:batch_size]
+    results = []
     spec_u = reshape(maximum(spec_u, dims=1), batch_size) # batch_size, max_x max_i of ai x - bi
     spec_l = reshape(maximum(spec_l, dims=1), batch_size) # batch_size, min_x max_i of ai x - bi
     # println("spec")
@@ -639,8 +644,20 @@ function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArra
         end
     else # holds if forall x such that max spec ai x - bi <= tol
         for i in 1:batch_size
-            CUDA.@allowscalar spec_u[i] <= tol && (results[i] = BasicResult(:holds))
-            CUDA.@allowscalar center_res[i] > tol && (results[i] = BasicResult(:violated))
+            # @show 1e4 * tol
+            if CUDA.@allowscalar spec_u[i] <= tol || minimum(radius_hyperrectangle(batch_input[i].domain)) <= 1e-5
+                 push!(results, BasicResult(:holds)) #results[i] = BasicResult(:holds)
+            end
+            # @show spec_l[i], spec_u[i]
+            # CUDA.@allowscalar center_res[i] > tol && (results[i] = CounterExampleResult(:violated, center)) #BasicResult(:violated))
+            if CUDA.@allowscalar center_res[i] > tol 
+                # @show center
+                push!(results, CounterExampleResult(:violated, center))
+                # push!(results, BasicResult(:unknown))
+                # results[i] = CounterExampleResult(:violated, center)
+            else
+                push!(results, BasicResult(:unknown))
+            end
         end
     end
     

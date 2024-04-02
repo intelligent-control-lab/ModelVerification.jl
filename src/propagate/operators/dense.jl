@@ -310,5 +310,6 @@ function propagate_layer_batch(prop_method::VeriGrad, layer::Dense, bound::VeriG
     @assert !any(isnan, output_Low) "contains NaN"
     @assert !any(isnan, output_Up) "contains NaN"
     new_bound = VeriGradBound(output_Low, output_Up, bound.batch_data_min, bound.batch_data_max, bound.img_size)
+    # @show compute_bound(new_bound)
     return new_bound
 end

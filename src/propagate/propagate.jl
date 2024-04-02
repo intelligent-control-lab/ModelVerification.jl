@@ -54,7 +54,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     while !isempty(queue)                           # If queue is not empty!
         node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
         batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
-        @show "prop:", node
+        # @show "prop:", node
         
         enqueue_connected!(prop_method, model_info, queue, visit_cnt, node)
 

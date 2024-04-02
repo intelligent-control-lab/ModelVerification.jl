@@ -807,6 +807,7 @@ function propagate_layer_batch(prop_method::VeriGrad, layer::typeof(relu), origi
     else =#
     pre_lower = batch_info[node][:pre_lower]
     pre_upper = batch_info[node][:pre_upper]
+    # @show pre_lower, pre_upper
     symbolic_pre_bound = batch_info[node][:symbolic_pre_bound]
     # l, u = compute_bound(symbolic_pre_bound)
     # @show lower, l, upper, u
@@ -836,12 +837,12 @@ function propagate_layer_batch(prop_method::VeriGrad, layer::typeof(relu), origi
     @timeit to "compute_bound"  l, u = compute_bound(bound) # reach_dim x batch
 
     ## If the lower bound of the lower bound is positive, lower bound  is 0, upper bound does not change
-    unstable_mask_pos = (pre_upper .> 0) .& (pre_lower .< 0) .& (l .> 0) # reach_dim x batch
+    unstable_mask_pos = (pre_upper .> 0) .& (pre_lower .< 0) .& (l .>= 0) # reach_dim x batch
     unstable_mask_pos_ext = broadcast_mid_dim(unstable_mask_pos, output_Low) # reach_dim x input_dim+1 x batch
     output_Low[unstable_mask_pos_ext] .= 0
     
     ## If the upper bound of the upper bound is negative, upper bound  is 0, lower bound does not change
-    unstable_mask_neg = (pre_upper .> 0) .& (pre_lower .< 0) .& (u .< 0) # reach_dim x batch
+    unstable_mask_neg = (pre_upper .> 0) .& (pre_lower .< 0) .& (u .<= 0) # reach_dim x batch
     unstable_mask_neg_ext = broadcast_mid_dim(unstable_mask_neg, output_Low) # reach_dim x input_dim+1 x batch
     output_Up[unstable_mask_neg_ext] .= 0
 
@@ -902,6 +903,6 @@ function propagate_layer_batch(prop_method::VeriGrad, layer::typeof(relu), origi
     if length(size(original_bound.batch_Low)) > 3
         new_bound = convert_CROWN_Bound_batch(new_bound, img_size)
     end
-
+    # @show compute_bound(new_bound)
     return new_bound
 end

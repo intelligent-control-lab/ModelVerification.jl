@@ -158,7 +158,8 @@ function search_branches(search_method::BFS, split_method, prop_method, problem,
             @timeit to "check_inclusion" batch_result = check_inclusion(prop_method, problem.Flux_model, batch_input, batch_bound, batch_out_spec)
             
             for i in eachindex(batch_input)
-                batch_result[i].status == :holds && collect_bound && (push!(verified_bound, batch_bound[i]))
+                @assert i==1 "currently there exist bugs in results if batch size > 1"
+                batch_result[i].status == :holds && collect_bound && (push!(verified_bound, batch_bound)) # batch_bound[fill(:, length(size(batch_bound))-1)..., i]
                 batch_result[i].status == :holds && continue
                 batch_result[i].status == :violated && return batch_result[i], verified_bound
                 # batch_result[i].status == :unknown

@@ -81,7 +81,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
             end
         else
             prev_size = batch_info[model_info.node_prevs[node][1]][:size_after_layer]
-            # @show model_info.node_prevs[node][1]
+            # @show model_info.node_prevs[node][1], node,model_info.node_layer[node]
             # @show prev_size
             batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
             batch_info[node][:size_before_layer] = prev_size
@@ -102,6 +102,8 @@ function compute_all_bound(prop_method::BackwardProp, batch_input::AbstractVecto
     f_node = model_info.final_nodes[1]
     if !isnothing(batch_info[f_node][:bound].img_size)
         batch_info = get_all_layer_output_size(model_info, batch_info, batch_info[f_node][:bound].img_size)
+    elseif prop_method isa VeriGrad
+        batch_info = get_all_layer_output_size(model_info, batch_info, size(batch_info[f_node][:bound].batch_data_min)[1]-1)
     else
         batch_info = get_all_layer_output_size(model_info, batch_info, size(batch_info[f_node][:bound].batch_data_min)[1])
     end
