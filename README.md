@@ -131,7 +131,6 @@ Please consider citing this toolbox if it is useful for your research.
 @misc{wei2024MV,
   title = {ModelVerification.jl},
   author = {Wei, Tianhao and Hu, Hanjiang and Niu, Peizhi and Marzari, Luca and Yun, Kai S. and Luo, Xusheng and Liu, Changliu},
-  advisor = {Liu, Changliu},
   howpublished = {\url{https://github.com/intelligent-control-lab/ModelVerification.jl}},
   year = {2024}
 }

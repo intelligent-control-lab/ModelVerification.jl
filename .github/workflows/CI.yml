@@ -41,6 +41,12 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+      - uses: Jimver/cuda-toolkit@v0.2.15
+        id: cuda-toolkit
+        with:
+          cuda: '12.4.1'
+      - run: echo "Installed cuda version is: ${{steps.cuda-toolkit.outputs.cuda}}"
+      - run: echo "Cuda install location: ${{steps.cuda-toolkit.outputs.CUDA_PATH}}"
       - name: Install local dependencies
         run: |
           julia --project=. -e 'using Pkg; Pkg.develop(path="onnx_parser/NaiveNASflux")'
