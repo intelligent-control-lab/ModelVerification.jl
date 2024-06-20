@@ -1,6 +1,7 @@
 # ModelVerification.jl
 
 ![CI](https://github.com/intelligent-control-lab/ModelVerification.jl/actions/workflows/CI.yml/badge.svg)
+![Doc](https://github.com/intelligent-control-lab/ModelVerification.jl/actions/workflows/documentation.yml/badge.svg)
 
 ## Introduction
 Deep Neural Network (DNN) is crucial in approximating nonlinear functions across diverse applications, such as computer vision and control. Verifying specific input-output properties can be a highly challenging task. To this end, we present [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl), the only cutting-edge toolbox that contains a suite of state-of-the-art methods for verifying DNNs. This toolbox significantly extends and improves the previous version ([NeuralVerification.jl](https://sisl.github.io/NeuralVerification.jl/latest/)) and is designed to empower developers and machine learning practioners with robust tools for verifying and ensuring the trustworthiness of their DNN models.
@@ -123,28 +124,15 @@ Pages = ["nnet_converter.md", "python_interface.md"]
 Depth = 3
 ```
 
-## Documents
+## Citation
 
-For an extensive documentation of the toolbox, please run a local web server out of the `docs/build` directory. 
-
-First, install the [LiveServer](https://github.com/tlienart/LiveServer.jl) Julia package.
-```Julia
-$ julia
-julia> import Pkg
-julia> Pkg.add("LiveServer")
+Please consider citing this toolbox if it is useful for your research.
+```bibtex
+@misc{wei2024MV,
+  title = {ModelVerification.jl},
+  author = {Wei, Tianhao and Hu, Hanjiang and Niu, Peizhi and Marzari, Luca and Yun, Kai S. and Luo, Xusheng and Liu, Changliu},
+  advisor = {Liu, Changliu},
+  howpublished = {\url{https://github.com/intelligent-control-lab/ModelVerification.jl}},
+  year = {2024}
+}
 ```
-
-Then, start the server with one of the following methods:
-1. In Julia REPL
-```Julia
-julia> using LiveServer
-julia> serve(dir="docs/build")
-```
-2. In console, using Julia
-```console
-julia -e 'using LiveServer; serve(dir="docs/build")'
-```
-
-This should take you to a full documentation of the toolbox. For more information, please follow the [Note in "Building an Empty Document" section](https://documenter.juliadocs.org/stable/man/guide/#Building-an-Empty-Document).
-
-An alternate is to click on the `index.html` file in the `docs/build` folder.
