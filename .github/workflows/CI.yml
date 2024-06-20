@@ -21,8 +21,6 @@ jobs:
           - '1.9.3'
         os:
           - ubuntu-latest
-          - macOS-latest
-          - windows-latest
         arch:
           - x64
     steps:
@@ -41,10 +39,12 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: Jimver/cuda-toolkit@v0.2.15
-        id: cuda-toolkit
-        with:
-          cuda: '12.4.1'
+      - name: Set up CUDA
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nvidia-cuda-toolkit
+          sudo apt-get install -y nvidia-driver-470
       - name: Install local dependencies
         run: |
           julia --project=. -e 'using Pkg; Pkg.develop(path="onnx_parser/NaiveNASflux")'
