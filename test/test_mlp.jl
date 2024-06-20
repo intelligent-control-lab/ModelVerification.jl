@@ -23,7 +23,7 @@
     @testset "Ai2z" test_mlp(Ai2z())
     @testset "StarSet" test_mlp(StarSet())
     @testset "StarSet w/ Ai2z pre-bound" test_mlp(StarSet(Ai2z()))
-    @testset "BetaCrown GPU" test_mlp(BetaCrown(inherit_pre_bound=false))
+    # @testset "BetaCrown GPU" test_mlp(BetaCrown(inherit_pre_bound=false)) # no gpu runner on Github Actions
     @testset "BetaCrown CPU" test_mlp(BetaCrown(use_gpu=false, inherit_pre_bound=false))
     @testset "MIPVerify" test_mlp(MIPVerify())
 end
