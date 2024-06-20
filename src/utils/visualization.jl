@@ -43,7 +43,7 @@ end
 function get_all_layer_output_size(model_info, batch_info, input_size)
     # @show model_info
     # @show batch_info
-    println("Computing all layer output size")
+    # println("Computing all layer output size")
 
     @assert length(model_info.start_nodes) == 1
     # @assert length(model_info.node_nexts[model_info.start_nodes[1]]) == 1
@@ -52,7 +52,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
     batch_info[model_info.start_nodes[1]][:size_after_layer] = (input_size..., batch_size)
     
     # @show model_info.start_nodes[1]
-    @show (input_size..., batch_size)
+    # @show (input_size..., batch_size)
     #BFS
     queue = Queue{Any}()                            # Make an empty queue.
     # enqueue!(queue, model_info.node_nexts[model_info.start_nodes[1]][1])
@@ -86,7 +86,7 @@ function get_all_layer_output_size(model_info, batch_info, input_size)
             batch_info[node][:size_after_layer] = Flux.outputsize(model_info.node_layer[node], prev_size)
             batch_info[node][:size_before_layer] = prev_size
         end
-        @show node, batch_info[node][:size_after_layer]
+        # @show node, batch_info[node][:size_after_layer]
     end
     return batch_info
 end

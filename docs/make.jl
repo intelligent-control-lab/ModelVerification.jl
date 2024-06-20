@@ -27,3 +27,5 @@ makedocs(sitename = "ModelVerification.jl",
         ]
 )
 
+deploydocs(; repo="github.com/intelligent-control-lab/ModelVerification.jl.git",
+           push_preview=true)

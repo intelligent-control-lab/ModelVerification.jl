@@ -81,9 +81,9 @@ end
                  input::ReLUConstrainedDomain, output, model_info, batch_info)                 
 """
 
-function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info)
-    branches = split_branch(split_method, model, input.domain, output, inheritance, model_info, batch_info)
-    return [Branch(ReLUConstrainedDomain(b.input, input.all_relu_cons), b.output, b.inheritance) for b in branches]
+function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)
+    branches = split_branch(split_method, model, input.domain, output, inheritance, model_info, batch_info, ratio)
+    return [Branch(ReLUConstrainedDomain(b.input, input.all_relu_cons), b.output, b.inheritance, b.ratio) for b in branches]
 end
 
 """
