@@ -57,7 +57,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         node = dequeue!(queue)                      # Take out a node from the queue. At first, it's one of the connecting nodes from the start nodes.
         batch_info[:current_node] = node            # Add a new key-value pair: `:current_node` => `node`
         # println("prop: ", node, "    prev: ", prev_nodes(prop_method, model_info, node))
-        
+        # @show node
         enqueue_connected!(prop_method, model_info, queue, visit_cnt, node)
         @timeit to string(typeof(model_info.node_layer[node])) batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
         # if num_prevs(prop_method, model_info, node) >= 2   # If there are more than two previous nodes connecting to the `node`.
@@ -80,7 +80,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         # end
 
         # println("---")
-        # @show node
+        
         # @show "add_0"
         # if haskey(batch_info, "add_0")
         #     for i in eachindex(batch_info["add_0"][:bound].lower_A_x)
@@ -91,8 +91,14 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         # println("---")
         # @show node
         # @show batch_bound
+
+        @show node
+        if occursin("relu_1", node)
+            break
+        end
+        
     end
-    batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
+    # batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
     # @show output_node(prop_method, model_info)
     # @show batch_bound
     return batch_bound, batch_info

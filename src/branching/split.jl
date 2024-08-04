@@ -34,7 +34,7 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, 
-                 output, model_info, batch_info)
+                 output, inheritance, model_info, batch_info, ratio=nothing)
 
 Recursively bisects the hyperrectangle input specification at the center for 
 `split_method.num_split` number of times.
@@ -45,9 +45,11 @@ Recursively bisects the hyperrectangle input specification at the center for
 - `input` (`Hyperrectangle`): Input specification represented with a 
     `Hyperrectangle`.
 - `output`: Output specification.
+- `inheritance`: Something from the parent branch that could be reused.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
 - `batch_info`: Dictionary containing information of each node in the model.
+- `raio`: how much percent this branch is of the whole input set, only works for input set split.
 
 ## Returns
 - List of subtrees split from the `input`.
@@ -77,8 +79,24 @@ function split_branch(split_method::Bisect, model::Chain, input::IBPBound, outpu
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, 
-                 input::ReLUConstrainedDomain, output, model_info, batch_info)                 
+split_branch(split_method::Bisect, model::Chain, 
+    input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)                 
+
+Bisects an input set with ReLU constraints.
+
+## Arguments
+- `split_method` (`Bisect`): Bisection split method.
+- `model` (`Chain`): Model to be verified.
+- `input` (`LazySet`): Input specification represented with any `LazySet`.
+- `output`: Output specification.
+- `inheritance`: Something from the parent branch that could be reused to improve efficiency.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: Dictionary containing information of each node in the model.
+- `ratio`: how much percent the current branch is of the whole input set, only works for input split.
+
+## Returns
+- List of subtrees split from the `input`.
 """
 
 function split_branch(split_method::Bisect, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)
@@ -88,7 +106,7 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::LazySet, 
-                 output, model_info, batch_info)
+                 output, inheritance, model_info, batch_info, ratio=nothing)
 
 Given an input specification represented with any geometry, this function 
 converts it to a hyperrectangle. Then, it calls `split_branch(..., 
@@ -100,9 +118,11 @@ input::Hyperrectangle, ...)` to recursively bisect the input specification for a
 - `model` (`Chain`): Model to be verified.
 - `input` (`LazySet`): Input specification represented with any `LazySet`.
 - `output`: Output specification.
+- `inheritance`: Something from the parent branch that could be reused to improve efficiency.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
 - `batch_info`: Dictionary containing information of each node in the model.
+- `ratio`: how much percent the current branch is of the whole input set, only works for input split.
 
 ## Returns
 - List of subtrees split from the `input`.
@@ -113,7 +133,7 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, 
-                 output, model_info, batch_info)
+                 output, inheritance, model_info, batch_info, ratio=nothing)
 """
 function split_branch(split_method::Bisect, model::Chain, input::ImageZonoBound, output, inheritance, model_info, batch_info, ratio=nothing)
     # println("split image zono")
@@ -166,7 +186,7 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, 
-                 input::ImageStarBound, output, model_info, batch_info)
+                 input::ImageStarBound, output, inheritance, model_info, batch_info, ratio=nothing)
 
 TO-BE-IMPLEMENTED
 """
@@ -176,7 +196,7 @@ end
 
 """
     split_branch(split_method::Bisect, model::Chain, input::ImageConvexHull, 
-                 output, model_info, batch_info)
+                 output, inheritance, model_info, batch_info, ratio=nothing)
 
 Recursively bisects the ImageConvexHull input specification at the center for 
 `split_method.num_split` number of times.
@@ -187,9 +207,11 @@ Recursively bisects the ImageConvexHull input specification at the center for
 - `input` (`ImageConvexHull`): Input specification represented with a 
     `ImageConvexHull`.
 - `output`: Output specification.
+- `inheritance`: Something from the parent branch that could be reused to improve efficiency.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
 - `batch_info`: Dictionary containing information of each node in the model.
+- `ratio`: how much percent the current branch is of the whole input set, only works for input split.
 
 ## Returns
 - List of subtrees split from the `input`.
@@ -277,7 +299,23 @@ end
 
 """
     split_branch(split_method::BaBSR, model::Chain, 
-                 input::ReLUConstrainedDomain, output, model_info, batch_info)
+                 input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)
+
+Split a set by adding ReLU activation status constraints. BaBSR analyzes which ReLU to split.
+
+## Arguments
+- `split_method` (`BaBSR`): a split algorithm
+- `model` (`Chain`): Model to be verified.
+- `input` (`ReLUConstrainedDomain`): Input specification with ReLU activation status constraints
+- `output`: Output specification.
+- `inheritance`: Something from the parent branch that could be reused to improve efficiency.
+- `model_info`: Structure containing the information of the neural network to be 
+    verified.
+- `batch_info`: Dictionary containing information of each node in the model.
+- `ratio`: how much percent the current branch is of the whole input set, only works for input split.
+
+## Returns
+- List of subtrees split from the `input`.
 """
 function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info)
     score = branching_scores_kfsb(model_info, batch_info, input)

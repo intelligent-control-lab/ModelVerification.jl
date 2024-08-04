@@ -290,14 +290,23 @@ converts the resulting `Zonotope` back to `ImageZonoBound`.
 """
 function propagate_layer(prop_method, layer::typeof(relu), bound::ImageZonoBound, batch_info)
     to = get_timer("Shared")
+    # @show size(bound.generators)
     cen = reshape(bound.center, :)
-    gen = reshape(bound.generators, :, size(bound.generators,4))
+    if size(bound.generators,4) > 0
+        gen = reshape(bound.generators, :, size(bound.generators,4))
+    else
+        return ImageZonoBound(layer(bound.center), bound.generators)
+    end
     # println("size gen: ", size(bound.generators,4))
+    # @show size(cen)
+    # @show size(gen)
     
     @timeit to "flatten zono" flat_reach = Zonotope(cen, gen)
+    # @show size(genmat(flat_reach))
     # println("before order: ", float(order(flat_reach)))
     # sleep(0.1)
     @timeit to "relu overapprox" flat_reach = fast_overapproximate(Rectification(flat_reach), Zonotope)
+    # @show size(genmat(flat_reach))
     # println("overapproximate time: ", stats.time)
     # sleep(0.1)
     # flat_reach = overapproximate(Rectification(flat_reach), Zonotope)
@@ -313,14 +322,15 @@ function propagate_layer(prop_method, layer::typeof(relu), bound::ImageZonoBound
     # println("remove redundant time: ", stats.time)
     # println("after reducing order: ", float(order(flat_reach)))
     # sleep(0.1)
-    @show size(genmat(flat_reach),2)
+    println("=== before and after remove redundant === ", batch_info[:current_node])
+    # @show size(genmat(flat_reach),2)
     if size(genmat(flat_reach),2) > 10
         # println("before reducing order: ", float(order(flat_reach)))
         # @timeit to "remove redundant" flat_reach = remove_redundant_generators(flat_reach)
         # @timeit to "fast remove redundant" flat_reach = fast_remove_redundant_generators(flat_reach)
-        @show size(genmat(flat_reach),2)
         # println("after reducing order:  ", float(order(flat_reach)))
     end
+    @show size(genmat(flat_reach),2)
     new_cen = reshape(LazySets.center(flat_reach), size(bound.center))
     sz = size(bound.generators)
     # println("before size: ", sz)

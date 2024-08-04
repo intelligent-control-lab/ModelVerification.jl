@@ -81,7 +81,7 @@ function propagate_layer(prop_method::ImageZono, layer::Conv, bound::ImageZonoBo
     if prop_method.use_gpu
         gen_Conv = gen_Conv |> gpu
     end
-    println("size(bound.generators): ", size(bound.generators))
+    # println("size(bound.generators): ", size(bound.generators))
     # cnt = Dict()
     # for i in 1:size(bound.generators,4)
     #     gen = bound.generators[:,:,:,i]
@@ -117,6 +117,8 @@ function propagate_layer(prop_method::ImageZono, layer::Conv, bound::ImageZonoBo
     # new_generators = propagate_by_small_batch(gen_Conv, bound.generators |> gpu) |> cpu
     # new_generators = gen_Conv(bound.generators |> gpu) |> cpu
     # new_generators = new_generators |> cpu
+    # println("size(new_center): ", size(new_center))
+    # println("size(generators): ", size(new_generators))
     return ImageZonoBound(new_center, new_generators)
 end
 

@@ -11,7 +11,6 @@ function compute_all_bound(prop_method::ForwardProp, batch_input, batch_output, 
     _, all_bounds = propagate(prop_method, model_info, batch_info)
 
     for node in model_info.all_nodes
-        # @show node
         # @show haskey(all_bounds[node], :bound)
         haskey(all_bounds[node], :bound) || continue
         
@@ -36,6 +35,10 @@ function compute_all_bound(prop_method::ForwardProp, batch_input, batch_output, 
         # @show node
         # @show l
         # @show u
+        @show node
+        if occursin("relu_1", node)
+            break
+        end
     end
     return all_bounds, batch_info
 end

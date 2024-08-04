@@ -101,8 +101,12 @@ The result of `prepare_problem` are two variables:
 ### `search_branches`
 
 ```@docs
-search_branches(search_method::BFS, split_method, prop_method, problem, model_info)
-advance_split(max_iter::Int, search_method::BFS, split_method, prop_method, problem, model_info)
+search_branches(search_method::BFS, split_method, prop_method, problem, model_info; 
+                    collect_bound=false, 
+                    comp_verified_ratio=false,
+                    pre_split=nothing, 
+                    verbose=false,
+                    time_out=nothing)
 ```
 
 `search_branches` is the core function used for the verification process. It consists of several subfunctions that we are going to summarize in the following. At first, the function initializes the branch bank for the entire safety property's input-output domain. This can be done by `advance_split`, which splits the input-output domain using the given split method. Thus, each "branch" is a subpart of the input-output domain. The function seeks to verify all the branches and if it cannot provide a result (i.e., we obtain an `:unknown` answer), the function proceeds to split branch for a more refined verification process.. If the function verifies all the branches within the given maximum number of iterations, then we obtain a `:holds` answer. If the function finds any branch that does not satisfy the safety property, then it returns `:violated`.

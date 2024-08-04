@@ -53,8 +53,12 @@ function advance_split(max_iter::Int, search_method::BFS, split_method, prop_met
 end
 
 """
-    search_branches(search_method::BFS, split_method, prop_method, 
-                    problem, model_info)
+    search_branches(search_method::BFS, split_method, prop_method, problem, model_info; 
+                    collect_bound=false, 
+                    comp_verified_ratio=false,
+                    pre_split=nothing, 
+                    verbose=false,
+                    time_out=nothing)
 
 Searches through the branches in the branch bank, `branches`, until the branch 
 bank is empty or time out. In each iteration (up to `search_method.max_iter`), 
@@ -96,11 +100,15 @@ of verification procedures, the model is verified to be valid and returns
 - `problem`: Problem definition for model verification.
 - `model_info`: Structure containing the information of the neural network to be 
     verified.
-- `collect_bound`(optional): Default is false, whether return the verified 
+- `collect_bound`(optional): false, whether return the verified 
     bound.
+- `comp_verified_ratio`(optional): false, whether to return how much percent of the
+    input set is verified safe
 - `pre_split`(optional): nothing, the number of split before any propagation. 
     This is particularly useful for large input set that could lead to memory 
     overflow.
+- `verbose`(optional): false, whether to print things
+- `time_out`(optional): nothing, time out to halt.
 
 ## Returns
 - `BasicResult(:holds)` if all the reachable sets are within the corresponding 

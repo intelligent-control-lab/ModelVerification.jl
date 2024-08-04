@@ -112,8 +112,12 @@ It converts the image zono set to a zonotope. Then, it computes the bounds using
 - Lower- and upper-bounds of the flattened zonotope.
 """
 function compute_bound(bound::ImageZonoBound)
+    if size(bound.generators,4) > 0
+        gen = reshape(bound.generators, :, size(bound.generators,4))
+    else
+        return bound.center, bound.center
+    end
     cen = reshape(bound.center, :)
-    gen = reshape(bound.generators, :, size(bound.generators,4))
     flat_reach = Zonotope(cen, gen)
     l, u = compute_bound(flat_reach)
     l = reshape(l, size(bound.center))
