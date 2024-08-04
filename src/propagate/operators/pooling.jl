@@ -43,7 +43,7 @@ also of type `ImageZonoBound`.
 """
 function propagate_layer(prop_method, layer::MeanPool, bound::ImageZonoBound, batch_info)
     new_center = layer(bound.center)    
-    new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)..., 0)
+    new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)[1:3]..., 0)
     return ImageZonoBound(new_center, new_generators)
 end
 
