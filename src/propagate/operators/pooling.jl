@@ -42,15 +42,9 @@ also of type `ImageZonoBound`.
     type.
 """
 function propagate_layer(prop_method, layer::MeanPool, bound::ImageZonoBound, batch_info)
-    if size(bound.generators,4) > 0
-        new_center = layer(bound.center)
-        new_generators = layer(bound.generators)
-        return ImageZonoBound(new_center, new_generators)
-    else
-        new_center = layer(bound.center)
-        new_generators = zero(new_center)[:,:,:,1:0]
-        return ImageZonoBound(layer(bound.center), new_generators)
-    end
+    new_center = layer(bound.center)    
+    new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)..., 0)
+    return ImageZonoBound(new_center, new_generators)
 end
 
 function propagate_layer_batch(prop_method::IBP, layer::MeanPool, bound::IBPBound, batch_info)
