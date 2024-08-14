@@ -12,18 +12,22 @@ mutable struct VeriGrad <: BatchBackwardProp
     train_iteration::Int
     inherit_pre_bound::Bool
     Lie_linear_bound
+    use_ReluVal::Bool
 end
-VeriGrad(nothing) = VeriGrad(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true, nothing)
-VeriGrad(nothing; use_gpu=false) = VeriGrad(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true, nothing)
+VeriGrad(nothing) = VeriGrad(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true, nothing,false)
+VeriGrad(nothing; use_gpu=false) = VeriGrad(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true, nothing,false)
 function VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound)
-    return VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound, nothing)
+    return VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound, nothing,false)
 end
-function VeriGrad(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=:BetaCrown, bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true, Lie_linear_bound=nothing)
+function VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound, Lie_linear_bound)
+    return VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound, Lie_linear_bound,false)
+end
+function VeriGrad(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=:BetaCrown, bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true, Lie_linear_bound=nothing,use_ReluVal=false)
     if pre_bound_method == :BetaCrown
         # pre_bound_method method must inherit_pre_bound, otherwise bound of previous layer will not be memorized in pre-bounding.
-        pre_bound_method = VeriGrad(use_alpha, use_beta, use_gpu, nothing, bound_lower, bound_upper, optimizer, train_iteration, true, nothing)
+        pre_bound_method = VeriGrad(use_alpha, use_beta, use_gpu, nothing, bound_lower, bound_upper, optimizer, train_iteration, true, nothing,false)
     end
-    VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound,Lie_linear_bound)
+    VeriGrad(use_alpha, use_beta, use_gpu, pre_bound_method, bound_lower, bound_upper, optimizer, train_iteration, inherit_pre_bound,Lie_linear_bound,use_ReluVal)
 end
 
 
@@ -590,7 +594,7 @@ function check_inclusion(prop_method::VeriGrad, model, batch_input::AbstractArra
         # @show l, u = compute_bound(bound_crown)
         if prop_method.Lie_linear_bound[6] > 0
             # @show model, batch_input
-            bias_crown_bound = ModelVerification.find_crown_bound(model, batch_input)
+            bias_crown_bound = ModelVerification.find_crown_bound(prop_method,model, batch_input)
             bound_crown = CrownBound(bound_crown.batch_Low+prop_method.Lie_linear_bound[6] .* bias_crown_bound.batch_Low, bound_crown.batch_Up+prop_method.Lie_linear_bound[6] .* bias_crown_bound.batch_Up,  bound_crown.batch_data_min, bound_crown.batch_data_max, bound_crown.img_size)
         end
 
@@ -738,7 +742,7 @@ end
 
 function Lie_IA_bound(prop_method::VeriGrad, batch_input::AbstractArray, bound::VeriGradBound)
     @assert size(bound.batch_Low, 3) == 1 "currently only support batchsize == 1"
-    Lie_solver = Crown(prop_method.use_gpu, true, true, ModelVerification.zero_slope)
+    Lie_solver = Crown(prop_method.use_gpu, true, true, ModelVerification.zero_slope,prop_method.use_ReluVal)
     # @show prop_method.Lie_linear_bound
     prop_method.Lie_linear_bound[1] = prop_method.use_gpu ? fmap(cu, prop_method.Lie_linear_bound[1]) : prop_method.Lie_linear_bound[1]
     prop_method.Lie_linear_bound[2] = prop_method.use_gpu ? fmap(cu, prop_method.Lie_linear_bound[2]) : prop_method.Lie_linear_bound[2]
@@ -1111,8 +1115,8 @@ end
 #     return bound
 # end
 
-function find_crown_bound(nn_model::Chain, batch_input::AbstractArray)
-    solver = Crown(false, true, true, ModelVerification.zero_slope)
+function find_crown_bound(prop_method::VeriGrad, nn_model::Chain, batch_input::AbstractArray)
+    solver = Crown(false, true, true, ModelVerification.zero_slope,prop_method.use_ReluVal)
     bound = ModelVerification.init_batch_bound(solver, batch_input, nothing)
     # @show bound1
     for layer in nn_model

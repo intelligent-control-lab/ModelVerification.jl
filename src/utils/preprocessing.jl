@@ -77,12 +77,12 @@ function onnx_node_to_flux_layer(vertex)
     # println(ONNXNaiveNASflux.var"#342#344"{typeof(relu)})
     if node_type == ONNXNaiveNASflux.Flatten
         return Flux.flatten
-    elseif node_type == NaiveNASlib.var"#342#344"{typeof(+)}
-        return +
-    elseif node_type == NaiveNASlib.var"#342#344"{typeof(-)}
-        return -
-    elseif node_type == ONNXNaiveNASflux.var"#217#229"{typeof(relu)}
-        return NNlib.relu
+    # elseif node_type == NaiveNASlib.var"#342#344"{typeof(+)}
+    #     return +
+    # elseif node_type == NaiveNASlib.var"#342#344"{typeof(-)}
+    #     return -
+    # elseif node_type == ONNXNaiveNASflux.var"#217#229"{typeof(relu)}
+    #     return NNlib.relu
     else
         # @show vertex
         return NaiveNASflux.layer(vertex)

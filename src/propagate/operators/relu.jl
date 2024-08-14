@@ -413,24 +413,58 @@ function propagate_layer_batch(prop_method::Crown, layer::typeof(relu), original
     # if the bounds overlap 0, concretize by setting
     # the generators to 0, and setting the new upper bound
     # center to be the current upper-upper bound.
-    unstable_mask = (u .> 0) .& (l .< 0) # reach_dim x batch
-    unstable_mask_ext = broadcast_mid_dim(unstable_mask, output_Low) # reach_dim x input_dim+1 x batch
-    slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # selected_reach_dim * selected_batch
+    if  !prop_method.use_ReluVal
+        unstable_mask = (u .> 0) .& (l .< 0) # reach_dim x batch
+        unstable_mask_ext = broadcast_mid_dim(unstable_mask, output_Low) # reach_dim x input_dim+1 x batch
+        slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # selected_reach_dim * selected_batch
 
-    slope_mtx = prop_method.use_gpu ? fmap(cu, ones(size(u))) : ones(size(u))
-    if prop_method.use_gpu
-        CUDA.@allowscalar slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
+        slope_mtx = prop_method.use_gpu ? fmap(cu, ones(size(u))) : ones(size(u))
+        if prop_method.use_gpu
+            CUDA.@allowscalar slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
+        else
+            slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask])
+        end
+
+        broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
+        # broad_slop = reshape(slope, )
+        # @show broad_slope
+        output_Up .*= broad_slope # slope of active neuron is 1, so does not matter
+        unstable_mask_bias = copy(unstable_mask_ext)
+        unstable_mask_bias[:,1:end-1,:] .= 0
+        # @show size(unstable_mask_bias),size(unstable_mask)
+        # output_Up_old = copy(output_Up)
+        # output_Up_old[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
     else
-        slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask])
+        l, u = compute_bound(bound)
+        lower_u = batched_vec(clamp.(bound.batch_Up, 0, Inf), bound.batch_data_min) .+ batched_vec(clamp.(bound.batch_Up, -Inf, 0), bound.batch_data_max)
+        @assert all(lower_u .<= u)
+        unstable_mask_gt0 = (u .> 0) .& (l .< 0).& (lower_u .>= 0) # reach_dim x batch
+        unstable_mask_ext = broadcast_mid_dim(unstable_mask_gt0, output_Low) # reach_dim x input_dim+1 x batch
+        
+        unstable_reluval_mask = (u .> 0) .& (l .< 0) .& (lower_u .< 0) # reach_dim x batch
+        unstable_reluval_mask_ext = broadcast_mid_dim(unstable_reluval_mask, output_Up)
+        unstable_mask_bias = copy(unstable_reluval_mask_ext)
+        unstable_mask_bias[:,1:end-1,:] .= 0
+        unstable_mask = unstable_reluval_mask
+        slope = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) 
+
+        slope_mtx = prop_method.use_gpu ? fmap(cu, ones(size(u))) : ones(size(u))
+        if prop_method.use_gpu
+            CUDA.@allowscalar slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask]) # reach_dim x batch
+        else
+            slope_mtx[unstable_mask] = u[unstable_mask] ./ (u[unstable_mask] .- l[unstable_mask])
+        end
+
+        broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
+        # broad_slop = reshape(slope, )
+        # @show broad_slope
+        output_Up .*= broad_slope # slope of active neuron is 1, so does not matter
+
+        # @show size(unstable_mask_bias),size(unstable_mask)
     end
-
-    broad_slope = broadcast_mid_dim(slope_mtx, output_Up) # selected_reach_dim x input_dim+1 x selected_batch
-    # broad_slop = reshape(slope, )
-    
-    output_Up .*= broad_slope # slope of active neuron is 1, so does not matter
-    unstable_mask_bias = copy(unstable_mask_ext)
-    unstable_mask_bias[:,1:end-1,:] .= 0
-
+    # @show size(output_Up[unstable_mask_bias])
+    # @show size(-l[unstable_mask])
+    # @show size((slope .* max.(-l[unstable_mask], 0))[:])
     if prop_method.use_gpu
         CUDA.@allowscalar output_Up[unstable_mask_bias] .+= (slope .* max.(-l[unstable_mask], 0))[:]
     else
@@ -440,6 +474,8 @@ function propagate_layer_batch(prop_method::Crown, layer::typeof(relu), original
     # @show size(output_Low[unstable_mask_ext])
     # @show size(broad_slope[:])
     # @show size(broad_slope)
+    # @show (output_Up_old .- output_Up)
+    # @assert !all((output_Up_old .- output_Up)==0)
 
     if prop_method.bound_heuristics == zero_slope
         output_Low[unstable_mask_ext] .= 0

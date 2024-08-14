@@ -8,9 +8,12 @@ struct Crown <: BatchForwardProp
     bound_lower::Bool
     bound_upper::Bool
     bound_heuristics::CrownBoundHeuristics
+    use_ReluVal::Bool
 end
-Crown(;use_gpu=true, bound_lower=true, bound_upper=true, bound_heuristics=zero_slope) = Crown(use_gpu, bound_lower, bound_upper, bound_heuristics)
-
+Crown(;use_gpu=true, bound_lower=true, bound_upper=true, bound_heuristics=zero_slope,use_ReluVal=false) = Crown(use_gpu, bound_lower, bound_upper, bound_heuristics,use_ReluVal)
+function Crown(use_gpu, bound_lower, bound_upper, bound_heuristics)
+    return Crown(use_gpu, bound_lower, bound_upper, bound_heuristics,false)
+end
 """
     CrownBound <: Bound
 """
