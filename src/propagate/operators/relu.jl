@@ -330,10 +330,10 @@ function propagate_layer(prop_method, layer::typeof(relu), bound::ImageZonoBound
     println("=== before and after remove redundant ===: ", batch_info[:current_node])
     # @show size(genmat(flat_reach),2)
     if size(genmat(flat_reach),2) > 10
-        println("before reducing order: ", float(order(flat_reach)))
-        @timeit to "remove redundant" flat_reach = remove_redundant_generators(flat_reach)
+        # println("before reducing order: ", float(order(flat_reach)))
+        # @timeit to "remove redundant" flat_reach = remove_redundant_generators(flat_reach)
         # @timeit to "fast remove redundant" flat_reach = fast_remove_redundant_generators(flat_reach)
-        println("after reducing order:  ", float(order(flat_reach)))
+        # println("after reducing order:  ", float(order(flat_reach)))
     end
     @show size(genmat(flat_reach),2)
     new_cen = reshape(LazySets.center(flat_reach), size(bound.center))
