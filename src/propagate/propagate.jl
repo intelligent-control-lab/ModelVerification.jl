@@ -91,12 +91,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         # println("---")
         # @show node
         # @show batch_bound
-
         @show node
-        if occursin("relu_1", node)
-            break
-        end
-        
     end
     # batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
     # @show output_node(prop_method, model_info)

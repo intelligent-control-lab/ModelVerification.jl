@@ -14,8 +14,11 @@ the `ImageStarBound` into a `Star` type.
 ## Returns
 - The flattened bound of the output layer represented in `Star` type.
 """
-propagate_layer(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info) = 
-    Star(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)), HPolyhedron(bound.A, bound.b))
+function propagate_layer(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info)
+    new_center = reshape(bound.center, :)
+    new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)[1], 0)
+    Star(new_center, new_generators, HPolyhedron(bound.A, bound.b))
+end
 
 """
     propagate_layer(prop_method, layer::typeof(flatten), 
@@ -33,9 +36,14 @@ the `ImageZonoBound` into a `Zonotope` type.
 ## Returns
 - The flattened bound of the output layer represented in `Zonotope` type.
 """
-propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
-    Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
+# propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
+#     Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
 
+function propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info)
+    new_center = reshape(bound.center, :)
+    new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)[1], 0)
+    return Zonotope(new_center, new_generators)
+end
 
 
 function propagate_layer_batch(prop_method::IBP, layer::typeof(Flux.flatten), bound::IBPBound, batch_info)

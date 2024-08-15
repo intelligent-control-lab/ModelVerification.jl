@@ -246,7 +246,7 @@ function fast_remove_redundant_generators(Z::Zonotope)
                 return false
             end
             for j in eachindex(hash_bank[key])
-                if maximum(abs.(value - hash_bank[key][j])) < 1e-7
+                if maximum(abs.(value - hash_bank[key][j])) < 1e-6
                     hash_bank[key] += value
                     return true
                 end
@@ -257,14 +257,19 @@ function fast_remove_redundant_generators(Z::Zonotope)
         haskey(hash_bank, h_pos) || (hash_bank[h_pos] = [])
         push!(hash_bank[h_pos], gen_v)
     end
-    if length(hash_bank) < n_gen * 2 # some generators were deleted
-        G_new = reduce(vcat, [gen_list for (hash, gen_list) in hash_bank])
-        G_new = reduce(hcat, G_new)  # convert list of column vectors to matrix
-        return Zonotope(LazySets.center(Z), G_new)
-    elseif n_gen < ngens(Z) # removed some zero generators
-        return Zonotope(LazySets.center(Z), G)
-    end
-    return Z  # return the original zonotope if no generator was removed
+
+    G_new = reduce(vcat, [gen_list for (hash, gen_list) in hash_bank])
+    G_new = reduce(hcat, G_new)  # convert list of column vectors to matrix
+    return Zonotope(LazySets.center(Z), G_new)
+    
+    # if length(hash_bank) < n_gen * 2 # some generators were deleted
+    #     G_new = reduce(vcat, [gen_list for (hash, gen_list) in hash_bank])
+    #     G_new = reduce(hcat, G_new)  # convert list of column vectors to matrix
+    #     return Zonotope(LazySets.center(Z), G_new)
+    # elseif n_gen < ngens(Z) # removed some zero generators
+    #     return Zonotope(LazySets.center(Z), G)
+    # end
+    # return Z  # return the original zonotope if no generator was removed
 end
 
 """
@@ -322,13 +327,13 @@ function propagate_layer(prop_method, layer::typeof(relu), bound::ImageZonoBound
     # println("remove redundant time: ", stats.time)
     # println("after reducing order: ", float(order(flat_reach)))
     # sleep(0.1)
-    println("=== before and after remove redundant === ", batch_info[:current_node])
+    println("=== before and after remove redundant ===: ", batch_info[:current_node])
     # @show size(genmat(flat_reach),2)
     if size(genmat(flat_reach),2) > 10
-        # println("before reducing order: ", float(order(flat_reach)))
-        # @timeit to "remove redundant" flat_reach = remove_redundant_generators(flat_reach)
+        println("before reducing order: ", float(order(flat_reach)))
+        @timeit to "remove redundant" flat_reach = remove_redundant_generators(flat_reach)
         # @timeit to "fast remove redundant" flat_reach = fast_remove_redundant_generators(flat_reach)
-        # println("after reducing order:  ", float(order(flat_reach)))
+        println("after reducing order:  ", float(order(flat_reach)))
     end
     @show size(genmat(flat_reach),2)
     new_cen = reshape(LazySets.center(flat_reach), size(bound.center))
