@@ -60,26 +60,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         # @show node
         enqueue_connected!(prop_method, model_info, queue, visit_cnt, node)
         @timeit to string(typeof(model_info.node_layer[node])) batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
-        # if num_prevs(prop_method, model_info, node) >= 2   # If there are more than two previous nodes connecting to the `node`.
-        #     @timeit to string(typeof(model_info.node_layer[node])) batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
-        # else
-        #     @timeit to string(typeof(model_info.node_layer[node])) batch_bound = propagate_layer_method(prop_method, model_info, batch_info, node)
-        # end
-        # if length(prev_nodes(prop_method, model_info, node)) > 0
-        #     @show prev_nodes(prop_method, model_info, node)[1], node
-        #     @show batch_info[prev_nodes(prop_method, model_info, node)[1]][:bound] == batch_bound
-        # end
-        # @show typeof(model_info.node_layer[node])
-        # @show typeof(batch_bound.lower_A_x)
         batch_info[node][:bound] = batch_bound      # Add information about the bound for the node.
-        # @assert false
-        # if !isnothing(batch_bound)
-        #     for i in eachindex(batch_bound.lower_A_x)
-        #         @show i, typeof(batch_bound.lower_A_x[i])
-        #     end
-        # end
-
-        # println("---")
         
         # @show "add_0"
         # if haskey(batch_info, "add_0")
@@ -99,6 +80,11 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
     return batch_bound, batch_info
 end
 
+"""
+    enqueue_connected!(prop_method::PropMethod, model_info, queue, visit_cnt, node)
+
+Put all the connected node into the queue for propagation.
+"""
 function enqueue_connected!(prop_method::PropMethod, model_info, queue, visit_cnt, node)
     for output_node in next_nodes(prop_method, model_info, node)    # For each node connected from the current node.
         visit_cnt[output_node] += 1             # The output node is visited one more time!

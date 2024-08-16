@@ -55,12 +55,6 @@ compute_output(nnet::Network, input)
 
 ### Activation function operations
 ```@docs
-get_activation(L::Layer{ReLU}, x::Vector)
-get_activation(L::Layer{Id}, args...)
-get_activation(nnet::Network, x::Vector{Float64})
-get_activation(nnet::Network, input::Hyperrectangle)
-get_activation(nnet::Network, bounds::Vector{Hyperrectangle})
-get_activation(L::Layer{ReLU}, bounds::Hyperrectangle)
 approximate_act_map(act::ActivationFunction, input::Hyperrectangle)
 approximate_act_map(layer::Layer, input::Hyperrectangle)
 ```

@@ -121,7 +121,6 @@ ReLUConstraints
 ReLUConstrainedDomain
 ImageConvexHull
 ImageLinfBall
-get_image_linf_spec
 classification_spec(n::Int64, target::Int64)
 ```
 

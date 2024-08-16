@@ -33,8 +33,7 @@ Branch-and-Bound method for splitting branches.
 end
 
 """
-    split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, 
-                 output, inheritance, model_info, batch_info, ratio=nothing)
+split_branch(split_method::Bisect, model::Chain, input::Hyperrectangle, output, inheritance, model_info, batch_info, ratio=nothing)
 
 Recursively bisects the hyperrectangle input specification at the center for 
 `split_method.num_split` number of times.
@@ -190,7 +189,7 @@ end
 
 TO-BE-IMPLEMENTED
 """
-function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, inheritance, model_info, batch_info)
+function split_branch(split_method::Bisect, model::Chain, input::ImageStarBound, output, inheritance, model_info, batch_info, ratio=nothing)
     input.A
 end
 
@@ -317,7 +316,7 @@ Split a set by adding ReLU activation status constraints. BaBSR analyzes which R
 ## Returns
 - List of subtrees split from the `input`.
 """
-function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info)
+function split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)
     score = branching_scores_kfsb(model_info, batch_info, input)
     split_relu_node, split_neurons_index_in_node = topk(score, split_method.num_split, model_info)
     

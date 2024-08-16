@@ -40,7 +40,7 @@ split_interval(dom::Hyperrectangle, i::Int64)
 ```@docs
 BaBSR
 split_branch(split_method::BaBSR, model::Chain, input::ReLUConstrainedDomain, output, inheritance, model_info, batch_info, ratio=nothing)
-split_beta(S_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output)
+split_beta(relu_con_dict, score, split_relu_node, i, split_neurons_index_in_node, j, input, output, inheritance)
 vecsign_convert_to_original_size(index, vector, original)
 vecmask_convert_to_original_size(index, original)
 branching_scores_kfsb(model_info, batch_info, input)

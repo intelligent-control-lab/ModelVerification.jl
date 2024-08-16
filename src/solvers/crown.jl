@@ -50,7 +50,7 @@ prepare_method(prop_method::Crown, batch_input::AbstractVector, batch_output::Ab
 
 """
     prepare_method(prop_method::Crown, batch_input::AbstractVector, 
-                   out_specs::LinearSpec, model_info)
+                   out_specs::LinearSpec, batch_inheritance::AbstractVector, model_info)
 """    
 function prepare_method(prop_method::Crown, batch_input::AbstractVector, out_specs::LinearSpec, batch_inheritance::AbstractVector, model_info)
     batch_info = init_propagation(prop_method, batch_input, out_specs, model_info)

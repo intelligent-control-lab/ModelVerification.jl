@@ -122,7 +122,7 @@ function init_batch_bound(prop_method::BetaCrown, batch_input::AbstractArray, ba
 end
 
 """
-    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info)
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info, sub=false)
 """
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, batch_output::AbstractVector, batch_inheritance::AbstractVector, model_info, sub=false)
     # println("start prepare method")
@@ -199,7 +199,7 @@ function joint_optimization(pre_bound_method, batch_input::AbstractVector, model
     return batch_info
 end
 """
-    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, model_info)
+    prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info, sub=false)
 """
 function prepare_method(prop_method::BetaCrown, batch_input::AbstractVector, out_specs::LinearSpec, inheritance_list::AbstractVector, model_info, sub=false)
     # println("start prepare method, out_specs is already linear")

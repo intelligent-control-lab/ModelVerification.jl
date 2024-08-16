@@ -146,7 +146,7 @@ The ONNX model is saved to the given path.
 ## Returns
 - `path` (`String`): Path to the saved ONNX model.
 """
-function build_onnx_model(path, model::Chain, input::Spec)
+function build_onnx_model(path, model::Chain, input::InputSpec)
     ONNXNaiveNASflux.save(path, model, get_shape(input))
     return path
 end

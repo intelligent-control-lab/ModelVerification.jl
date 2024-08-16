@@ -52,6 +52,23 @@ function advance_split(max_iter::Int, search_method::BFS, split_method, prop_met
     return branches
 end
 
+
+struct Branch
+    input
+    output
+    inheritance::Union{Dict, Nothing}
+    ratio # ratio of this branch of whole domain
+end
+Branch(input, output) = Branch(input, output, Dict(), nothing)
+
+function unpack_batch_branch(batch_branch)
+    batch_input = [branch.input for branch in batch_branch]
+    batch_output = [branch.output for branch in batch_branch]
+    batch_inheritance = [branch.inheritance for branch in batch_branch]
+    batch_ratio = [branch.ratio for branch in batch_branch]
+    return batch_input, batch_output, batch_inheritance, batch_ratio
+end
+
 """
     search_branches(search_method::BFS, split_method, prop_method, problem, model_info; 
                     collect_bound=false, 
@@ -119,22 +136,6 @@ of verification procedures, the model is verified to be valid and returns
 - `CounterExampleResult(:violated, x)` if a reachable set is not within the 
     corresponding output specification and there is a counterexample found.
 """
-struct Branch
-    input
-    output
-    inheritance::Union{Dict, Nothing}
-    ratio # ratio of this branch of whole domain
-end
-Branch(input, output) = Branch(input, output, Dict(), nothing)
-
-function unpack_batch_branch(batch_branch)
-    batch_input = [branch.input for branch in batch_branch]
-    batch_output = [branch.output for branch in batch_branch]
-    batch_inheritance = [branch.inheritance for branch in batch_branch]
-    batch_ratio = [branch.ratio for branch in batch_branch]
-    return batch_input, batch_output, batch_inheritance, batch_ratio
-end
-
 function search_branches(search_method::BFS, split_method, prop_method, problem, model_info; 
                         collect_bound=false, 
                         comp_verified_ratio=false,
