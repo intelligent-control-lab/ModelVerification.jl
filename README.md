@@ -135,4 +135,10 @@ Please consider citing this toolbox if it is useful for your research.
   howpublished = {\url{https://github.com/intelligent-control-lab/ModelVerification.jl}},
   year = {2024}
 }
+@article{wei2024modelverification,
+  title={Modelverification. jl: a comprehensive toolbox for formally verifying deep neural networks},
+  author={Wei, Tianhao and Marzari, Luca and Yun, Kai S and Hu, Hanjiang and Niu, Peizhi and Luo, Xusheng and Liu, Changliu},
+  journal={arXiv preprint arXiv:2407.01639},
+  year={2024}
+}
 ```
