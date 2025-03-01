@@ -14,7 +14,7 @@ Deep Neural Network (DNN) is crucial in approximating nonlinear functions across
 - _Verification benchmarks_: Compare our or your verification toolboxes against state-of-the-art benchmarks and evaluation criteria ([VNN-Comp 2023](https://vnncomp.christopher-brix.de/)). [ModelVerification.jl](https://github.com/intelligent-control-lab/ModelVerification.jl) includes a collection of solvers and standard benchmarks to perform this evaluation efficiently.
 
 ## Setup
-This toolbox requires Julia v1.5 or later. Refer the [official Julia documentation](https://julialang.org/downloads/) to install it for your system.
+This toolbox requires Julia v1.5 to v1.9.4. Any pull requests to support a higher version of Julia are welcomed. Refer the [official Julia documentation](https://julialang.org/downloads/) to install it for your system.
 
 ### Installation
 To download this toolbox, clone it from the Julia package manager like so:
