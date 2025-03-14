@@ -100,11 +100,12 @@ println(result.status)
 
 CROWN verifies that the input-output relationship holds!
 
-## Tutorials
+## Tutorial Examples
 - [Tutorials](https://github.com/intelligent-control-lab/ModelVerification.jl/blob/master/tutorial/tutorial.ipynb)
     - Example 1: Verifying a toy DNN with reachability analysis
     - Example 2: Verifying a CNN for robustness safety property
     - Example 3: Verifying a Deep Reinforcement Learning (DRL) policy for collision avoidance safety property
+    - Example 4: Verifying Neural Control Barrier Function
 
 ## Toolbox Outline
 ![](./assets/overview_mvflow.png)
