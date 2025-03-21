@@ -72,7 +72,7 @@ function propagate(prop_method::PropMethod, model_info, batch_info)
         # println("---")
         # @show node
         # @show batch_bound
-        @show node
+        # @show node
     end
     # batch_bound = batch_info[output_node(prop_method, model_info)][:bound]  # Bound of the output node! Final bound!
     # @show output_node(prop_method, model_info)

@@ -252,6 +252,7 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
                 pre_split=nothing,
                 search_adv_bound=false,
                 comp_verified_ratio=false,
+                check_inclusion_helper=nothing,
                 verbose=false)
     to = get_timer("Shared")
     reset_timer!(to)
@@ -259,7 +260,7 @@ function verify(search_method::SearchMethod, split_method::SplitMethod, prop_met
     # (res.status == :violated) && (return res)
     @timeit to "prepare_problem" model_info, prepared_problem = prepare_problem(search_method, split_method, prop_method, problem)
     # println(time_out)   
-    @timeit to "search_branches" res, verified_bounds, verified_ratio = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, comp_verified_ratio=comp_verified_ratio, pre_split=pre_split, verbose=verbose)
+    @timeit to "search_branches" res, verified_bounds, verified_ratio = search_branches(search_method, split_method, prop_method, prepared_problem, model_info, collect_bound=collect_bound, comp_verified_ratio=comp_verified_ratio, pre_split=pre_split, verbose=verbose, check_inclusion_helper=check_inclusion_helper)
     # println(res.status)
     info = Dict()
     (res.status == :violated && res isa CounterExampleResult) && (info[:counter_example] = res.counter_example)

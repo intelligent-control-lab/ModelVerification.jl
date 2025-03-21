@@ -245,6 +245,87 @@ function check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractA
     return results
 end
 
+
+"""
+    custom_check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, 
+                           batch_reach::AbstractArray, batch_output::AbstractArray, check_inclusion_helper)
+
+Custom method to determine whether the reachable sets (`batch_reach`) are within the respective 
+valid output sets (`batch_output`), using a helper function for finer-grained checks.
+
+## Arguments
+
+- `prop_method` (`ForwardProp`): Solver being used for forward propagation.
+- `model`: Neural network model that is to be verified.
+- `batch_input` (`AbstractArray`): List of input specifications.
+- `batch_reach` (`AbstractArray`): List of reachable sets.
+- `batch_output` (`AbstractArray`): List of sets of valid outputs.
+- `check_inclusion_helper` (Function): Helper function to evaluate whether a specific reachable 
+  set is within the corresponding valid output set.
+
+## Returns
+
+A list of results with the following components:
+
+- `ReachabilityResult(:holds, reach)`: Indicates that the reachable set `reach` is fully within the 
+  corresponding output set.
+- `CounterExampleResult(:unknown)`: Indicates that the reachable set is not fully within the output 
+  set, but no counterexample can be found.
+- `CounterExampleResult(:violated, x)`: Indicates that the reachable set is not within the output 
+  set, and a counterexample input `x` was found that violates the output constraint.
+
+## Method Description
+
+This function iterates over the batched reachable and output sets. For each pair, it checks 
+inclusion using `check_inclusion_helper`. If the reachable set is a subset of the output set, it 
+records the result as `:holds`. Otherwise, it attempts to refine the analysis by testing the center 
+of the input zonotope. If further refinement is inconclusive, it records the result as `:unknown`. 
+If a counterexample is found, it records the result as `:violated`.
+"""
+
+function custom_check_inclusion(prop_method::ForwardProp, model, batch_input::AbstractArray, batch_reach::AbstractArray, batch_output::AbstractArray, check_inclusion_helper::Function)
+    batch_result = []
+    for i in eachindex(batch_reach)
+        # Check inclusion using the helper method
+        result = check_inclusion_helper(
+            prop_method, 
+            model,
+            batch_input[i], 
+            batch_reach[i], 
+            batch_output[i]
+        )
+        if result
+            # If inclusion holds, add to results
+            push!(batch_result, ReachabilityResult(:holds, batch_reach[i]))
+        else
+            # Prepare counterexample or violation analysis
+            x = batch_input[i].center
+            # Compute the output and create a zonotope
+            y = reshape(model(x), :)  # Flatten output
+            generators = Float64.(zeros(size(y)))  # Initialize zero generators
+            center_reach = Zonotope(y, reshape(generators, :, 1))  # Create a zonotope
+    
+            # Recheck inclusion for the refined input
+            result = check_inclusion_helper(
+                prop_method, 
+                model, 
+                x, 
+                center_reach, 
+                batch_output[i]
+            )
+            
+            if result
+                # If still uncertain, add an unknown result
+                push!(batch_result, CounterExampleResult(:unknown))
+            else
+                # If violated, record the counterexample
+                push!(batch_result, CounterExampleResult(:violated, x))
+            end
+        end
+    end
+    return batch_result
+end
+
 """
     get_inheritance(prop_method::PropMethod, batch_info::Dict, batch_idx::Int)
 

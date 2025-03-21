@@ -22,7 +22,29 @@ function propagate_parallel(prop_method, layer::typeof(vcat), bounds::Vector{<:I
 end
 
 function propagate_parallel(prop_method, layer::typeof(vcat), bounds::Vector{<:LazySets.Zonotope}, batch_info)
-    new_c = cat([b.center for b in bounds]..., dims=1)
-    new_g = cat([b.generators for b in bounds]..., dims=1)
-    return Zonotope(new_c, new_g)
+    # new_c = cat([b.center for b in bounds]..., dims=1)
+    # new_g = cat([b.generators for b in bounds]..., dims=1)
+    # println("new_g", new_g)
+    # return Zonotope(new_c, new_g)
+
+    total_dim = sum(length(z.center) for z in bounds)
+    
+    # Compute the new center by vertically stacking the centers
+    new_center = vcat([z.center for z in bounds]...)
+    
+    # Compute the new generator matrix
+    total_generators = sum(size(z.generators, 2) for z in bounds)
+    new_generators = zeros(total_dim, total_generators)
+    
+    row_offset = 1
+    col_offset = 1
+    for z in bounds
+        rows = size(z.generators, 1)
+        cols = size(z.generators, 2)
+        new_generators[row_offset:row_offset+rows-1, col_offset:col_offset+cols-1] = z.generators
+        row_offset += rows
+        col_offset += cols
+    end
+    
+    return Zonotope(new_center, new_generators)
 end
