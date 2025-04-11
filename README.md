@@ -13,6 +13,18 @@ Deep Neural Network (DNN) is crucial in approximating nonlinear functions across
 - _Visualization of intermediate verification results (reachable sets)_: [ModelVerification.jl](https://intelligent-control-lab.github.io/ModelVerification.jl/dev/#Key-features:) enables the visualization of intermediate verification results in terms of reachable sets. In particular, our toolbox allows to plot the impactful features for the verification process and the correlated output reachable set (layer by layer) and thus to define new specific input-output specifications based on this information.
 - _Verification benchmarks_: Compare our or your verification toolboxes against state-of-the-art benchmarks and evaluation criteria ([VNN-Comp 2023](https://vnncomp.christopher-brix.de/)). [ModelVerification.jl](https://intelligent-control-lab.github.io/ModelVerification.jl/dev/#Key-features:) includes a collection of solvers and standard benchmarks to perform this evaluation efficiently.
 
+## Run in a Docker
+We have provided a pre-installed docker image based on `nvidia/cuda:12.2.0-devel-ubuntu22.04`. Run `docker pull huhanjiang666/modelverification-benchmark:latest` to try it out. Or you can build your docker image by yourself using the following commands. It is tested with Linux OS with GPU of NVIDIA RTX A6000. Open an issue if you find difficulty with other platforms.
+```
+git clone https://github.com/intelligent-control-lab/ModelVerification.jl.git
+cd ModelVerification.jl
+docker build -t modelverification-benchmark .
+```
+Once the docker image is correctly downloaded or built, run a docker container using 
+`docker run --rm --gpus all  -it modelverification-benchmark /bin/bash`. Inside the docker,  run
+`julia ModelVerification/vnncomp_scripts/test_ACASXU.jl` to see the result with one instance of `ACASXU_run2a_4_5_batch_2000.nnet` and `prop_10.vnnlib`. Note that it's *safe to ignore any CUDA warnings or errors* because the code will run on CPU instead, with no impact on correctness—only performance. To run the full instances of ACASXU benchmark and reproduce the results in the paper, just replace the instance in `vnncomp_scripts/test_ACASXU.jl` with the full instances of [VNN-COMP 2023](https://github.com/ChristopherBrix/vnncomp2023_benchmarks/tree/main/benchmarks/acasxu). 
+
+
 ## Setup
 This toolbox requires Julia v1.5 to v1.9.4. Any pull requests to support a higher version of Julia are welcomed. Refer the [official Julia documentation](https://julialang.org/downloads/) to install it for your system.
 
