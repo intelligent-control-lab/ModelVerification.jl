@@ -22,7 +22,7 @@ docker build -t modelverification-benchmark .
 ```
 Once the docker image is correctly downloaded or built, run a docker container using 
 `docker run --rm --gpus all  -it modelverification-benchmark /bin/bash`. Inside the docker,  run
-`julia ModelVerification/vnncomp_scripts/test_ACASXU.jl` to see the result with one instance of `ACASXU_run2a_4_5_batch_2000.nnet` and `prop_10.vnnlib`. Note that it's *safe to ignore any CUDA warnings or errors* because the code will run on CPU instead, with no impact on correctness—only performance. To run the full instances of ACASXU benchmark and reproduce the results in the paper, just replace the instance in `vnncomp_scripts/test_ACASXU.jl` with the full instances of [VNN-COMP 2023](https://github.com/ChristopherBrix/vnncomp2023_benchmarks/tree/main/benchmarks/acasxu). 
+`julia ModelVerification/vnncomp_scripts/test_ACASXU.jl` to see the result with one instance of `ACASXU_run2a_4_5_batch_2000.nnet` and `prop_10.vnnlib`. Note that it's *safe to ignore any CUDA warnings or errors* because the code will run on CPU instead, with no impact on correctness—only performance. To run the full instances of ACASXU benchmark and reproduce the results in the paper, just replace the instance in `vnncomp_scripts/test_ACASXU.jl` with the full instances of [VNN-COMP 2023](https://github.com/ChristopherBrix/vnncomp2023_benchmarks/tree/main/benchmarks/acasxu) under `prop_1.vnnlib`. 
 
 
 ## Setup
