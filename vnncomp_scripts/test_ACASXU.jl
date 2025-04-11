@@ -44,7 +44,6 @@ function verify_an_instance(onnx_file, spec_file, search_method, split_method, p
     use_gz = split(onnx_file, ".")[end] == "gz"
     nnet_file = use_gz ? onnx_file[1:end-7] * "nnet" : onnx_file[1:end-4] * "nnet"
     net = ModelVerification.read_nnet(nnet_file)
-    ###### TODO: change this ad-hoc remedy for nnet read ######
     net.layers[1] = ModelVerification.Layer(net.layers[1].weights, net.layers[1].bias, ModelVerification.Id())
     flux_model = Flux.Chain(net)
     n_in = size(net.layers[1].weights)[2]
@@ -106,3 +105,4 @@ onnx_file = "/app/ModelVerification/vnncomp_scripts/ACASXU_run2a_4_5_batch_2000.
 spec_file = "/app/ModelVerification/vnncomp_scripts/prop_10.vnnlib"
 onnx_to_nnet(onnx_file)
 result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
+@show result
