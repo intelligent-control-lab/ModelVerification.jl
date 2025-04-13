@@ -3,6 +3,7 @@
 [![CI](https://github.com/intelligent-control-lab/ModelVerification.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/intelligent-control-lab/ModelVerification.jl/actions/workflows/CI.yml)
 [![Doc](https://github.com/intelligent-control-lab/ModelVerification.jl/actions/workflows/documentation.yml/badge.svg)](https://intelligent-control-lab.github.io/ModelVerification.jl/dev/)
 [![codecov](https://codecov.io/github/intelligent-control-lab/ModelVerification.jl/graph/badge.svg?token=W0RYF98CVS)](https://codecov.io/github/intelligent-control-lab/ModelVerification.jl)
+[![DOI](https://zenodo.org/badge/817002496.svg)](https://zenodo.org/badge/latestdoi/817002496)
 
 ## Introduction
 Deep Neural Network (DNN) is crucial in approximating nonlinear functions across diverse applications, such as computer vision and control. Verifying specific input-output properties can be a highly challenging task. To this end, we present [ModelVerification.jl](https://intelligent-control-lab.github.io/ModelVerification.jl/dev/#Introduction), the only cutting-edge toolbox that contains a suite of state-of-the-art methods for verifying DNNs. This toolbox significantly extends and improves the previous version ([NeuralVerification.jl](https://sisl.github.io/NeuralVerification.jl/latest/)) and is designed to empower developers and machine learning practioners with robust tools for verifying and ensuring the trustworthiness of their DNN models. Check out the [Documentation](https://intelligent-control-lab.github.io/ModelVerification.jl/dev/) for more details. 
