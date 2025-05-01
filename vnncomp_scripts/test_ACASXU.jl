@@ -111,6 +111,6 @@ result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_me
 search_method = BFS(max_iter=3e5, batch_size=512)
 split_method = Bisect(1)
 prop_method = Ai2z()
-instance_csv = "/app/ModelVerification/vnncomp2021/acasxu/acasxu_instances_prop_1.csv"
-result_csv = "/app/ModelVerification/vnncomp2021/acasxu/acasxu_prop_1_ai2z_results.csv"
+instance_csv = "/app/ModelVerification/vnncomp_scripts/acasxu/acasxu_instances_prop_1.csv"
+result_csv = "/app/ModelVerification/vnncomp_scripts/acasxu/acasxu_prop_1_ai2z_results.csv"
 run_all(instance_csv, result_csv, search_method, split_method, prop_method)
