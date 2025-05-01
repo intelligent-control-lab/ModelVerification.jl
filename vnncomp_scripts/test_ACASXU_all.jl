@@ -1,14 +1,5 @@
 using Pkg;
 Pkg.activate("/app/ModelVerification");
-try
-    import CUDA
-    CUDA.set_runtime_version!(v"12.2")
-    using CUDA
-    println("CUDA is available, using device: ", CUDA.device())
-catch e
-    @warn "CUDA could not be initialized. Falling back to CPU." exception=e
-end
-
 using ModelVerification
 using LazySets
 using PyCall
@@ -99,13 +90,6 @@ timeout = 116
 search_method = BFS(max_iter=3e5, batch_size=512)
 split_method = Bisect(1)
 prop_method = Ai2z()
-
-# expect holds
-onnx_file = "/app/ModelVerification/vnncomp_scripts/ACASXU_run2a_4_5_batch_2000.onnx"
-spec_file = "/app/ModelVerification/vnncomp_scripts/prop_10.vnnlib"
-onnx_to_nnet(onnx_file)
-result = @timed verify_an_instance(onnx_file, spec_file, search_method, split_method, prop_method, timeout)
-@show result
 
 # expect all holds
 search_method = BFS(max_iter=3e5, batch_size=512)
