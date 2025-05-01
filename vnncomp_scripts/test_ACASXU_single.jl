@@ -1,5 +1,14 @@
 using Pkg;
 Pkg.activate("/app/ModelVerification");
+try
+    import CUDA
+    CUDA.set_runtime_version!(v"12.2")
+    using CUDA
+    println("CUDA is available, using device: ", CUDA.device())
+catch e
+    @warn "CUDA could not be initialized. Falling back to CPU." exception=e
+end
+
 using ModelVerification
 using LazySets
 using PyCall
@@ -10,6 +19,7 @@ using DataFrames
 using ONNXNaiveNASflux 
 
 include("/app/ModelVerification/vnncomp_scripts/vnnlib_parser.jl")
+
 
 
 function onnx_to_nnet(onnx_file)
