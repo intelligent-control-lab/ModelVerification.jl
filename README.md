@@ -124,10 +124,7 @@ Instantiate the `solver`, which in this case is [CROWN](https://arxiv.org/abs/18
 search_method = BFS(max_iter=100, batch_size=1)
 split_method = Bisect(1)
 
-use_gpu = false
-lower_bound = true
-upper_bound = true
-solver = Crown(use_gpu, lower_bound, upper_bound)
+solver = Crown(use_gpu=false, bound_lower=true, bound_upper=true)
 ```
 
 Finally, we can verify that the safety property holds for this simple example!

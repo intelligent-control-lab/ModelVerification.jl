@@ -14,7 +14,6 @@ using Parameters
 using Interpolations # only for PiecewiseLinear
 
 import LazySets: dim, HalfSpace, concretize # necessary to avoid conflict with Polyhedra
-import Flux: flatten
 using Requires
 
 using Flux
@@ -24,7 +23,6 @@ using PaddedViews
 using Accessors
 
 using Images, ImageIO
-using ONNXNaiveNASflux, NaiveNASflux, .NaiveNASlib
 using LinearAlgebra
 using OpenCV
 using Flux
@@ -34,6 +32,10 @@ using Statistics
 using Einsum
 using Zygote
 using UUIDs
+
+using VNNLib, VNNLib.OnnxParser
+using VNNLib.OnnxParser: onnx_node_to_flux_layer
+const OXP = VNNLib.OnnxParser
 
 using ReachabilityAnalysis
 
@@ -99,10 +101,17 @@ function set_global_precision(T::Type{<:AbstractFloat})
     FloatType[] = T
 end
 
+# RotatedHyperrectangle was removed from LazySets in v3.0.0 
+# So I just copied the code here.
+# TODO: Do we really need this set representation?
+include("LazySetsAdapter/RotatedHyperrectangle.jl")
+using .LazySetsAdapter: RotatedHyperrectangle
+
 include("spec/spec.jl")
 export ImageConvexHull, InputSpec, OutputSpec, ImageLinfBall
 export get_linear_spec, classification_spec
 
+include("utils/vnnlib_adapter.jl")
 include("utils/activation.jl")
 include("utils/network.jl")
 include("utils/problem.jl")
@@ -159,6 +168,7 @@ include("propagate/operators/parallel.jl")
 include("propagate/operators/util.jl")
 include("propagate/operators/tanh.jl")
 include("propagate/operators/sigmoid.jl")
+include("propagate/vnnlib_adapter.jl")
 
 include("attack/pgd.jl")
 

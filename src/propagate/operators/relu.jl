@@ -605,7 +605,7 @@ mutable struct BetaLayer
     use_alpha::Bool
     use_beta::Bool
 end
-Flux.@functor BetaLayer (alpha, beta,) #only alpha/beta need to be trained
+Flux.@layer BetaLayer #only alpha/beta need to be trained
 
 Flux.trainable(bl::BetaLayer) = begin
     params = NamedTuple()

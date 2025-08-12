@@ -12,7 +12,9 @@ mutable struct BetaCrown <: BatchBackwardProp
     train_iteration::Int
     inherit_pre_bound::Bool
 end
-BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
+
+# TODO: is this first constructor necessary?
+# BetaCrown(nothing) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
 BetaCrown(nothing; use_gpu=false) = BetaCrown(true, true, true, nothing, true, true, Flux.ADAM(0.1), 10, true)
 function BetaCrown(;use_alpha=true, use_beta=true, use_gpu=true, pre_bound_method=:BetaCrown, bound_lower=true, bound_upper=true, optimizer=Flux.ADAM(0.1), train_iteration=10, inherit_pre_bound=true)
     if pre_bound_method == :BetaCrown
@@ -78,7 +80,7 @@ struct Compute_bound
     batch_data_min
     batch_data_max
 end
-Flux.@functor Compute_bound ()
+Flux.@layer Compute_bound
 
 
 function (f::Compute_bound)(x)

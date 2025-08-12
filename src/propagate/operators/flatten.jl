@@ -14,7 +14,7 @@ the `ImageStarBound` into a `Star` type.
 ## Returns
 - The flattened bound of the output layer represented in `Star` type.
 """
-function propagate_layer(prop_method, layer::typeof(flatten), bound::ImageStarBound, batch_info)
+function propagate_layer(prop_method, layer::typeof(Flux.flatten), bound::ImageStarBound, batch_info)
     new_center = reshape(bound.center, :)
     new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)[1], 0)
     Star(new_center, new_generators, HPolyhedron(bound.A, bound.b))
@@ -39,7 +39,7 @@ the `ImageZonoBound` into a `Zonotope` type.
 # propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info) =
 #     Zonotope(reshape(bound.center, :), reshape(bound.generators, :, size(bound.generators,4)))
 
-function propagate_layer(prop_method, layer::typeof(flatten), bound::ImageZonoBound, batch_info)
+function propagate_layer(prop_method, layer::typeof(Flux.flatten), bound::ImageZonoBound, batch_info)
     new_center = reshape(bound.center, :)
     new_generators = size(bound.generators,4) > 0 ? layer(bound.generators) : reshape(bound.generators, size(new_center)[1], 0)
     return Zonotope(new_center, new_generators)

@@ -5,25 +5,27 @@ Returns a `Flux.Chain` constructed from the given vertex. This is a helper
 function for `build_flux_model`. 
 
 ## Arguments
-- `vertex`: Vertex from the `NaiveNASflux` computation graph.
+- `vertex`: Vertex from the `VNNLib.OnnxParser` computation graph.
 
 ## Returns
 - `model`: `Flux.Chain` constructed from the given vertex.
 - `curr_vertex`: The last vertex in the chain.
 """
-function get_chain(vertex)
+function get_chain(model::OnnxNet, vertex::OXP.Node)
     m = Any[]
     curr_vertex = vertex
     # println("getting chain start from:", NaiveNASflux.name(curr_vertex))
     
     # while the current node is not the merging node of a parallel layer
-    while length(NaiveNASflux.inputs(curr_vertex)) < 2
+    while length(curr_vertex.inputs) < 2
         # println("push:", NaiveNASflux.name(curr_vertex))
-        push!(m, NaiveNASflux.layer(curr_vertex))
+        # push!(m, NaiveNASflux.layer(curr_vertex))
+        push!(m, onnx_node_to_flux_layer(curr_vertex))
 
-        while length(NaiveNASflux.outputs(curr_vertex)) == 2
-            chain1, end_node1 = get_chain(NaiveNASflux.outputs(curr_vertex)[1])
-            chain2, end_node2 = get_chain(NaiveNASflux.outputs(curr_vertex)[2])
+        outs = next_nodes(model, curr_vertex)
+        while length(outs) == 2
+            chain1, end_node1 = get_chain(model, outs[1])
+            chain2, end_node2 = get_chain(model, outs[2])
             @assert end_node1 == end_node2
             op = onnx_node_to_flux_layer(end_node1)
             if length(chain1) == 0
@@ -37,8 +39,9 @@ function get_chain(vertex)
             curr_vertex = end_node1
             # println("merging chain:", NaiveNASflux.name(curr_vertex))
         end
-        length(NaiveNASflux.outputs(curr_vertex)) == 0 && break
-        curr_vertex = NaiveNASflux.outputs(curr_vertex)[1]
+        outs = next_nodes(model, curr_vertex)
+        length(outs) == 0 && break
+        curr_vertex = outs[1]
     end
     return Chain(m...), curr_vertex
 end
@@ -55,14 +58,12 @@ Builds a `Flux.Chain` from the given ONNX model path.
 - `model`: `Flux.Chain` constructed from the `.onnx` file.
 """
 function build_flux_model(onnx_model_path)
-    comp_graph = ONNXNaiveNASflux.load(onnx_model_path, infer_shapes=false)
-    model_vec = Any[]
-    start_vertex = [vertex for vertex in ONNXNaiveNASflux.vertices(comp_graph) if isa(vertex, NaiveNASflux.InputShapeVertex)]
-    @assert length(start_vertex) == 1
-    @assert length(NaiveNASflux.outputs(start_vertex[1])) == 1
-    model_vec, end_node = get_chain(NaiveNASflux.outputs(start_vertex[1])[1])
+    comp_graph = load_onnx_model(onnx_model_path)
+    start_vertex = [comp_graph.nodes[vertex_name] for vertex_name in comp_graph.start_nodes]
+    @assert length(start_vertex) == 1 "Currently only one start vertex is supported, found $(length(start_vertex))"
+    model_vec, end_node = get_chain(comp_graph, start_vertex[1])
     model = Chain(model_vec...)
-    model = purify_flux_model(model)
+    # model = purify_flux_model(model)
     return model
 end
 
@@ -180,6 +181,10 @@ struct Problem{P, Q}
 end
 Problem(path::String, input_data, output_data) = #If the Problem only have onnx model input
     Problem(path, build_flux_model(path), input_data, output_data)
+# Don't try to convert Flux model to ONNX again
+# Just add thing_to_match, s.t. we don't call the standard constructor
+Problem(model::Chain, input_data, output_data, path::String) = #If the Problem only have onnx model input
+    Problem(path, model, input_data, output_data)
 Problem(model::Chain, input_data, output_data; save_onnx_path="tmp.onnx") = #If the Problem only have Flux_model input
     Problem(build_onnx_model(save_onnx_path, model, input_data), model, input_data, output_data)
 ODEProblem(model::Chain, input, output) = Problem("", model, input, output)

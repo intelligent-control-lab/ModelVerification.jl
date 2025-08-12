@@ -172,7 +172,7 @@ struct Compute_bound
     batch_data_min
     batch_data_max
 end
-Flux.@functor Compute_bound ()
+Flux.@layer Compute_bound ()
 
 """
     (f::Compute_bound)(x)
@@ -304,7 +304,7 @@ mutable struct AlphaLayer
     lower_bias
     upper_bias
 end
-Flux.@functor AlphaLayer (alpha,) #only alpha need to be trained
+Flux.@layer AlphaLayer tainable=(alpha,) #only alpha need to be trained
 
 
 function (f::AlphaLayer)(x)

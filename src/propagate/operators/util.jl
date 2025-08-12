@@ -92,5 +92,5 @@ struct Join{T, F}
   
 # allow Join(op, m1, m2, ...) as a constructor
 Join(combine, paths...) = Join(combine, paths)
-Flux.@functor Join
+Flux.@layer Join
 (m::Join)(x) = m.combine(map(f -> f(x), m.paths)...)
